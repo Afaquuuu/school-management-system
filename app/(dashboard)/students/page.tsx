@@ -1,0 +1,1011 @@
+"use client";
+
+import { useState, useMemo, useEffect } from "react";
+import {
+  Users,
+  UserPlus,
+  Search,
+  Filter,
+  Download,
+  Upload,
+  Edit,
+  Trash2,
+  Eye,
+  GraduationCap,
+  Calendar,
+  Phone,
+  Mail,
+  MapPin,
+  User,
+  BookOpen,
+  Award,
+  X,
+  Check,
+  AlertCircle,
+  UserCheck,
+} from "lucide-react";
+import { useSchool, getScopedItem, setScopedItem, getSchoolClasses, getUniqueClassNames, getUniqueSections, getSectionsForClass } from "@/lib/school-context";
+
+type StudentStatus = "active" | "inactive" | "graduated" | "transferred";
+type Gender = "male" | "female" | "other";
+
+type Student = {
+  id: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: Gender;
+  email: string;
+  phone: string;
+  address: string;
+  guardianName: string;
+  guardianPhone: string;
+  guardianEmail: string;
+  class: string;
+  section: string;
+  rollNumber: string;
+  admissionDate: string;
+  status: StudentStatus;
+  bloodGroup: string;
+  photo?: string;
+};
+
+const sampleStudents: Student[] = [
+  {
+    id: "1",
+    studentId: "STU001",
+    firstName: "Kwame",
+    lastName: "Mensah",
+    dateOfBirth: "2010-05-15",
+    gender: "male",
+    email: "kwame.mensah@student.school.com",
+    phone: "+233 24 123 4567",
+    address: "123 Accra Street, Accra",
+    guardianName: "Mr. Joseph Mensah",
+    guardianPhone: "+233 24 765 4321",
+    guardianEmail: "joseph.mensah@email.com",
+    class: "Grade 8",
+    section: "A",
+    rollNumber: "08A001",
+    admissionDate: "2023-09-01",
+    status: "active",
+    bloodGroup: "O+",
+  },
+  {
+    id: "2",
+    studentId: "STU002",
+    firstName: "Ama",
+    lastName: "Osei",
+    dateOfBirth: "2010-08-22",
+    gender: "female",
+    email: "ama.osei@student.school.com",
+    phone: "+233 24 234 5678",
+    address: "456 Kumasi Road, Kumasi",
+    guardianName: "Mrs. Grace Osei",
+    guardianPhone: "+233 24 876 5432",
+    guardianEmail: "grace.osei@email.com",
+    class: "Grade 8",
+    section: "A",
+    rollNumber: "08A002",
+    admissionDate: "2023-09-01",
+    status: "active",
+    bloodGroup: "A+",
+  },
+  {
+    id: "3",
+    studentId: "STU003",
+    firstName: "Kofi",
+    lastName: "Asante",
+    dateOfBirth: "2010-03-10",
+    gender: "male",
+    email: "kofi.asante@student.school.com",
+    phone: "+233 24 345 6789",
+    address: "789 Tema Avenue, Tema",
+    guardianName: "Mr. Samuel Asante",
+    guardianPhone: "+233 24 987 6543",
+    guardianEmail: "samuel.asante@email.com",
+    class: "Grade 8",
+    section: "B",
+    rollNumber: "08B001",
+    admissionDate: "2023-09-01",
+    status: "active",
+    bloodGroup: "B+",
+  },
+  {
+    id: "4",
+    studentId: "STU004",
+    firstName: "Akua",
+    lastName: "Boateng",
+    dateOfBirth: "2010-11-05",
+    gender: "female",
+    email: "akua.boateng@student.school.com",
+    phone: "+233 24 456 7890",
+    address: "321 Cape Coast Street, Cape Coast",
+    guardianName: "Mrs. Elizabeth Boateng",
+    guardianPhone: "+233 24 098 7654",
+    guardianEmail: "elizabeth.boateng@email.com",
+    class: "Grade 7",
+    section: "A",
+    rollNumber: "07A001",
+    admissionDate: "2022-09-01",
+    status: "active",
+    bloodGroup: "AB+",
+  },
+];
+
+const statusConfig: Record<StudentStatus, { color: string; label: string }> = {
+  active: { color: "bg-green-100 text-green-700 border-green-200", label: "Active" },
+  inactive: { color: "bg-gray-100 text-gray-700 border-gray-200", label: "Inactive" },
+  graduated: { color: "bg-blue-100 text-blue-700 border-blue-200", label: "Graduated" },
+  transferred: { color: "bg-orange-100 text-orange-700 border-orange-200", label: "Transferred" },
+};
+
+export default function StudentsPage() {
+  const { currentSchool } = useSchool();
+  
+  // Load manually created classes
+  const [availableClasses, setAvailableClasses] = useState<ReturnType<typeof getSchoolClasses>>([]);
+  
+  // Load students from scoped localStorage on mount
+  const [students, setStudents] = useState<Student[]>(() => {
+    if (typeof window !== 'undefined' && currentSchool) {
+      try {
+        const stored = getScopedItem(currentSchool.id, 'school_students');
+        if (stored) {
+          return JSON.parse(stored);
+        }
+      } catch (error) {
+        console.error('Error loading students from localStorage:', error);
+      }
+    }
+    return sampleStudents;
+  });
+  
+  // Load classes on mount and when school changes
+  useEffect(() => {
+    if (currentSchool) {
+      const classes = getSchoolClasses(currentSchool.id);
+      console.log('Loaded classes:', classes);
+      console.log('Unique class names:', getUniqueClassNames(classes));
+      console.log('Unique sections:', getUniqueSections(classes));
+      setAvailableClasses(classes);
+    }
+  }, [currentSchool]);
+  
+  // Get unique class names and sections
+  const uniqueClassNames = getUniqueClassNames(availableClasses);
+  const uniqueSections = getUniqueSections(availableClasses);
+  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterClass, setFilterClass] = useState<string>("all");
+  const [filterSection, setFilterSection] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [showEditStudent, setShowEditStudent] = useState(false);
+  const [showViewStudent, setShowViewStudent] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  // Form states
+  const [formData, setFormData] = useState<Partial<Student>>({});
+  
+  // Get sections for selected class in form (must be after formData declaration)
+  const availableSectionsForClass = formData.class 
+    ? getSectionsForClass(availableClasses, formData.class)
+    : uniqueSections;
+
+  // Save students to scoped localStorage whenever they change
+  const updateStudents = (newStudents: Student[]) => {
+    setStudents(newStudents);
+    if (typeof window !== 'undefined' && currentSchool) {
+      try {
+        setScopedItem(currentSchool.id, 'school_students', JSON.stringify(newStudents));
+      } catch (error) {
+        console.error('Error saving students to localStorage:', error);
+      }
+    }
+  };
+
+  const filteredStudents = useMemo(() => 
+    students.filter((student) => {
+      const matchesSearch = 
+        student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesClass = filterClass === "all" || student.class === filterClass;
+      const matchesSection = filterSection === "all" || student.section === filterSection;
+      const matchesStatus = filterStatus === "all" || student.status === filterStatus;
+      return matchesSearch && matchesClass && matchesSection && matchesStatus;
+    }),
+    [students, searchTerm, filterClass, filterSection, filterStatus]
+  );
+
+  const stats = useMemo(() => ({
+    total: students.length,
+    active: students.filter(s => s.status === "active").length,
+    inactive: students.filter(s => s.status === "inactive").length,
+    newThisMonth: students.filter(s => {
+      const admissionDate = new Date(s.admissionDate);
+      const now = new Date();
+      return admissionDate.getMonth() === now.getMonth() && 
+             admissionDate.getFullYear() === now.getFullYear();
+    }).length,
+  }), [students]);
+
+  const classes = useMemo(() => 
+    Array.from(new Set(students.map(s => s.class))).sort(),
+    [students]
+  );
+
+  const sections = useMemo(() => 
+    Array.from(new Set(students.map(s => s.section))).sort(),
+    [students]
+  );
+
+  const handleAddStudent = () => {
+    if (!formData.firstName || !formData.lastName || !formData.email) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    const newStudent: Student = {
+      id: Date.now().toString(),
+      studentId: `STU${String(students.length + 1).padStart(3, '0')}`,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      dateOfBirth: formData.dateOfBirth || "",
+      gender: formData.gender || "male",
+      email: formData.email,
+      phone: formData.phone || "",
+      address: formData.address || "",
+      guardianName: formData.guardianName || "",
+      guardianPhone: formData.guardianPhone || "",
+      guardianEmail: formData.guardianEmail || "",
+      class: formData.class || "",
+      section: formData.section || "",
+      rollNumber: formData.rollNumber || "",
+      admissionDate: formData.admissionDate || new Date().toISOString().split('T')[0],
+      status: formData.status || "active",
+      bloodGroup: formData.bloodGroup || "",
+    };
+
+    updateStudents([...students, newStudent]);
+    setFormData({});
+    setShowAddStudent(false);
+    alert("Student added successfully!");
+  };
+
+  const handleEditStudent = () => {
+    if (!selectedStudent || !formData.firstName || !formData.lastName) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    updateStudents(students.map(s => 
+      s.id === selectedStudent.id ? { ...s, ...formData } : s
+    ));
+    setFormData({});
+    setSelectedStudent(null);
+    setShowEditStudent(false);
+    alert("Student updated successfully!");
+  };
+
+  const handleDeleteStudent = (studentId: string) => {
+    if (confirm("Are you sure you want to delete this student?")) {
+      updateStudents(students.filter(s => s.id !== studentId));
+      alert("Student deleted successfully!");
+    }
+  };
+
+  const handleViewStudent = (student: Student) => {
+    setSelectedStudent(student);
+    setShowViewStudent(true);
+  };
+
+  const handleEditClick = (student: Student) => {
+    setSelectedStudent(student);
+    setFormData(student);
+    setShowEditStudent(true);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 -m-6 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                  <GraduationCap className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Student Management</h1>
+              </div>
+              <p className="text-slate-600 dark:text-slate-400 ml-14">
+                Manage student profiles, enrollments, class assignments, and guardian information
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all font-medium text-slate-700 dark:text-slate-200">
+                <Upload className="w-4 h-4" />
+                Import
+              </button>
+              <button className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all font-medium text-slate-700 dark:text-slate-200">
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+              <button
+                onClick={() => setShowAddStudent(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-blue-500/30"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add Student
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Total Students</span>
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl group-hover:scale-110 transition-transform">
+                <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <p className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-1">{stats.total}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Enrolled students</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Active Students</span>
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-xl group-hover:scale-110 transition-transform">
+                <UserCheck className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            <p className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-1">{stats.active}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Currently active</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Inactive</span>
+              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl group-hover:scale-110 transition-transform">
+                <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+              </div>
+            </div>
+            <p className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-1">{stats.inactive}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Need attention</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">New This Month</span>
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl group-hover:scale-110 transition-transform">
+                <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+            <p className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-1">{stats.newThisMonth}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Recent admissions</p>
+          </div>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by name, student ID, or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              />
+            </div>
+            <div className="flex gap-3">
+              <select
+                value={filterClass}
+                onChange={(e) => setFilterClass(e.target.value)}
+                className="px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+              >
+                <option value="all">All Classes</option>
+                {classes.map(cls => (
+                  <option key={cls} value={cls}>{cls}</option>
+                ))}
+              </select>
+              <select
+                value={filterSection}
+                onChange={(e) => setFilterSection(e.target.value)}
+                className="px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+              >
+                <option value="all">All Sections</option>
+                {sections.map(sec => (
+                  <option key={sec} value={sec}>Section {sec}</option>
+                ))}
+              </select>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="graduated">Graduated</option>
+                <option value="transferred">Transferred</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Students Table */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-600">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Student</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Student ID</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Class & Section</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Roll Number</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Contact</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Guardian</th>
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-right text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center">
+                      <Users className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-2">No students found</h3>
+                      <p className="text-slate-600 dark:text-slate-400">Try adjusting your search or filter criteria</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStudents.map((student) => (
+                    <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                            {student.firstName[0]}{student.lastName[0]}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">{student.firstName} {student.lastName}</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{student.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">{student.studentId}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-semibold rounded-lg">
+                            {student.class}
+                          </span>
+                          <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-sm font-semibold rounded-lg">
+                            Sec {student.section}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-sm text-slate-700 dark:text-slate-300">{student.rollNumber}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm">
+                          <p className="text-slate-700 dark:text-slate-300">{student.phone}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm">
+                          <p className="font-medium text-slate-700 dark:text-slate-300">{student.guardianName}</p>
+                          <p className="text-slate-500 dark:text-slate-400">{student.guardianPhone}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold border-2 ${statusConfig[student.status].color}`}>
+                          {statusConfig[student.status].label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleViewStudent(student)}
+                            className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                            title="View details"
+                          >
+                            <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          </button>
+                          <button
+                            onClick={() => handleEditClick(student)}
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStudent(student.id)}
+                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Add Student Modal */}
+        {showAddStudent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Add New Student</h3>
+                <button onClick={() => { setShowAddStudent(false); setFormData({}); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Personal Information */}
+                  <div className="md:col-span-2">
+                    <h4 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-4 flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      Personal Information
+                    </h4>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">First Name *</label>
+                    <input
+                      type="text"
+                      value={formData.firstName || ""}
+                      onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Last Name *</label>
+                    <input
+                      type="text"
+                      value={formData.lastName || ""}
+                      onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Date of Birth</label>
+                    <input
+                      type="date"
+                      value={formData.dateOfBirth || ""}
+                      onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Gender</label>
+                    <select
+                      value={formData.gender || "male"}
+                      onChange={(e) => setFormData({...formData, gender: e.target.value as Gender})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Blood Group</label>
+                    <select
+                      value={formData.bloodGroup || ""}
+                      onChange={(e) => setFormData({...formData, bloodGroup: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select Blood Group</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Email *</label>
+                    <input
+                      type="email"
+                      value={formData.email || ""}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Phone</label>
+                    <input
+                      type="tel"
+                      value={formData.phone || ""}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Address</label>
+                    <textarea
+                      rows={2}
+                      value={formData.address || ""}
+                      onChange={(e) => setFormData({...formData, address: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* Academic Information */}
+                  <div className="md:col-span-2 mt-4">
+                    <h4 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-4 flex items-center gap-2">
+                      <BookOpen className="w-5 h-5" />
+                      Academic Information
+                    </h4>
+                  </div>
+
+                  {availableClasses.length === 0 && (
+                    <div className="md:col-span-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-amber-900 dark:text-amber-50">No Classes Available</p>
+                          <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                            Please create classes first in the Class Configuration page before adding students.{" "}
+                            <a href="/admin/academics" className="underline hover:no-underline font-semibold">
+                              Go to Class Configuration
+                            </a>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Class *</label>
+                    <select
+                      value={formData.class || ""}
+                      onChange={(e) => setFormData({...formData, class: e.target.value, section: ""})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={availableClasses.length === 0}
+                    >
+                      <option value="">Select Class</option>
+                      {uniqueClassNames.map(className => (
+                        <option key={className} value={className}>{className}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Section *</label>
+                    <select
+                      value={formData.section || ""}
+                      onChange={(e) => setFormData({...formData, section: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={!formData.class || availableClasses.length === 0}
+                    >
+                      <option value="">Select Section</option>
+                      {availableSectionsForClass.map(section => (
+                        <option key={section} value={section}>Section {section}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Roll Number</label>
+                    <input
+                      type="text"
+                      value={formData.rollNumber || ""}
+                      onChange={(e) => setFormData({...formData, rollNumber: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Admission Date</label>
+                    <input
+                      type="date"
+                      value={formData.admissionDate || ""}
+                      onChange={(e) => setFormData({...formData, admissionDate: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* Guardian Information */}
+                  <div className="md:col-span-2 mt-4">
+                    <h4 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-4 flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Guardian Information
+                    </h4>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Guardian Name</label>
+                    <input
+                      type="text"
+                      value={formData.guardianName || ""}
+                      onChange={(e) => setFormData({...formData, guardianName: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Guardian Phone</label>
+                    <input
+                      type="tel"
+                      value={formData.guardianPhone || ""}
+                      onChange={(e) => setFormData({...formData, guardianPhone: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Guardian Email</label>
+                    <input
+                      type="email"
+                      value={formData.guardianEmail || ""}
+                      onChange={(e) => setFormData({...formData, guardianEmail: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
+                <button 
+                  onClick={handleAddStudent}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-blue-500/30"
+                >
+                  Add Student
+                </button>
+                <button 
+                  onClick={() => { setShowAddStudent(false); setFormData({}); }}
+                  className="px-6 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Student Modal */}
+        {showEditStudent && selectedStudent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Edit Student</h3>
+                <button onClick={() => { setShowEditStudent(false); setSelectedStudent(null); setFormData({}); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">First Name *</label>
+                    <input
+                      type="text"
+                      value={formData.firstName || ""}
+                      onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Last Name *</label>
+                    <input
+                      type="text"
+                      value={formData.lastName || ""}
+                      onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Class</label>
+                    <select
+                      value={formData.class || ""}
+                      onChange={(e) => setFormData({...formData, class: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="Grade 7">Grade 7</option>
+                      <option value="Grade 8">Grade 8</option>
+                      <option value="Grade 9">Grade 9</option>
+                      <option value="Grade 10">Grade 10</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Section</label>
+                    <select
+                      value={formData.section || ""}
+                      onChange={(e) => setFormData({...formData, section: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="A">Section A</option>
+                      <option value="B">Section B</option>
+                      <option value="C">Section C</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Status</label>
+                    <select
+                      value={formData.status || "active"}
+                      onChange={(e) => setFormData({...formData, status: e.target.value as StudentStatus})}
+                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="graduated">Graduated</option>
+                      <option value="transferred">Transferred</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
+                <button 
+                  onClick={handleEditStudent}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-blue-500/30"
+                >
+                  Update Student
+                </button>
+                <button 
+                  onClick={() => { setShowEditStudent(false); setSelectedStudent(null); setFormData({}); }}
+                  className="px-6 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Student Modal */}
+        {showViewStudent && selectedStudent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Student Details</h3>
+                <button onClick={() => { setShowViewStudent(false); setSelectedStudent(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="space-y-6">
+                  {/* Student Header */}
+                  <div className="flex items-center gap-4 p-6 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl">
+                    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                      {selectedStudent.firstName[0]}{selectedStudent.lastName[0]}
+                    </div>
+                    <div>
+                      <h4 className="text-2xl font-bold text-slate-900 dark:text-slate-50">{selectedStudent.firstName} {selectedStudent.lastName}</h4>
+                      <p className="text-slate-600 dark:text-slate-400">Student ID: {selectedStudent.studentId}</p>
+                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold border-2 mt-2 ${statusConfig[selectedStudent.status].color}`}>
+                        {statusConfig[selectedStudent.status].label}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Personal Information */}
+                  <div>
+                    <h5 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-3 flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      Personal Information
+                    </h5>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Date of Birth</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.dateOfBirth}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Gender</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50 capitalize">{selectedStudent.gender}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Blood Group</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.bloodGroup}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Email</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Phone</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.phone}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Address</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.address}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Academic Information */}
+                  <div>
+                    <h5 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-3 flex items-center gap-2">
+                      <BookOpen className="w-5 h-5" />
+                      Academic Information
+                    </h5>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Class</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.class}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Section</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.section}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Roll Number</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.rollNumber}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Admission Date</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.admissionDate}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Guardian Information */}
+                  <div>
+                    <h5 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-3 flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Guardian Information
+                    </h5>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Guardian Name</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.guardianName}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Guardian Phone</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.guardianPhone}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Guardian Email</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.guardianEmail}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
+                <button 
+                  onClick={() => { handleEditClick(selectedStudent); setShowViewStudent(false); }}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-blue-500/30"
+                >
+                  Edit Student
+                </button>
+                <button 
+                  onClick={() => { setShowViewStudent(false); setSelectedStudent(null); }}
+                  className="px-6 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
