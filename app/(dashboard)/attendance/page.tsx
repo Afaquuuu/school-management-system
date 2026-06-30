@@ -1,11 +1,18 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
   Calendar, Users, CheckCircle, XCircle, Clock, AlertCircle,
   Save, Download, Search, Filter, Eye, TrendingUp, ChevronRight, RefreshCw
 } from "lucide-react";
+import { getUniqueSchoolClassesByName } from "@/lib/class-labels";
 import { useSchool, getScopedItem, setScopedItem, removeScopedItem, getSchoolClasses, type SchoolClass } from "@/lib/school-context";
+import { getUserSession } from "@/lib/teacher-check-in";
+import type { UserRole } from "@/lib/auth";
+import { formatDate, formatDateLong, getTodayIsoDate } from "@/lib/date-format";
+import { exportTableData, slugifyFileName } from "@/lib/export-data";
+import { DateInput } from "@/components/ui/date-input";
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused";
 
@@ -36,20 +43,6 @@ type StudentAttendanceHistory = {
   remarks: string;
 };
 
-// Sample data - Replace with actual database queries
-const sampleStudents: Student[] = [
-  { id: "1", admissionNo: "ADM-0001", name: "Ama Johnson", rollNumber: "01", status: "present", remarks: "", attendanceRate: 96.5 },
-  { id: "2", admissionNo: "ADM-0002", name: "Kofi Badu", rollNumber: "02", status: "present", remarks: "", attendanceRate: 92.3 },
-  { id: "3", admissionNo: "ADM-0003", name: "Nia Thompson", rollNumber: "03", status: "present", remarks: "", attendanceRate: 98.1 },
-  { id: "4", admissionNo: "ADM-0004", name: "Peter Owusu", rollNumber: "04", status: "present", remarks: "", attendanceRate: 88.7 },
-  { id: "5", admissionNo: "ADM-0005", name: "Hannah Lee", rollNumber: "05", status: "present", remarks: "", attendanceRate: 94.2 },
-  { id: "6", admissionNo: "ADM-0006", name: "David Mensah", rollNumber: "06", status: "present", remarks: "", attendanceRate: 91.5 },
-  { id: "7", admissionNo: "ADM-0007", name: "Sarah Osei", rollNumber: "07", status: "present", remarks: "", attendanceRate: 97.8 },
-  { id: "8", admissionNo: "ADM-0008", name: "Michael Asante", rollNumber: "08", status: "present", remarks: "", attendanceRate: 89.4 },
-  { id: "9", admissionNo: "ADM-0009", name: "Grace Addo", rollNumber: "09", status: "present", remarks: "", attendanceRate: 95.6 },
-  { id: "10", admissionNo: "ADM-0010", name: "Emmanuel Boateng", rollNumber: "10", status: "present", remarks: "", attendanceRate: 93.2 },
-];
-
 const statusConfig = {
   present: { label: "Present", color: "bg-emerald-500", textColor: "text-emerald-700", bgLight: "bg-emerald-50", icon: CheckCircle },
   absent: { label: "Absent", color: "bg-red-500", textColor: "text-red-700", bgLight: "bg-red-50", icon: XCircle },
@@ -59,39 +52,41 @@ const statusConfig = {
 
 // Function to load students from Student Management
 function loadStudentsFromManagement(selectedClass: string, schoolId: string): Student[] {
-  if (typeof window === 'undefined') return sampleStudents;
-  
+  if (typeof window === "undefined") return [];
+
   try {
-    const storedStudents = getScopedItem(schoolId, 'school_students');
+    const storedStudents = getScopedItem(schoolId, "school_students");
     if (storedStudents) {
       const allStudents = JSON.parse(storedStudents);
-      
+
       // Parse the selected class (e.g., "Grade 7B" -> class: "Grade 7", section: "B")
       const classMatch = selectedClass.match(/^(Grade \d+)\s*([A-Z])$/i);
-      
+
       let classStudents;
       if (classMatch) {
         const [, className, section] = classMatch;
         // Filter by exact class and section match
-        classStudents = allStudents.filter((s: any) => 
-          s.class === className && s.section === section
+        classStudents = allStudents.filter(
+          (s: { class: string; section: string }) =>
+            s.class === className && s.section === section,
         );
       } else {
         // Fallback: try to match the full string
-        classStudents = allStudents.filter((s: any) => 
-          `${s.class} ${s.section}` === selectedClass ||
-          `${s.class}${s.section}` === selectedClass ||
-          s.class === selectedClass
+        classStudents = allStudents.filter(
+          (s: { class: string; section: string }) =>
+            `${s.class} ${s.section}` === selectedClass ||
+            `${s.class}${s.section}` === selectedClass ||
+            s.class === selectedClass,
         );
       }
-      
+
       // Convert to attendance format
       if (classStudents.length > 0) {
-        return classStudents.map((s: any, index: number) => ({
+        return classStudents.map((s: SchoolStudentRecord & { class: string; section: string }, index: number) => ({
           id: s.id,
           admissionNo: s.studentId,
           name: `${s.firstName} ${s.lastName}`,
-          rollNumber: s.rollNumber || String(index + 1).padStart(2, '0'),
+          rollNumber: s.rollNumber || String(index + 1).padStart(2, "0"),
           status: "present" as AttendanceStatus,
           remarks: "",
           attendanceRate: 95.0,
@@ -99,10 +94,61 @@ function loadStudentsFromManagement(selectedClass: string, schoolId: string): St
       }
     }
   } catch (error) {
-    console.error('Error loading students:', error);
+    console.error("Error loading students:", error);
   }
-  
-  return sampleStudents;
+
+  return [];
+}
+
+type SchoolStudentRecord = {
+  id: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  rollNumber?: string;
+};
+
+function loadSchoolStudentMap(schoolId: string): Map<string, SchoolStudentRecord> {
+  const map = new Map<string, SchoolStudentRecord>();
+  if (typeof window === "undefined") return map;
+
+  try {
+    const storedStudents = getScopedItem(schoolId, "school_students");
+    if (!storedStudents) return map;
+
+    (JSON.parse(storedStudents) as SchoolStudentRecord[]).forEach((student) => {
+      map.set(student.id, student);
+    });
+  } catch (error) {
+    console.error("Error loading student registry:", error);
+  }
+
+  return map;
+}
+
+function getStudentDisplayName(student: SchoolStudentRecord): string {
+  return `${student.firstName} ${student.lastName}`.trim();
+}
+
+function mapRecordToStudent(
+  record: AttendanceRecord,
+  studentMap: Map<string, SchoolStudentRecord>,
+  schoolId: string,
+): Student {
+  const registryStudent = studentMap.get(record.studentId);
+  const name = registryStudent
+    ? getStudentDisplayName(registryStudent)
+    : record.studentName;
+
+  return {
+    id: record.studentId,
+    admissionNo: registryStudent?.studentId ?? "",
+    name,
+    rollNumber: registryStudent?.rollNumber ?? "",
+    status: record.status,
+    remarks: record.remarks,
+    attendanceRate: calculateAttendanceRate(record.studentId, name, schoolId),
+  };
 }
 
 // Function to save attendance records
@@ -118,16 +164,24 @@ function saveAttendanceRecords(date: string, className: string, students: Studen
     const filteredRecords = records.filter(r => !(r.date === date && r.class === className));
     
     // Add new records
-    const newRecords: AttendanceRecord[] = students.map(student => ({
-      id: `${date}-${className}-${student.id}`,
-      date,
-      class: className,
-      studentId: student.id,
-      studentName: student.name,
-      status: student.status,
-      remarks: student.remarks,
-      savedAt: new Date().toISOString(),
-    }));
+    const studentMap = loadSchoolStudentMap(schoolId);
+    const newRecords: AttendanceRecord[] = students.map((student) => {
+      const registryStudent = studentMap.get(student.id);
+      const studentName = registryStudent
+        ? getStudentDisplayName(registryStudent)
+        : student.name;
+
+      return {
+        id: `${date}-${className}-${student.id}`,
+        date,
+        class: className,
+        studentId: student.id,
+        studentName,
+        status: student.status,
+        remarks: student.remarks,
+        savedAt: new Date().toISOString(),
+      };
+    });
     
     const updatedRecords = [...filteredRecords, ...newRecords];
     setScopedItem(schoolId, 'attendance_records', JSON.stringify(updatedRecords));
@@ -157,17 +211,11 @@ function loadSavedAttendance(date: string, className: string, schoolId: string):
     const classRecords = records.filter(r => r.date === date && r.class === className);
     
     if (classRecords.length === 0) return null;
-    
-    // Convert back to Student format
-    return classRecords.map(record => ({
-      id: record.studentId,
-      admissionNo: '',
-      name: record.studentName,
-      rollNumber: '',
-      status: record.status,
-      remarks: record.remarks,
-      attendanceRate: 95.0,
-    }));
+
+    const studentMap = loadSchoolStudentMap(schoolId);
+
+    // Use current student details from Student Management when available
+    return classRecords.map((record) => mapRecordToStudent(record, studentMap, schoolId));
   } catch (error) {
     console.error('Error loading saved attendance:', error);
     return null;
@@ -213,13 +261,136 @@ function calculateAttendanceRate(studentId: string, studentName: string, schoolI
   return Math.round((presentCount / history.length) * 100 * 10) / 10;
 }
 
+type EnrolledStudent = {
+  id: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  class: string;
+  section: string;
+};
+
+function normalizeClassValue(value: string): string {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function getEnrolledClassLabel(student: EnrolledStudent): string {
+  return `${student.class} ${student.section}`.replace(/\s+/g, " ").trim();
+}
+
+function matchesEnrolledClass(recordClass: string, student: EnrolledStudent): boolean {
+  const variants = [
+    getEnrolledClassLabel(student),
+    `${student.class}${student.section}`,
+    `${student.class} ${student.section}`,
+    student.class,
+  ];
+  const normalizedRecord = normalizeClassValue(recordClass);
+  return variants.some((variant) => normalizeClassValue(variant) === normalizedRecord);
+}
+
+function matchesEnrolledStudentIdentity(
+  studentId: string,
+  studentName: string,
+  enrolled: EnrolledStudent,
+): boolean {
+  const enrolledFullName = `${enrolled.firstName} ${enrolled.lastName}`.trim().toLowerCase();
+  return (
+    studentId === enrolled.id ||
+    studentName.trim().toLowerCase() === enrolledFullName ||
+    studentName.trim().toLowerCase() === enrolled.firstName.trim().toLowerCase()
+  );
+}
+
+function matchesStudentRow(student: Student, enrolled: EnrolledStudent): boolean {
+  return matchesEnrolledStudentIdentity(student.id, student.name, enrolled);
+}
+
+type StudentAttendanceSummary = {
+  date: string;
+  class: string;
+  status: AttendanceStatus;
+  remarks: string;
+};
+
+function getStudentPersonalAttendanceList(
+  schoolId: string,
+  enrolled: EnrolledStudent,
+): StudentAttendanceSummary[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const existingRecords = getScopedItem(schoolId, "attendance_records");
+    if (!existingRecords) return [];
+
+    const records: AttendanceRecord[] = JSON.parse(existingRecords);
+    return records
+      .filter(
+        (record) =>
+          matchesEnrolledStudentIdentity(record.studentId, record.studentName, enrolled) &&
+          matchesEnrolledClass(record.class, enrolled),
+      )
+      .map((record) => ({
+        date: record.date,
+        class: record.class,
+        status: record.status,
+        remarks: record.remarks,
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  } catch {
+    return [];
+  }
+}
+
+function findEnrolledStudent(schoolId: string, session: ReturnType<typeof getUserSession>): EnrolledStudent | null {
+  if (!session) return null;
+
+  const storedStudents = getScopedItem(schoolId, "school_students");
+  if (storedStudents) {
+    try {
+      const allStudents = JSON.parse(storedStudents) as EnrolledStudent[];
+      const matched = allStudents.find(
+        (student) =>
+          student.email?.toLowerCase() === session.email.toLowerCase() ||
+          student.id === session.id ||
+          `${student.firstName} ${student.lastName}`.toLowerCase() === session.name.toLowerCase() ||
+          student.firstName.toLowerCase() === session.name.toLowerCase(),
+      );
+      if (matched) return matched;
+    } catch {
+      // fall through to session classDepartment
+    }
+  }
+
+  if (session.classDepartment) {
+    const classMatch = session.classDepartment.match(/^(Grade \d+)\s*([A-Z])$/i);
+    if (classMatch) {
+      return {
+        id: session.id,
+        studentId: session.id,
+        firstName: session.name.split(" ")[0] || session.name,
+        lastName: session.name.split(" ").slice(1).join(" ") || "",
+        email: session.email,
+        class: classMatch[1],
+        section: classMatch[2].toUpperCase(),
+      };
+    }
+  }
+
+  return null;
+}
+
 export default function AttendancePage() {
+  const router = useRouter();
   const { currentSchool } = useSchool();
+  const searchParams = useSearchParams();
+  const attendanceView = searchParams.get("view") === "records" ? "records" : "mark";
   
   // Load manually created classes
   const [availableClasses, setAvailableClasses] = useState<SchoolClass[]>([]);
   
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayIsoDate());
   const [selectedClass, setSelectedClass] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -231,14 +402,79 @@ export default function AttendancePage() {
   const [hasSavedAttendance, setHasSavedAttendance] = useState(false);
   const [showAttendanceEntry, setShowAttendanceEntry] = useState(true);
   const [savedAttendanceList, setSavedAttendanceList] = useState<{date: string, class: string, count: number}[]>([]);
+  const [userRole, setUserRole] = useState<UserRole>("teacher");
+  const [enrolledStudent, setEnrolledStudent] = useState<EnrolledStudent | null>(null);
+  const [readOnlyMode, setReadOnlyMode] = useState(false);
+
+  const isStudentView = userRole === "student";
+  const isAdminView = userRole === "admin";
+  const canMarkAttendance = userRole === "teacher";
+  const enrolledClassLabel = enrolledStudent ? getEnrolledClassLabel(enrolledStudent) : "";
+  const isViewingAttendanceEntry =
+    showAttendanceEntry &&
+    (isStudentView || isAdminView
+      ? attendanceView === "records" && readOnlyMode
+      : attendanceView === "mark" || attendanceView === "records");
+  const isEditingFromRecords =
+    canMarkAttendance && attendanceView === "records" && showAttendanceEntry && !readOnlyMode;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const role = localStorage.getItem("user_role");
+    if (role === "admin" || role === "teacher" || role === "student" || role === "parent") {
+      setUserRole(role);
+    }
+    if (currentSchool) {
+      setEnrolledStudent(findEnrolledStudent(currentSchool.id, getUserSession()));
+    }
+  }, [currentSchool]);
+
+  useEffect(() => {
+    if ((isStudentView || isAdminView) && attendanceView === "mark") {
+      router.replace("/attendance?view=records");
+    }
+  }, [isStudentView, isAdminView, attendanceView, router]);
+
+  useEffect(() => {
+    if (isStudentView || isAdminView) {
+      setReadOnlyMode(true);
+    }
+  }, [isStudentView, isAdminView]);
+
+  const visibleSavedAttendanceList = useMemo(() => {
+    if (!isStudentView || !enrolledStudent) return savedAttendanceList;
+    return savedAttendanceList.filter((record) =>
+      matchesEnrolledClass(record.class, enrolledStudent),
+    );
+  }, [savedAttendanceList, isStudentView, enrolledStudent]);
+
+  const studentPersonalAttendanceList = useMemo(() => {
+    if (!isStudentView || !enrolledStudent || !currentSchool) return [];
+    return getStudentPersonalAttendanceList(currentSchool.id, enrolledStudent);
+  }, [isStudentView, enrolledStudent, currentSchool, savedAttendanceList]);
+
+  useEffect(() => {
+    if (attendanceView === "mark") {
+      if (!isAdminView && !isStudentView) {
+        setShowAttendanceEntry(true);
+        setReadOnlyMode(false);
+      }
+    } else if (attendanceView === "records") {
+      setShowAttendanceEntry(false);
+      if (!isStudentView && !isAdminView) {
+        setReadOnlyMode(false);
+      }
+      loadSavedAttendanceList();
+    }
+  }, [attendanceView, isStudentView, isAdminView]);
 
   // Get today's date for max date restriction
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayIsoDate();
 
   // Load manually created classes
   useEffect(() => {
     if (currentSchool) {
-      const classes = getSchoolClasses(currentSchool.id);
+      const classes = getUniqueSchoolClassesByName(getSchoolClasses(currentSchool.id));
       setAvailableClasses(classes);
       
       // Set initial selected class if not set
@@ -251,16 +487,29 @@ export default function AttendancePage() {
   // Load students when class or date changes
   useEffect(() => {
     if (!currentSchool || !selectedClass) return;
+
+    if (isStudentView) {
+      loadSavedAttendanceList();
+      if (!showAttendanceEntry || !enrolledStudent) return;
+    }
+
+    if (isAdminView && attendanceView === "mark") return;
     
     // First, try to load saved attendance for this date and class
     const savedAttendance = loadSavedAttendance(selectedDate, selectedClass, currentSchool.id);
     
     if (savedAttendance) {
-      // Load saved attendance
-      setStudents(savedAttendance);
-      setHasSavedAttendance(true);
+      let records = savedAttendance;
+      if (isStudentView && enrolledStudent) {
+        records = records.filter((student) => matchesStudentRow(student, enrolledStudent));
+      }
+
+      setStudents(records);
+      setHasSavedAttendance(records.length > 0);
       setIsLoadedFromStorage(true);
-      setShowAttendanceEntry(false); // Collapse entry form when viewing saved attendance
+      if (attendanceView === "mark" && !readOnlyMode && !isStudentView) {
+        setShowAttendanceEntry(false);
+      }
       
       // Load saved notes
       const notesKey = `attendance_notes_${selectedDate}_${selectedClass}`;
@@ -269,6 +518,8 @@ export default function AttendancePage() {
         setNotes(savedNotes);
       }
     } else {
+      if (isStudentView) return;
+
       // Load fresh student list
       const loadedStudents = loadStudentsFromManagement(selectedClass, currentSchool.id);
       const studentsWithRates = loadedStudents.map(s => ({
@@ -277,19 +528,28 @@ export default function AttendancePage() {
       }));
       setStudents(studentsWithRates);
       setHasSavedAttendance(false);
-      setShowAttendanceEntry(true); // Show entry form for new attendance
+      setShowAttendanceEntry(attendanceView === "mark");
       setNotes("");
       
       // Check if students were loaded from localStorage
       if (typeof window !== 'undefined') {
         const stored = getScopedItem(currentSchool.id, 'school_students');
-        setIsLoadedFromStorage(!!stored && loadedStudents !== sampleStudents);
+        setIsLoadedFromStorage(!!stored && loadedStudents.length > 0);
       }
     }
 
     // Load list of saved attendance records
     loadSavedAttendanceList();
-  }, [selectedClass, selectedDate, currentSchool]);
+  }, [
+    selectedClass,
+    selectedDate,
+    currentSchool,
+    attendanceView,
+    readOnlyMode,
+    isStudentView,
+    showAttendanceEntry,
+    enrolledStudent,
+  ]);
 
   // Function to load list of all saved attendance records
   const loadSavedAttendanceList = () => {
@@ -345,7 +605,7 @@ export default function AttendancePage() {
     
     if (typeof window !== 'undefined') {
       const stored = getScopedItem(currentSchool.id, 'school_students');
-      setIsLoadedFromStorage(!!stored && loadedStudents !== sampleStudents);
+        setIsLoadedFromStorage(!!stored && loadedStudents.length > 0);
     }
   };
 
@@ -363,15 +623,22 @@ export default function AttendancePage() {
 
   // Filter students by search
   const filteredStudents = useMemo(() => {
-    if (!searchTerm) return students;
-    return students.filter(s => 
+    let list = students;
+
+    if (isStudentView && enrolledStudent) {
+      list = list.filter((student) => matchesStudentRow(student, enrolledStudent));
+    }
+
+    if (!searchTerm) return list;
+    return list.filter(s => 
       s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.admissionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.rollNumber.includes(searchTerm)
     );
-  }, [students, searchTerm]);
+  }, [students, searchTerm, isStudentView, enrolledStudent]);
 
   const updateStatus = (studentId: string, status: AttendanceStatus) => {
+    if (readOnlyMode || isStudentView || isAdminView) return;
     setStudents(prev => prev.map(student => 
       student.id === studentId ? { ...student, status } : student
     ));
@@ -379,6 +646,7 @@ export default function AttendancePage() {
   };
 
   const updateRemarks = (studentId: string, remarks: string) => {
+    if (readOnlyMode || isStudentView || isAdminView) return;
     setStudents(prev => prev.map(student => 
       student.id === studentId ? { ...student, remarks } : student
     ));
@@ -386,13 +654,25 @@ export default function AttendancePage() {
   };
 
   const markAllPresent = () => {
+    if (readOnlyMode || isStudentView || isAdminView) return;
     setStudents(prev => prev.map(student => ({ ...student, status: "present" as AttendanceStatus })));
     setIsSaved(false);
   };
 
   const handleSave = () => {
+    if (readOnlyMode || isStudentView || isAdminView) return;
     if (!currentSchool) {
       alert('No school selected');
+      return;
+    }
+    
+    // Validate date - prevent saving attendance for future dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset to start of day
+    const selectedDateObj = new Date(selectedDate + 'T00:00:00');
+    
+    if (selectedDateObj > today) {
+      alert('Cannot save attendance for future dates. Please select today or a past date.');
       return;
     }
     
@@ -410,14 +690,92 @@ export default function AttendancePage() {
   };
 
   const handleEditSavedAttendance = (date: string, className: string) => {
+    if (isStudentView || isAdminView || !currentSchool) return;
     setSelectedDate(date);
     setSelectedClass(className);
+    setReadOnlyMode(false);
+    setShowAttendanceEntry(true);
+
+    const savedAttendance = loadSavedAttendance(date, className, currentSchool.id);
+    if (savedAttendance) {
+      setStudents(savedAttendance);
+      setHasSavedAttendance(true);
+      setIsLoadedFromStorage(true);
+
+      const notesKey = `attendance_notes_${date}_${className}`;
+      const savedNotes = getScopedItem(currentSchool.id, notesKey);
+      setNotes(savedNotes || "");
+    }
+  };
+
+  const closeAttendanceEntry = () => {
+    setShowAttendanceEntry(false);
+    setReadOnlyMode(isStudentView || isAdminView);
+  };
+
+  const handleViewSavedAttendanceReadOnly = (date: string, className: string) => {
+    if (!currentSchool) return;
+    setSelectedDate(date);
+    setSelectedClass(className);
+    setReadOnlyMode(true);
+
+    if (isAdminView) {
+      const savedAttendance = loadSavedAttendance(date, className, currentSchool.id);
+      if (savedAttendance) {
+        setStudents(savedAttendance);
+        setHasSavedAttendance(true);
+      } else {
+        setStudents([]);
+        setHasSavedAttendance(false);
+      }
+      setShowAttendanceEntry(true);
+      return;
+    }
+
+    if (!enrolledStudent) return;
+
+    const savedAttendance = loadSavedAttendance(date, className, currentSchool.id);
+    const personalRecord = savedAttendance?.filter((student) =>
+      matchesStudentRow(student, enrolledStudent),
+    );
+
+    if (personalRecord && personalRecord.length > 0) {
+      setStudents(personalRecord);
+      setHasSavedAttendance(true);
+    } else {
+      const personalEntry = studentPersonalAttendanceList.find(
+        (record) => record.date === date && record.class === className,
+      );
+      if (personalEntry) {
+        setStudents([
+          {
+            id: enrolledStudent.id,
+            admissionNo: enrolledStudent.studentId,
+            name: `${enrolledStudent.firstName} ${enrolledStudent.lastName}`.trim(),
+            rollNumber: "",
+            status: personalEntry.status,
+            remarks: personalEntry.remarks,
+            attendanceRate: calculateAttendanceRate(
+              enrolledStudent.id,
+              `${enrolledStudent.firstName} ${enrolledStudent.lastName}`.trim(),
+              currentSchool.id,
+            ),
+          },
+        ]);
+        setHasSavedAttendance(true);
+      } else {
+        setStudents([]);
+        setHasSavedAttendance(false);
+      }
+    }
+
     setShowAttendanceEntry(true);
   };
 
   const handleDeleteSavedAttendance = (date: string, className: string) => {
+    if (isStudentView || isAdminView) return;
     if (!currentSchool) return;
-    if (!confirm(`Delete attendance for ${className} on ${date}?`)) return;
+    if (!confirm(`Delete attendance for ${className} on ${formatDate(date)}?`)) return;
     
     try {
       const existingRecords = getScopedItem(currentSchool.id, 'attendance_records');
@@ -440,6 +798,69 @@ export default function AttendancePage() {
     }
   };
 
+  const handleExportAttendance = () => {
+    if (!currentSchool) return;
+
+    if (attendanceView === "mark" && students.length > 0) {
+      const exported = exportTableData(
+        `attendance-${selectedDate}-${slugifyFileName(selectedClass || "class")}`,
+        [
+          { header: "Date", value: () => selectedDate },
+          { header: "Class", value: () => selectedClass },
+          { header: "Roll No", value: (student) => student.rollNumber },
+          { header: "Student ID", value: (student) => student.admissionNo || student.id },
+          { header: "Name", value: (student) => student.name },
+          { header: "Status", value: (student) => student.status },
+          { header: "Remarks", value: (student) => student.remarks },
+          { header: "Attendance Rate %", value: (student) => student.attendanceRate },
+        ],
+        students,
+      );
+      if (!exported) alert("No attendance rows to export.");
+      return;
+    }
+
+    if (isStudentView) {
+      const exported = exportTableData(
+        `my-attendance-${slugifyFileName(enrolledStudent?.firstName ?? "student")}`,
+        [
+          { header: "Date", value: (record) => record.date },
+          { header: "Class", value: (record) => record.class },
+          { header: "Status", value: (record) => record.status },
+          { header: "Remarks", value: (record) => record.remarks },
+        ],
+        studentPersonalAttendanceList,
+      );
+      if (!exported) alert("No attendance records to export.");
+      return;
+    }
+
+    const stored = getScopedItem(currentSchool.id, "attendance_records");
+    if (!stored) {
+      alert("No attendance records to export.");
+      return;
+    }
+
+    try {
+      const records: AttendanceRecord[] = JSON.parse(stored);
+      const exported = exportTableData(
+        `attendance-records-${slugifyFileName(currentSchool.name)}`,
+        [
+          { header: "Date", value: (record) => record.date },
+          { header: "Class", value: (record) => record.class },
+          { header: "Student ID", value: (record) => record.studentId },
+          { header: "Student Name", value: (record) => record.studentName },
+          { header: "Status", value: (record) => record.status },
+          { header: "Remarks", value: (record) => record.remarks },
+        ],
+        records,
+      );
+      if (!exported) alert("No attendance records to export.");
+    } catch {
+      alert("Failed to export attendance records.");
+    }
+  };
+
   const handleViewHistory = (student: Student) => {
     if (!currentSchool) return;
     const history = getStudentAttendanceHistory(student.id, student.name, currentSchool.id);
@@ -452,24 +873,42 @@ export default function AttendancePage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Attendance Management</h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
+            {isStudentView
+              ? "My Attendance"
+              : isAdminView
+                ? "View Attendance"
+                : attendanceView === "records"
+                  ? "View Attendance"
+                  : "Mark Attendance"}
+          </h1>
           <p className="mt-1 text-slate-600 dark:text-slate-400">
-            Mark and track student attendance for {selectedClass}
+            {isStudentView
+              ? enrolledClassLabel
+                ? `View-only attendance records for ${enrolledClassLabel}`
+                : "View-only attendance for your enrolled class"
+              : isAdminView
+                ? "Review saved attendance records across classes (view only)"
+                : attendanceView === "records"
+                  ? "Browse and manage saved attendance records"
+                  : `Mark and track student attendance for ${selectedClass}`}
           </p>
-          {isLoadedFromStorage && (
+          {!isStudentView && isLoadedFromStorage && (
             <p className="mt-1 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
               <CheckCircle className="w-4 h-4" />
               Showing {students.length} student{students.length !== 1 ? 's' : ''} from Student Management
             </p>
           )}
-          {hasSavedAttendance && (
+          {hasSavedAttendance && !isStudentView && (
             <p className="mt-1 text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1">
               <AlertCircle className="w-4 h-4" />
-              Viewing saved attendance for {selectedDate}
+              Viewing saved attendance for {formatDate(selectedDate)}
             </p>
           )}
         </div>
         <div className="flex gap-2">
+          {(attendanceView === "mark" || isEditingFromRecords) && canMarkAttendance && (
+            <>
           <button 
             onClick={refreshStudents}
             className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
@@ -479,7 +918,7 @@ export default function AttendancePage() {
             Refresh
           </button>
           <button 
-            onClick={() => {/* TODO: Export */}}
+            onClick={handleExportAttendance}
             className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
             <Download className="w-4 h-4" />
@@ -496,10 +935,13 @@ export default function AttendancePage() {
             <Save className="w-4 h-4" />
             {isSaved ? "Saved!" : "Save Attendance"}
           </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Date and Class Selection */}
+      {attendanceView === "mark" && canMarkAttendance && (
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -507,12 +949,21 @@ export default function AttendancePage() {
               <Calendar className="w-4 h-4 inline mr-2" />
               Date
             </label>
-            <input
-              type="date"
+            <DateInput
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(newDate) => {
+                const todayDate = new Date();
+                todayDate.setHours(0, 0, 0, 0);
+                const selectedDateObj = new Date(`${newDate}T00:00:00`);
+
+                if (selectedDateObj <= todayDate) {
+                  setSelectedDate(newDate);
+                } else {
+                  alert("Cannot select future dates for attendance");
+                }
+              }}
               max={today}
-              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Can only select today or past dates
@@ -553,8 +1004,10 @@ export default function AttendancePage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Statistics Cards */}
+      {isViewingAttendanceEntry && !isStudentView && (
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
           <div className="flex items-center justify-between mb-2">
@@ -596,9 +1049,10 @@ export default function AttendancePage() {
           <p className="text-3xl font-bold text-blue-900 dark:text-blue-50">{stats.attendanceRate}%</p>
         </div>
       </div>
+      )}
 
       {/* Search Bar */}
-      {showAttendanceEntry && (
+      {isViewingAttendanceEntry && !readOnlyMode && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -614,7 +1068,50 @@ export default function AttendancePage() {
       )}
 
       {/* Students Table */}
-      {showAttendanceEntry && (
+      {isViewingAttendanceEntry && (
+        <>
+          {isStudentView && (
+            <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-sm text-blue-800">
+                Your attendance for <strong>{selectedClass}</strong> on{" "}
+                <strong>{formatDate(selectedDate)}</strong>. This view is read-only.
+              </p>
+              <button
+                onClick={closeAttendanceEntry}
+                className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
+              >
+                Back to list
+              </button>
+            </div>
+          )}
+          {isEditingFromRecords && (
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-700">
+                Editing attendance for <strong>{selectedClass}</strong> on{" "}
+                <strong>{formatDate(selectedDate)}</strong>.
+              </p>
+              <button
+                onClick={closeAttendanceEntry}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Back to list
+              </button>
+            </div>
+          )}
+          {isAdminView && readOnlyMode && showAttendanceEntry && (
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-700">
+                View-only attendance for <strong>{selectedClass}</strong> on{" "}
+                <strong>{formatDate(selectedDate)}</strong>. Principals cannot mark or edit attendance.
+              </p>
+              <button
+                onClick={closeAttendanceEntry}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Back to list
+              </button>
+            </div>
+          )}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -635,15 +1132,23 @@ export default function AttendancePage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   Overall Rate
                 </th>
+                {!isStudentView && (
                 <th className="px-6 py-4 text-right text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   Actions
                 </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {filteredStudents.map((student) => {
+              {filteredStudents.length === 0 && isStudentView ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    No attendance record found for you on this date.
+                  </td>
+                </tr>
+              ) : (
+              filteredStudents.map((student) => {
                 const config = statusConfig[student.status];
-                const StatusIcon = config.icon;
                 
                 return (
                   <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
@@ -654,11 +1159,20 @@ export default function AttendancePage() {
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-semibold text-slate-900 dark:text-slate-50">{student.name}</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">
+                          {student.name}
+                        </p>
                         <p className="text-sm text-slate-500 dark:text-slate-400">{student.admissionNo}</p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
+                      {readOnlyMode || isStudentView ? (
+                        <span
+                          className={`inline-flex rounded-lg px-3 py-1.5 text-xs font-semibold text-white ${config.color}`}
+                        >
+                          {config.label}
+                        </span>
+                      ) : (
                       <div className="flex gap-2">
                         {(Object.keys(statusConfig) as AttendanceStatus[]).map((status) => {
                           const isSelected = student.status === status;
@@ -679,8 +1193,14 @@ export default function AttendancePage() {
                           );
                         })}
                       </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
+                      {readOnlyMode || isStudentView ? (
+                        <span className="text-sm text-slate-600 dark:text-slate-400">
+                          {student.remarks || "—"}
+                        </span>
+                      ) : (
                       <input
                         type="text"
                         value={student.remarks}
@@ -688,6 +1208,7 @@ export default function AttendancePage() {
                         placeholder="Add remarks..."
                         className="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -707,6 +1228,7 @@ export default function AttendancePage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
+                      {!readOnlyMode && !isStudentView && (
                       <button
                         onClick={() => handleViewHistory(student)}
                         className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm"
@@ -714,18 +1236,21 @@ export default function AttendancePage() {
                         <Eye className="w-4 h-4" />
                         View History
                       </button>
+                      )}
                     </td>
                   </tr>
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>
       </div>
+        </>
       )}
 
       {/* Session Notes */}
-      {showAttendanceEntry && (
+      {isViewingAttendanceEntry && !readOnlyMode && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">
             Session Notes
@@ -741,21 +1266,56 @@ export default function AttendancePage() {
       )}
 
       {/* Saved Attendance Records */}
-      {!showAttendanceEntry && savedAttendanceList.length > 0 && (
+      {attendanceView === "records" && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
-              Saved Attendance Records
+              {isStudentView ? "My Attendance Records" : "Saved Attendance Records"}
             </h3>
-            <button
-              onClick={() => setShowAttendanceEntry(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
-              Take New Attendance
-            </button>
+            <div className="flex items-center gap-2">
+              {isStudentView && enrolledClassLabel && (
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                  {enrolledClassLabel}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleExportAttendance}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+              >
+                <Download className="h-4 w-4" />
+                Export
+              </button>
+            </div>
           </div>
+          {isStudentView && !enrolledStudent && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              We could not determine your enrolled class. Please contact the school office.
+            </div>
+          )}
+          {(isStudentView ? studentPersonalAttendanceList : visibleSavedAttendanceList).length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center dark:border-slate-600">
+              <Calendar className="mx-auto mb-4 h-12 w-12 text-slate-300 dark:text-slate-600" />
+              <p className="text-slate-600 dark:text-slate-400">
+                {isStudentView
+                  ? "No attendance records found for you yet"
+                  : "No saved attendance records yet"}
+              </p>
+            </div>
+          ) : (
           <div className="space-y-3">
-            {savedAttendanceList.map((record, index) => (
+            {(isStudentView ? studentPersonalAttendanceList : visibleSavedAttendanceList).map((record, index) => {
+              const studentRecord = isStudentView
+                ? (record as StudentAttendanceSummary)
+                : null;
+              const adminRecord = !isStudentView
+                ? (record as { date: string; class: string; count: number })
+                : null;
+              const statusBadge = studentRecord
+                ? statusConfig[studentRecord.status]
+                : null;
+
+              return (
               <div 
                 key={index}
                 className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600"
@@ -769,19 +1329,31 @@ export default function AttendancePage() {
                       {record.class}
                     </p>
                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                      {new Date(record.date).toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
+                      {formatDateLong(record.date)}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  {isStudentView && statusBadge ? (
+                    <span
+                      className={`rounded-lg px-3 py-1 text-sm font-semibold text-white ${statusBadge.color}`}
+                    >
+                      {statusBadge.label}
+                    </span>
+                  ) : (
                   <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-semibold">
-                    {record.count} students
+                    {adminRecord?.count} students
                   </span>
+                  )}
+                  {isStudentView || isAdminView ? (
+                    <button
+                      onClick={() => handleViewSavedAttendanceReadOnly(record.date, record.class)}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      View
+                    </button>
+                  ) : (
+                    <>
                   <button
                     onClick={() => handleEditSavedAttendance(record.date, record.class)}
                     className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -794,26 +1366,15 @@ export default function AttendancePage() {
                   >
                     Delete
                   </button>
+                    </>
+                  )}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
+          )}
         </div>
       )}
-
-      {/* Session Notes */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">
-          Session Notes
-        </h3>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Add any notes about today's attendance session..."
-          rows={3}
-          className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
 
       {/* Student History Modal */}
       {showStudentHistory && (
@@ -863,12 +1424,7 @@ export default function AttendancePage() {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
                             <p className="font-semibold text-slate-900 dark:text-slate-50">
-                              {new Date(record.date).toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                              })}
+                              {formatDateLong(record.date)}
                             </p>
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} text-white`}>
                               {config.label}

@@ -1,237 +1,824 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, Mail, MessageSquare, Edit, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  Bell,
+  CheckCircle,
+  ChevronRight,
+  Edit,
+  Mail,
+  MessageSquare,
+  RefreshCw,
+  Save,
+  Search,
+  X,
+} from "lucide-react";
+import { useSchool } from "@/lib/school-context";
+import { getUserSession } from "@/lib/teacher-check-in";
+import {
+  dismissAlert,
+  getAlertTypeDescription,
+  getChannelLabel,
+  getDefaultAlertSettings,
+  getVisibleAlerts,
+  loadAlertSettings,
+  markAlertRead,
+  refreshSchoolAlerts,
+  saveAlertSettings,
+  type ActiveAlert,
+  type AlertChannelId,
+  type AlertThreshold,
+  type AlertTypeConfig,
+  type AlertTypeId,
+  type NotificationChannelConfig,
+  type SchoolAlertSettings,
+} from "@/lib/school-alerts";
 
-const alertTypes = [
-  {
-    id: "1",
-    name: "Attendance Alerts",
-    description: "Notify parents on 3+ consecutive absences",
-    enabled: true,
-    channels: ["Email", "SMS"],
-  },
-  {
-    id: "2",
-    name: "Performance Alerts",
-    description: "Alert on grade average drop > 10% from previous cycle",
-    enabled: true,
-    channels: ["Email", "Dashboard"],
-  },
-  {
-    id: "3",
-    name: "Assignment Alerts",
-    description: "Notify on overdue assignments",
-    enabled: true,
-    channels: ["Email", "SMS", "Dashboard"],
-  },
-  {
-    id: "4",
-    name: "Exam Alerts",
-    description: "Remind students of upcoming exams",
-    enabled: false,
-    channels: ["Email", "SMS"],
-  },
-  {
-    id: "5",
-    name: "Fee Payment Alerts",
-    description: "Alert on overdue invoices",
-    enabled: true,
-    channels: ["Email"],
-  },
-];
-
-const notificationChannels = [
-  { id: "email", name: "Email", icon: Mail, configured: true, details: "SMTP configured with SendGrid" },
-  { id: "sms", name: "SMS", icon: MessageSquare, configured: false, details: "SMS service not configured" },
-  { id: "push", name: "Push Notifications", icon: Bell, configured: true, details: "Browser notifications enabled" },
-];
-
-const thresholds = [
-  { name: "Attendance Threshold", value: "3", unit: "consecutive days", description: "Trigger alert after X consecutive absences" },
-  { name: "Grade Average Drop", value: "10", unit: "%", description: "Alert when grade average drops by X percent" },
-  { name: "Assignment Due", value: "1", unit: "days before", description: "Reminder X days before deadline" },
-  { name: "Fee Overdue", value: "7", unit: "days", description: "Alert X days after due date" },
-];
+const channelIcons = {
+  email: Mail,
+  sms: MessageSquare,
+  push: Bell,
+  dashboard: Bell,
+};
 
 export default function AlertsPage() {
-  const [selectedTab, setSelectedTab] = useState<"alerts" | "channels" | "thresholds">("alerts");
-  const [editingThreshold, setEditingThreshold] = useState<string | null>(null);
+  const { currentSchool } = useSchool();
+  const [loading, setLoading] = useState(true);
+  const [selectedTab, setSelectedTab] = useState<"alerts" | "channels" | "thresholds" | "live">(
+    "alerts",
+  );
+  const [settings, setSettings] = useState<SchoolAlertSettings>(getDefaultAlertSettings());
+  const [activeAlerts, setActiveAlerts] = useState<ActiveAlert[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [editingThresholdId, setEditingThresholdId] = useState<string | null>(null);
+  const [thresholdDraft, setThresholdDraft] = useState("");
+  const [configuringAlertId, setConfiguringAlertId] = useState<AlertTypeId | null>(null);
+  const [configuringChannelId, setConfiguringChannelId] = useState<AlertChannelId | null>(null);
+  const [channelDraft, setChannelDraft] = useState<NotificationChannelConfig | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const session = getUserSession();
+  const isAdmin = session?.role === "admin";
+
+  const loadData = useCallback(() => {
+    if (!currentSchool) return;
+    const loadedSettings = loadAlertSettings(currentSchool.id);
+    setSettings(loadedSettings);
+    setActiveAlerts(refreshSchoolAlerts(currentSchool.id));
+    setLoading(false);
+  }, [currentSchool]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const persistSettings = (nextSettings: SchoolAlertSettings, successText: string) => {
+    if (!currentSchool) return;
+    saveAlertSettings(currentSchool.id, nextSettings);
+    setSettings(nextSettings);
+    setActiveAlerts(refreshSchoolAlerts(currentSchool.id));
+    setMessage({ type: "success", text: successText });
+  };
+
+  const handleToggleAlert = (alertId: AlertTypeId, enabled: boolean) => {
+    const nextSettings: SchoolAlertSettings = {
+      ...settings,
+      alertTypes: settings.alertTypes.map((alert) =>
+        alert.id === alertId ? { ...alert, enabled } : alert,
+      ),
+    };
+    persistSettings(
+      nextSettings,
+      `${nextSettings.alertTypes.find((a) => a.id === alertId)?.name} ${enabled ? "enabled" : "disabled"}.`,
+    );
+  };
+
+  const handleSaveAlertConfig = (channels: AlertChannelId[]) => {
+    if (!configuringAlertId) return;
+    const nextSettings: SchoolAlertSettings = {
+      ...settings,
+      alertTypes: settings.alertTypes.map((alert) =>
+        alert.id === configuringAlertId ? { ...alert, channels } : alert,
+      ),
+    };
+    persistSettings(nextSettings, "Alert channels updated.");
+    setConfiguringAlertId(null);
+  };
+
+  const handleSaveThreshold = (thresholdId: string) => {
+    const value = Number(thresholdDraft);
+    if (!Number.isFinite(value) || value < 0) {
+      setMessage({ type: "error", text: "Please enter a valid threshold value." });
+      return;
+    }
+
+    const nextSettings: SchoolAlertSettings = {
+      ...settings,
+      thresholds: settings.thresholds.map((threshold) =>
+        threshold.id === thresholdId ? { ...threshold, value } : threshold,
+      ),
+    };
+    persistSettings(nextSettings, "Threshold saved. Alert rules updated.");
+    setEditingThresholdId(null);
+  };
+
+  const handleSaveChannel = () => {
+    if (!channelDraft || !currentSchool) return;
+
+    const configured =
+      channelDraft.id === "email"
+        ? Boolean(channelDraft.smtpServer && channelDraft.senderEmail)
+        : channelDraft.id === "sms"
+          ? Boolean(channelDraft.smsProvider && channelDraft.smsApiKey)
+          : Boolean(channelDraft.pushEnabled);
+
+    const details =
+      channelDraft.id === "email"
+        ? `SMTP: ${channelDraft.smtpServer}:${channelDraft.smtpPort}`
+        : channelDraft.id === "sms"
+          ? `Provider: ${channelDraft.smsProvider}`
+          : channelDraft.pushEnabled
+            ? "Browser notifications enabled"
+            : "Push notifications disabled";
+
+    const nextSettings: SchoolAlertSettings = {
+      ...settings,
+      channels: settings.channels.map((channel) =>
+        channel.id === channelDraft.id
+          ? { ...channelDraft, configured, details }
+          : channel,
+      ),
+    };
+
+    persistSettings(nextSettings, `${channelDraft.name} settings saved.`);
+    setConfiguringChannelId(null);
+    setChannelDraft(null);
+  };
+
+  const handleRefreshAlerts = async () => {
+    if (!currentSchool) return;
+    setRefreshing(true);
+    setActiveAlerts(refreshSchoolAlerts(currentSchool.id));
+    setRefreshing(false);
+    setMessage({ type: "success", text: "Alerts refreshed from live school data." });
+  };
+
+  const filteredAlertTypes = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return settings.alertTypes;
+    return settings.alertTypes.filter((alert) => {
+      const description = getAlertTypeDescription(alert.id, settings);
+      return (
+        alert.name.toLowerCase().includes(query) ||
+        description.toLowerCase().includes(query)
+      );
+    });
+  }, [searchQuery, settings]);
+
+  const configuringAlert = settings.alertTypes.find((alert) => alert.id === configuringAlertId);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="surface-card p-8 text-center">
+        <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
+        <h1 className="page-title">Admin Access Required</h1>
+        <p className="page-subtitle mt-2">
+          Only administrators can configure alerts and notification settings.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Alerts & Notifications</h1>
-        <p className="mt-1 text-slate-600 dark:text-slate-400">Configure alert types, channels, and thresholds</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="section-label mb-1">Admin</p>
+          <h1 className="page-title">Alerts & Notifications</h1>
+          <p className="page-subtitle mt-1">
+            Configure alert types, channels, and thresholds
+          </p>
+        </div>
+        <button
+          onClick={handleRefreshAlerts}
+          disabled={refreshing}
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-60"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          Refresh Live Alerts
+        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 border-b border-slate-200 dark:border-slate-700">
-        {(["alerts", "channels", "thresholds"] as const).map((tab) => (
+      {message && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm ${
+            message.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-4 border-b border-slate-200 dark:border-slate-700">
+        {(
+          [
+            ["alerts", "Alerts"],
+            ["channels", "Channels"],
+            ["thresholds", "Thresholds"],
+            ["live", `Live Alerts (${activeAlerts.length})`],
+          ] as const
+        ).map(([tab, label]) => (
           <button
             key={tab}
             onClick={() => setSelectedTab(tab)}
-            className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+            className={`border-b-2 px-4 py-2 font-medium transition-colors ${
               selectedTab === tab
                 ? "border-blue-600 text-blue-600 dark:text-blue-400"
                 : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Alert Types Tab */}
       {selectedTab === "alerts" && (
         <div className="space-y-4">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search alert types..."
+              className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50"
+            />
+          </div>
+
           <div className="space-y-3">
-            {alertTypes.map((alert) => (
-              <div
+            {filteredAlertTypes.map((alert) => (
+              <AlertTypeCard
                 key={alert.id}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-bold text-slate-900 dark:text-slate-50 mb-1">{alert.name}</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{alert.description}</p>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={alert.enabled}
-                      className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      readOnly
-                    />
-                  </label>
-                </div>
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                  <div className="flex gap-2">
-                    {alert.channels.map((channel) => (
-                      <span
-                        key={channel}
-                        className="px-2 py-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded"
-                      >
-                        {channel}
-                      </span>
-                    ))}
-                  </div>
-                  <button className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm flex items-center gap-1">
-                    Configure
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+                alert={alert}
+                description={getAlertTypeDescription(alert.id, settings)}
+                onToggle={(enabled) => handleToggleAlert(alert.id, enabled)}
+                onConfigure={() => setConfiguringAlertId(alert.id)}
+              />
             ))}
           </div>
         </div>
       )}
 
-      {/* Channels Tab */}
       {selectedTab === "channels" && (
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            {notificationChannels.map((channel) => {
-              const Icon = channel.icon;
-              return (
-                <div
-                  key={channel.id}
-                  className={`border rounded-lg p-6 ${
-                    channel.configured
-                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700"
-                      : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div
-                      className={`p-2 rounded-lg ${
-                        channel.configured
-                          ? "bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400"
-                          : "bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-400"
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-900 dark:text-slate-50">{channel.name}</h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">
-                        {channel.configured ? "✓ Configured" : "⚠ Not configured"}
-                      </p>
-                    </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {settings.channels.map((channel) => {
+            const Icon = channelIcons[channel.id] ?? Bell;
+            return (
+              <div
+                key={channel.id}
+                className={`rounded-lg border p-6 ${
+                  channel.configured
+                    ? "border-green-200 bg-green-50 dark:border-green-700 dark:bg-green-900/20"
+                    : "border-yellow-200 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-900/20"
+                }`}
+              >
+                <div className="mb-3 flex items-center gap-3">
+                  <div
+                    className={`rounded-lg p-2 ${
+                      channel.configured
+                        ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400"
+                        : "bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-400"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
                   </div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{channel.details}</p>
-                  <button className="w-full text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline py-2 border border-blue-300 dark:border-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
-                    {channel.configured ? "Reconfigure" : "Setup"}
-                  </button>
+                  <div>
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-50">
+                      {channel.name}
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      {channel.configured ? "Configured" : "Not configured"}
+                    </p>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+                <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+                  {channel.details}
+                </p>
+                <button
+                  onClick={() => {
+                    setConfiguringChannelId(channel.id);
+                    setChannelDraft({ ...channel });
+                  }}
+                  className="w-full rounded-lg border border-blue-300 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:border-blue-600 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                >
+                  {channel.configured ? "Reconfigure" : "Setup"}
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Thresholds Tab */}
       {selectedTab === "thresholds" && (
         <div className="space-y-4">
-          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-700 dark:bg-blue-900/30">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              ℹ️ Adjust thresholds to control when alerts are triggered. Changes apply immediately.
+              Adjust thresholds to control when alerts are triggered. Changes apply immediately
+              and update alert descriptions.
             </p>
           </div>
 
           <div className="space-y-3">
-            {thresholds.map((threshold) => (
-              <div
-                key={threshold.name}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-slate-900 dark:text-slate-50 mb-1">{threshold.name}</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{threshold.description}</p>
-                  </div>
-                  {editingThreshold !== threshold.name && (
-                    <button
-                      onClick={() => setEditingThreshold(threshold.name)}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
-                    >
-                      <Edit className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    </button>
-                  )}
-                </div>
-
-                {editingThreshold === threshold.name ? (
-                  <div className="flex gap-2 items-end pt-3 border-t border-slate-200 dark:border-slate-700">
-                    <div className="flex-1">
-                      <label className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 block">Value</label>
-                      <input
-                        type="number"
-                        defaultValue={threshold.value}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <span className="text-slate-600 dark:text-slate-400 font-medium pb-2">{threshold.unit}</span>
-                    <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setEditingThreshold(null)}
-                      className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-50 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors font-medium"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="pt-3 border-t border-slate-200 dark:border-slate-700 text-lg font-bold text-slate-900 dark:text-slate-50">
-                    {threshold.value} <span className="text-sm text-slate-600 dark:text-slate-400">{threshold.unit}</span>
-                  </div>
-                )}
-              </div>
+            {settings.thresholds.map((threshold) => (
+              <ThresholdCard
+                key={threshold.id}
+                threshold={threshold}
+                isEditing={editingThresholdId === threshold.id}
+                draftValue={thresholdDraft}
+                onEdit={() => {
+                  setEditingThresholdId(threshold.id);
+                  setThresholdDraft(String(threshold.value));
+                }}
+                onDraftChange={setThresholdDraft}
+                onSave={() => handleSaveThreshold(threshold.id)}
+                onCancel={() => setEditingThresholdId(null)}
+              />
             ))}
           </div>
         </div>
       )}
+
+      {selectedTab === "live" && (
+        <div className="space-y-4">
+          {activeAlerts.length === 0 ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-700 dark:bg-emerald-900/20">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="mt-0.5 h-5 w-5 text-emerald-600" />
+                <div>
+                  <p className="font-semibold text-emerald-900 dark:text-emerald-200">
+                    No active alerts
+                  </p>
+                  <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+                    Enabled alert rules were checked against attendance, exams, finance, and
+                    assignment data. Nothing requires action right now.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            activeAlerts.map((alert) => (
+              <LiveAlertCard
+                key={alert.id}
+                alert={alert}
+                onDismiss={() => {
+                  if (!currentSchool) return;
+                  dismissAlert(currentSchool.id, alert.id);
+                  setActiveAlerts(getVisibleAlerts(currentSchool.id));
+                }}
+                onMarkRead={() => {
+                  if (!currentSchool) return;
+                  markAlertRead(currentSchool.id, alert.id);
+                  setActiveAlerts(getVisibleAlerts(currentSchool.id));
+                }}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {configuringAlert && (
+        <ConfigureAlertModal
+          alert={configuringAlert}
+          description={getAlertTypeDescription(configuringAlert.id, settings)}
+          channels={settings.channels}
+          onClose={() => setConfiguringAlertId(null)}
+          onSave={handleSaveAlertConfig}
+        />
+      )}
+
+      {channelDraft && configuringChannelId && (
+        <ConfigureChannelModal
+          channel={channelDraft}
+          onChange={setChannelDraft}
+          onClose={() => {
+            setConfiguringChannelId(null);
+            setChannelDraft(null);
+          }}
+          onSave={handleSaveChannel}
+        />
+      )}
+    </div>
+  );
+}
+
+function AlertTypeCard({
+  alert,
+  description,
+  onToggle,
+  onConfigure,
+}: {
+  alert: AlertTypeConfig;
+  description: string;
+  onToggle: (enabled: boolean) => void;
+  onConfigure: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800">
+      <div className="mb-3 flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="mb-1 font-bold text-slate-900 dark:text-slate-50">{alert.name}</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{description}</p>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            checked={alert.enabled}
+            onChange={(e) => onToggle(e.target.checked)}
+            className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+        </label>
+      </div>
+      <div className="flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-700">
+        <div className="flex flex-wrap gap-2">
+          {alert.channels.map((channel) => (
+            <span
+              key={channel}
+              className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+            >
+              {getChannelLabel(channel)}
+            </span>
+          ))}
+        </div>
+        <button
+          onClick={onConfigure}
+          className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+        >
+          Configure
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ThresholdCard({
+  threshold,
+  isEditing,
+  draftValue,
+  onEdit,
+  onDraftChange,
+  onSave,
+  onCancel,
+}: {
+  threshold: AlertThreshold;
+  isEditing: boolean;
+  draftValue: string;
+  onEdit: () => void;
+  onDraftChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
+      <div className="mb-3 flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="mb-1 font-semibold text-slate-900 dark:text-slate-50">
+            {threshold.name}
+          </h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{threshold.description}</p>
+        </div>
+        {!isEditing && (
+          <button
+            onClick={onEdit}
+            className="rounded p-2 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
+          >
+            <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          </button>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="flex items-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+              Value
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={draftValue}
+              onChange={(e) => onDraftChange(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50"
+            />
+          </div>
+          <span className="pb-2 font-medium text-slate-600 dark:text-slate-400">
+            {threshold.unit}
+          </span>
+          <button
+            onClick={onSave}
+            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
+          >
+            Save
+          </button>
+          <button
+            onClick={onCancel}
+            className="rounded-lg bg-slate-200 px-4 py-2 font-medium text-slate-900 transition-colors hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-50 dark:hover:bg-slate-600"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="border-t border-slate-200 pt-3 text-lg font-bold text-slate-900 dark:border-slate-700 dark:text-slate-50">
+          {threshold.value}{" "}
+          <span className="text-sm font-normal text-slate-600 dark:text-slate-400">
+            {threshold.unit}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveAlertCard({
+  alert,
+  onDismiss,
+  onMarkRead,
+}: {
+  alert: ActiveAlert;
+  onDismiss: () => void;
+  onMarkRead: () => void;
+}) {
+  const severityStyles = {
+    info: "border-blue-200 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20",
+    warning: "border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20",
+    critical: "border-red-200 bg-red-50 dark:border-red-700 dark:bg-red-900/20",
+  };
+
+  return (
+    <div className={`rounded-lg border p-5 ${severityStyles[alert.severity]}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-slate-900 dark:text-slate-50">{alert.title}</p>
+            {!alert.read && (
+              <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                New
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-slate-700 dark:text-slate-300">{alert.message}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {alert.channels.map((channel) => (
+              <span
+                key={channel}
+                className="rounded bg-white/70 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                {getChannelLabel(channel)}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          {!alert.read && (
+            <button
+              onClick={onMarkRead}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Mark read
+            </button>
+          )}
+          <button
+            onClick={onDismiss}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfigureAlertModal({
+  alert,
+  description,
+  channels,
+  onClose,
+  onSave,
+}: {
+  alert: AlertTypeConfig;
+  description: string;
+  channels: NotificationChannelConfig[];
+  onClose: () => void;
+  onSave: (channels: AlertChannelId[]) => void;
+}) {
+  const [selectedChannels, setSelectedChannels] = useState<AlertChannelId[]>(alert.channels);
+  const allChannels: AlertChannelId[] = ["email", "sms", "dashboard", "push"];
+
+  const toggleChannel = (channelId: AlertChannelId) => {
+    setSelectedChannels((current) =>
+      current.includes(channelId)
+        ? current.filter((id) => id !== channelId)
+        : [...current, channelId],
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800">
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">{alert.name}</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{description}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-700">
+            <X className="h-5 w-5 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
+            Notification channels
+          </p>
+          {allChannels.map((channelId) => {
+            const channel = channels.find((item) => item.id === channelId);
+            return (
+              <label
+                key={channelId}
+                className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 px-4 py-3 dark:border-slate-600"
+              >
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-slate-50">
+                    {getChannelLabel(channelId)}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {channel?.configured ? channel.details : "Channel not configured yet"}
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={selectedChannels.includes(channelId)}
+                  onChange={() => toggleChannel(channelId)}
+                  className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-lg px-4 py-2 font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(selectedChannels)}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+          >
+            <Save className="h-4 w-4" />
+            Save Configuration
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfigureChannelModal({
+  channel,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  channel: NotificationChannelConfig;
+  onChange: (channel: NotificationChannelConfig) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800">
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+              Configure {channel.name}
+            </h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Settings are saved locally for this school.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-700">
+            <X className="h-5 w-5 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {channel.id === "email" && (
+            <>
+              <Field
+                label="SMTP Server"
+                value={channel.smtpServer ?? ""}
+                onChange={(value) => onChange({ ...channel, smtpServer: value })}
+              />
+              <Field
+                label="SMTP Port"
+                type="number"
+                value={String(channel.smtpPort ?? 587)}
+                onChange={(value) => onChange({ ...channel, smtpPort: Number(value) })}
+              />
+              <Field
+                label="Sender Email"
+                value={channel.senderEmail ?? ""}
+                onChange={(value) => onChange({ ...channel, senderEmail: value })}
+              />
+            </>
+          )}
+
+          {channel.id === "sms" && (
+            <>
+              <Field
+                label="SMS Provider"
+                value={channel.smsProvider ?? ""}
+                onChange={(value) => onChange({ ...channel, smsProvider: value })}
+              />
+              <Field
+                label="API Key"
+                value={channel.smsApiKey ?? ""}
+                onChange={(value) => onChange({ ...channel, smsApiKey: value })}
+              />
+            </>
+          )}
+
+          {channel.id === "push" && (
+            <label className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 dark:border-slate-600">
+              <input
+                type="checkbox"
+                checked={Boolean(channel.pushEnabled)}
+                onChange={(e) => onChange({ ...channel, pushEnabled: e.target.checked })}
+                className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                Enable browser push notifications
+              </span>
+            </label>
+          )}
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-lg px-4 py-2 font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+          >
+            <Save className="h-4 w-4" />
+            Save Channel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-slate-900 dark:text-slate-50">
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50"
+      />
     </div>
   );
 }

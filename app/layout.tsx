@@ -10,21 +10,20 @@ import "./globals.css";
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-manrope",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "School Management System",
-  description: "A Next.js school management platform with role-based access and modular school operations.",
+  description: "Professional school management platform with role-based access and modular operations.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={manrope.variable}>
-      <body className="font-[var(--font-manrope)] antialiased">
+    <html lang="en-GB" className={manrope.variable}>
+      <body className="font-sans antialiased">
         <Providers>
-          <AuthGuard>
-            {children}
-          </AuthGuard>
+          <AuthGuard>{children}</AuthGuard>
         </Providers>
       </body>
     </html>

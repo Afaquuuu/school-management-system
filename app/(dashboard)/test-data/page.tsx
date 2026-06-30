@@ -8,6 +8,98 @@ export default function TestDataPage() {
   const router = useRouter();
   const { currentSchool } = useSchool();
 
+  const addDefaultClasses = () => {
+    if (!currentSchool) {
+      alert("No school selected!");
+      return;
+    }
+
+    const defaultClasses = [
+      { id: "grade-6-a", name: "Grade 6 A", section: "A", inCharge: "Not Assigned", students: 0, isManual: true },
+      { id: "grade-6-b", name: "Grade 6 B", section: "B", inCharge: "Not Assigned", students: 0, isManual: true },
+      { id: "grade-7-a", name: "Grade 7 A", section: "A", inCharge: "Not Assigned", students: 0, isManual: true },
+      { id: "grade-7-b", name: "Grade 7 B", section: "B", inCharge: "Not Assigned", students: 0, isManual: true },
+      { id: "grade-8-a", name: "Grade 8 A", section: "A", inCharge: "Not Assigned", students: 0, isManual: true },
+      { id: "grade-8-b", name: "Grade 8 B", section: "B", inCharge: "Not Assigned", students: 0, isManual: true },
+    ];
+
+    setScopedItem(currentSchool.id, 'school_classes', JSON.stringify(defaultClasses));
+    alert(`Added ${defaultClasses.length} classes for ${currentSchool.name}!\n\nClasses created:\n- Grade 6 A\n- Grade 6 B\n- Grade 7 A\n- Grade 7 B\n- Grade 8 A\n- Grade 8 B`);
+  };
+
+  const addSystemUsers = () => {
+    if (!currentSchool) {
+      alert("No school selected!");
+      return;
+    }
+    
+    const systemUsers = [
+      {
+        id: "user_admin_001",
+        name: "Principal Administrator",
+        email: "principal@school.edu",
+        phone: "+233 24 000 0001",
+        role: "Admin",
+        classDepartment: "Administration",
+        status: "Active",
+        password: "admin123",
+        createdAt: new Date().toISOString(),
+        lastLogin: null
+      },
+      {
+        id: "user_teacher_001",
+        name: "A. Mensah",
+        email: "a.mensah@school.edu",
+        phone: "+233 24 000 0002",
+        role: "Teacher",
+        classDepartment: "Mathematics",
+        status: "Active",
+        password: "password123",
+        createdAt: new Date().toISOString(),
+        lastLogin: null
+      },
+      {
+        id: "user_teacher_002",
+        name: "S. Okafor",
+        email: "s.okafor@school.edu",
+        phone: "+233 24 000 0003",
+        role: "Teacher",
+        classDepartment: "Science",
+        status: "Active",
+        password: "password123",
+        createdAt: new Date().toISOString(),
+        lastLogin: null
+      },
+      {
+        id: "user_student_001",
+        name: "Ama",
+        email: "ama@school.edu",
+        phone: "+233 24 000 0004",
+        role: "Student",
+        classDepartment: "Grade 7B",
+        status: "Active",
+        password: "password123",
+        createdAt: new Date().toISOString(),
+        lastLogin: null
+      },
+      {
+        id: "user_parent_001",
+        name: "Mr. Parent",
+        email: "parent@school.edu",
+        phone: "+233 24 000 0005",
+        role: "Parent",
+        classDepartment: "Guardian",
+        status: "Active",
+        password: "password123",
+        createdAt: new Date().toISOString(),
+        lastLogin: null
+      }
+    ];
+
+    setScopedItem(currentSchool.id, 'system_users', JSON.stringify(systemUsers));
+    alert(`Added ${systemUsers.length} system users for ${currentSchool.name}!\n\nYou can now login with:\n- principal@school.edu / admin123\n- a.mensah@school.edu / password123\n- ama@school.edu / password123`);
+  };
+
   const addTestStudents = () => {
     if (!currentSchool) {
       alert("No school selected!");
@@ -187,6 +279,59 @@ export default function TestDataPage() {
 
         {/* Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Add System Users */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-purple-200 dark:border-purple-700 p-6 hover:shadow-lg transition-all md:col-span-2">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                <Users className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Add System Users (Required First!)</h2>
+            </div>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
+              ⭐ <strong>Start Here!</strong> Adds system users required for login authentication
+            </p>
+            <ul className="text-sm text-slate-600 dark:text-slate-400 mb-4 space-y-1">
+              <li>• <strong>Admin:</strong> principal@school.edu / admin123</li>
+              <li>• <strong>Teacher:</strong> a.mensah@school.edu / password123</li>
+              <li>• <strong>Teacher:</strong> s.okafor@school.edu / password123</li>
+              <li>• <strong>Student:</strong> ama@school.edu / password123</li>
+              <li>• <strong>Parent:</strong> parent@school.edu / password123</li>
+            </ul>
+            <button
+              onClick={addSystemUsers}
+              className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-purple-500/30"
+            >
+              Add System Users
+            </button>
+          </div>
+
+          {/* Add Default Classes */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-indigo-200 dark:border-indigo-700 p-6 hover:shadow-lg transition-all md:col-span-2">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
+                <Calendar className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Add Default Classes</h2>
+            </div>
+            <p className="text-slate-600 dark:text-slate-400 mb-4">
+              📚 Creates 6 classes ready for use (Grade 6-8, Sections A & B)
+            </p>
+            <ul className="text-sm text-slate-600 dark:text-slate-400 mb-4 grid grid-cols-2 gap-1">
+              <li>• Grade 6 A</li>
+              <li>• Grade 6 B</li>
+              <li>• Grade 7 A</li>
+              <li>• Grade 7 B</li>
+              <li>• Grade 8 A</li>
+              <li>• Grade 8 B</li>
+            </ul>
+            <button
+              onClick={addDefaultClasses}
+              className="w-full px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-indigo-500/30"
+            >
+              Add Default Classes
+            </button>
+          </div>
+
           {/* Add Test Students */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all">
             <div className="flex items-center gap-3 mb-4">
@@ -294,16 +439,16 @@ export default function TestDataPage() {
 
         {/* Instructions */}
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-700 p-6">
-          <h3 className="text-lg font-bold text-blue-900 dark:text-blue-50 mb-3">Testing Instructions</h3>
+          <h3 className="text-lg font-bold text-blue-900 dark:text-blue-50 mb-3">Quick Setup Instructions</h3>
           <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
-            <li><strong>1.</strong> Click "Add Test Students" to add 5 students to Grade 7B</li>
-            <li><strong>2.</strong> Go to Students page to verify they were added</li>
-            <li><strong>3.</strong> Go to Attendance page and select "Grade 7B"</li>
-            <li><strong>4.</strong> Mark attendance for the students</li>
-            <li><strong>5.</strong> Click "Save Attendance"</li>
-            <li><strong>6.</strong> Click "View History" on any student to see saved records</li>
-            <li><strong>7.</strong> Change the date and save again to build history</li>
-            <li><strong>8.</strong> Use "Debug Storage" page to inspect data</li>
+            <li><strong>1.</strong> <strong className="text-purple-600 dark:text-purple-300">Click "Add System Users"</strong> - Required to login</li>
+            <li><strong>2.</strong> <strong className="text-indigo-600 dark:text-indigo-300">Click "Add Default Classes"</strong> - Creates 6 classes (Grade 6-8)</li>
+            <li><strong>3.</strong> Login with: principal@school.edu / admin123</li>
+            <li><strong>4.</strong> Click "Add Test Students" for sample data</li>
+            <li><strong>5.</strong> Navigate to Admin → Academics to configure classes</li>
+            <li><strong>6.</strong> Assign subjects and teachers to each class</li>
+            <li><strong>7.</strong> Go to Attendance to mark student attendance</li>
+            <li><strong>8.</strong> Explore other features like Exams, Finance, etc.</li>
           </ol>
         </div>
       </div>

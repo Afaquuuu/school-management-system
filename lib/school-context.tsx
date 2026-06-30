@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { normalizeClassLabel } from "@/lib/class-labels";
 
 type School = {
   id: string;
@@ -203,14 +204,12 @@ export function getSchoolClasses(schoolId: string): SchoolClass[] {
 
 // Helper function to get unique class names from classes
 export function getUniqueClassNames(classes: SchoolClass[]): string[] {
-  // Extract the class name without the section (everything before the last space)
-  const classNames = classes.map(c => {
-    const parts = c.name.trim().split(' ');
-    // Remove the last part (section) to get just the class name
-    return parts.slice(0, -1).join(' ');
-  }).filter(name => name.length > 0);
-  
-  return Array.from(new Set(classNames)).sort();
+  const classNames = classes.map((c) => {
+    const parts = normalizeClassLabel(c.name).split(" ");
+    return parts.slice(0, -1).join(" ");
+  }).filter((name) => name.length > 0);
+
+  return Array.from(new Set(classNames.map((name) => normalizeClassLabel(name)))).sort();
 }
 
 // Helper function to get unique sections from classes

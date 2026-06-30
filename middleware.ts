@@ -19,7 +19,7 @@ const isProtectedRoute = createRouteMatcher([
 
 const accessRules: Array<{ matcher: ReturnType<typeof createRouteMatcher>; allowedRoles: UserRole[] }> = [
   { matcher: createRouteMatcher(["/admin(.*)"]), allowedRoles: ["admin", "teacher", "student", "parent"] },
-  { matcher: createRouteMatcher(["/staff(.*)"]), allowedRoles: ["admin", "teacher", "student", "parent"] },
+  { matcher: createRouteMatcher(["/staff(.*)"]), allowedRoles: ["admin"] },
   { matcher: createRouteMatcher(["/attendance(.*)", "/academics(.*)"]), allowedRoles: ["admin", "teacher", "student", "parent"] },
   { matcher: createRouteMatcher(["/analytics(.*)"]), allowedRoles: ["admin", "teacher", "student", "parent"] },
   { matcher: createRouteMatcher(["/finance(.*)"]), allowedRoles: ["admin", "teacher", "student", "parent"] },

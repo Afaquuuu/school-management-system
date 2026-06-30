@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Plus, Edit, Trash2, AlertCircle, X, Save, CheckCircle } from "lucide-react";
 import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
+import {
+  detectTimetableConflicts,
+  formatTimeRange,
+  groupEntriesByDay,
+  loadTimetableEntries,
+  saveTimetableEntries,
+  TIMETABLE_DAYS,
+  type TimetableEntry,
+} from "@/lib/timetable";
 
 type ResourceType = "Classroom" | "Lab" | "Facility";
 
@@ -23,11 +32,6 @@ const sampleResources: Resource[] = [
   { id: "5", code: "GYM-01", name: "Gymnasium", capacity: 100, type: "Facility", available: true },
 ];
 
-const scheduleConflicts = [
-  { conflict: "Grade 8A and Grade 8B both assigned to R-101 on Monday 9:00-10:00", severity: "high", resolution: "Move Grade 8B to R-102" },
-  { conflict: "Science Lab booked for Physics and Chemistry on Tuesday 11:00", severity: "medium", resolution: "Reschedule Chemistry to Wednesday" },
-];
-
 export default function ResourcesPage() {
   const { currentSchool } = useSchool();
   const [selectedTab, setSelectedTab] = useState<"classrooms" | "schedule" | "conflicts">("classrooms");
@@ -37,6 +41,8 @@ export default function ResourcesPage() {
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
+  const [selectedRoomFilter, setSelectedRoomFilter] = useState("all");
   
   // Form state
   const [formData, setFormData] = useState<Partial<Resource>>({
@@ -58,8 +64,47 @@ export default function ResourcesPage() {
         setResources(sampleResources);
         setScopedItem(currentSchool.id, 'school_resources', JSON.stringify(sampleResources));
       }
+
+      setTimetableEntries(loadTimetableEntries(currentSchool.id));
     }
   }, [currentSchool]);
+
+  const reloadTimetable = () => {
+    if (!currentSchool) return;
+    setTimetableEntries(loadTimetableEntries(currentSchool.id));
+  };
+
+  const scheduleByDay = useMemo(() => groupEntriesByDay(timetableEntries), [timetableEntries]);
+  const scheduleConflicts = useMemo(
+    () => detectTimetableConflicts(timetableEntries),
+    [timetableEntries],
+  );
+
+  const filteredScheduleByDay = useMemo(() => {
+    if (selectedRoomFilter === "all") return scheduleByDay;
+
+    const filtered = Object.fromEntries(
+      TIMETABLE_DAYS.map((day) => [day, [] as TimetableEntry[]]),
+    ) as Record<(typeof TIMETABLE_DAYS)[number], TimetableEntry[]>;
+
+    for (const day of TIMETABLE_DAYS) {
+      filtered[day] = scheduleByDay[day].filter((entry) => entry.roomCode === selectedRoomFilter);
+    }
+
+    return filtered;
+  }, [scheduleByDay, selectedRoomFilter]);
+
+  const resolveConflict = (conflictId: string) => {
+    if (!currentSchool) return;
+    const conflict = scheduleConflicts.find((item) => item.id === conflictId);
+    if (!conflict || conflict.entryIds.length < 2) return;
+
+    const entryToRemove = conflict.entryIds[1];
+    const nextEntries = timetableEntries.filter((entry) => entry.id !== entryToRemove);
+    setTimetableEntries(nextEntries);
+    saveTimetableEntries(currentSchool.id, nextEntries);
+    showSuccessNotification("Conflicting slot removed. Update the timetable in Academics → Timetable.");
+  };
 
   // Save resources to localStorage
   const saveResources = (updatedResources: Resource[]) => {
@@ -310,31 +355,70 @@ export default function ResourcesPage() {
       {/* Schedule Tab */}
       {selectedTab === "schedule" && (
         <div className="space-y-4">
-          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              📅 Manage and view resource allocation schedules. Conflicts are automatically detected.
+              Live room allocation from Academics → Timetable. Assign periods there to update this schedule.
             </p>
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-blue-900 dark:text-blue-100">Room</label>
+              <select
+                value={selectedRoomFilter}
+                onChange={(event) => setSelectedRoomFilter(event.target.value)}
+                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm dark:border-blue-700 dark:bg-slate-800 dark:text-slate-50"
+              >
+                <option value="all">All rooms</option>
+                {resources.map((room) => (
+                  <option key={room.id} value={room.code}>
+                    {room.code}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={reloadTimetable}
+                className="rounded-lg border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-900/40"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            {["Monday", "Tuesday"].map((day) => (
-              <div key={day} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
-                <h3 className="font-bold text-slate-900 dark:text-slate-50 mb-4">{day}</h3>
-                <div className="space-y-3">
-                  {[
-                    { time: "08:00-09:00", room: "R-101", class: "Grade 6A" },
-                    { time: "09:00-10:00", room: "R-102", class: "Grade 7B" },
-                    { time: "10:00-11:00", room: "LAB-02", class: "Computer Lab" },
-                  ].map((slot, idx) => (
-                    <div key={idx} className="bg-slate-50 dark:bg-slate-700 p-3 rounded text-sm">
-                      <p className="font-medium text-slate-900 dark:text-slate-50">{slot.time}</p>
-                      <p className="text-slate-600 dark:text-slate-400">{slot.room} - {slot.class}</p>
+          {timetableEntries.length === 0 ? (
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-12 text-center">
+              <AlertCircle className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-2">No Timetable Entries Yet</h3>
+              <p className="text-slate-600 dark:text-slate-400">
+                Go to Academics → Timetable to assign subjects and rooms for each class period.
+              </p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {TIMETABLE_DAYS.map((day) => (
+                <div key={day} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
+                  <h3 className="font-bold text-slate-900 dark:text-slate-50 mb-4">{day}</h3>
+                  {filteredScheduleByDay[day].length === 0 ? (
+                    <p className="text-sm text-slate-500">No bookings for this filter.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredScheduleByDay[day].map((entry) => (
+                        <div key={entry.id} className="bg-slate-50 dark:bg-slate-700 p-3 rounded text-sm">
+                          <p className="font-medium text-slate-900 dark:text-slate-50">
+                            {formatTimeRange(entry.startTime, entry.endTime)}
+                          </p>
+                          <p className="text-slate-600 dark:text-slate-400">
+                            {entry.roomCode} — {entry.classLabel}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            {entry.subject} • {entry.teacher}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -348,17 +432,29 @@ export default function ResourcesPage() {
                 <div>
                   <p className="font-semibold text-yellow-900 dark:text-yellow-200">{scheduleConflicts.length} Scheduling Conflict(s) Detected</p>
                   <p className="text-sm text-yellow-800 dark:text-yellow-300 mt-1">
-                    Review and resolve these conflicts to prevent double-booking of resources
+                    These come from overlapping room bookings in the weekly timetable.
                   </p>
                 </div>
               </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-green-900 dark:text-green-100">No room conflicts detected</p>
+                  <p className="text-sm text-green-800 dark:text-green-300 mt-1">
+                    All assigned rooms have unique bookings for each period.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-3">
-            {scheduleConflicts.map((conflict, idx) => (
+            {scheduleConflicts.map((conflict) => (
               <div
-                key={idx}
+                key={conflict.id}
                 className={`border rounded-lg p-6 ${
                   conflict.severity === "high"
                     ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700"
@@ -367,8 +463,8 @@ export default function ResourcesPage() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="font-semibold text-slate-900 dark:text-slate-50">{conflict.conflict}</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">💡 Suggested: {conflict.resolution}</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-50">{conflict.message}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Suggested: {conflict.resolution}</p>
                   </div>
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -380,8 +476,12 @@ export default function ResourcesPage() {
                     {conflict.severity.charAt(0).toUpperCase() + conflict.severity.slice(1)}
                   </span>
                 </div>
-                <button className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline mt-3">
-                  Apply Resolution
+                <button
+                  type="button"
+                  onClick={() => resolveConflict(conflict.id)}
+                  className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline mt-3"
+                >
+                  Remove later conflicting slot
                 </button>
               </div>
             ))}

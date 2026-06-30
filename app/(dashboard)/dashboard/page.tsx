@@ -1,39 +1,52 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { 
-  Activity, 
-  CalendarCheck, 
-  GraduationCap, 
-  Users2, 
-  TrendingUp, 
-  TrendingDown,
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Activity,
   AlertCircle,
-  CheckCircle,
-  Clock,
-  DollarSign,
-  UserCheck,
-  BookOpen,
-  Bell,
   ArrowRight,
-  Calendar,
-  Users,
   Award,
-  Target,
   BarChart3,
-  PieChart
+  BookOpen,
+  Calendar,
+  CalendarCheck,
+  CheckCircle,
+  ClipboardList,
+  Clock,
+  GraduationCap,
+  PieChart,
+  Receipt,
+  TrendingDown,
+  TrendingUp,
+  UserCheck,
+  Users,
+  Users2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useSchool, getScopedItem } from "@/lib/school-context";
+import type { UserRole } from "@/lib/auth";
+import { getUserSession, type UserSession } from "@/lib/teacher-check-in";
+import {
+  formatDate,
+  formatDateLong,
+  formatDayMonth,
+  formatTime,
+  formatWeekdayShort,
+  getTodayIsoDate,
+} from "@/lib/date-format";
 
 type Student = {
   id: string;
   studentId: string;
   firstName: string;
   lastName: string;
+  email?: string;
   class: string;
   section: string;
+  rollNumber?: string;
   status: string;
+  admissionDate?: string;
+  guardianName?: string;
 };
 
 type AttendanceRecord = {
@@ -46,12 +59,44 @@ type AttendanceRecord = {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const dashboardView =
+    searchParams.get("view") === "actions"
+      ? "actions"
+      : searchParams.get("view") === "activity"
+        ? "activity"
+        : "overview";
+
+  const pageTitles = {
+    overview: "Dashboard Overview",
+    actions: "Quick Actions",
+    activity: "Recent Activity",
+  } as const;
+
+  const pageDescriptions = {
+    overview: "Key metrics, attendance trends, and system status at a glance",
+    actions: "Shortcuts to common tasks across the school platform",
+    activity: "Latest attendance updates and student activity for today",
+  } as const;
+
   const { currentSchool } = useSchool();
+  const [userRole, setUserRole] = useState<UserRole>("teacher");
+  const [userSession, setUserSession] = useState<UserSession | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Load data from scoped localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const role = localStorage.getItem("user_role");
+      if (role === "admin" || role === "teacher" || role === "student" || role === "parent") {
+        setUserRole(role);
+      }
+      setUserSession(getUserSession());
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && currentSchool) {
       const storedStudents = getScopedItem(currentSchool.id, 'school_students');
@@ -70,6 +115,98 @@ export default function DashboardPage() {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, [currentSchool]);
+
+  const currentStudent = useMemo(() => {
+    if (!userSession || userRole !== "student") return null;
+
+    return (
+      students.find(
+        (student) =>
+          student.email?.toLowerCase() === userSession.email.toLowerCase() ||
+          student.id === userSession.id ||
+          `${student.firstName} ${student.lastName}`.toLowerCase() ===
+            userSession.name.toLowerCase() ||
+          student.firstName.toLowerCase() === userSession.name.toLowerCase(),
+      ) ?? null
+    );
+  }, [students, userSession, userRole]);
+
+  const studentRecords = useMemo(() => {
+    if (!currentStudent) return [];
+    return attendanceRecords.filter((record) => record.studentId === currentStudent.id);
+  }, [attendanceRecords, currentStudent]);
+
+  const studentMetrics = useMemo(() => {
+    if (!currentStudent) {
+      return {
+        todayStatus: null as string | null,
+        presentDays: 0,
+        absentDays: 0,
+        attendanceRate: "0.0",
+        totalRecords: 0,
+      };
+    }
+
+    const today = getTodayIsoDate();
+    const todayRecord = studentRecords.find((record) => record.date === today);
+    const counted = studentRecords.filter(
+      (record) => record.status === "present" || record.status === "late" || record.status === "absent",
+    );
+    const presentDays = studentRecords.filter(
+      (record) => record.status === "present" || record.status === "late",
+    ).length;
+    const absentDays = studentRecords.filter((record) => record.status === "absent").length;
+    const attendanceRate =
+      counted.length > 0 ? ((presentDays / counted.length) * 100).toFixed(1) : "0.0";
+
+    return {
+      todayStatus: todayRecord?.status ?? null,
+      presentDays,
+      absentDays,
+      attendanceRate,
+      totalRecords: studentRecords.length,
+    };
+  }, [currentStudent, studentRecords]);
+
+  const studentAttendanceTrend = useMemo(() => {
+    if (!currentStudent) return [];
+
+    const trend = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split("T")[0];
+      const record = studentRecords.find((entry) => entry.date === dateStr);
+      const rate =
+        record?.status === "present" || record?.status === "late"
+          ? 100
+          : record?.status === "excused"
+            ? 75
+            : record?.status === "absent"
+              ? 0
+              : 0;
+
+      trend.push({
+        date: dateStr,
+        day: formatWeekdayShort(date),
+        rate,
+        status: record?.status ?? "none",
+      });
+    }
+    return trend;
+  }, [currentStudent, studentRecords]);
+
+  const studentRecentAttendance = useMemo(() => {
+    return [...studentRecords]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 7);
+  }, [studentRecords]);
+
+  const isStudentView = userRole === "student";
+  const overviewTitle = isStudentView ? "My Overview" : pageTitles.overview;
+  const overviewDescription = isStudentView
+    ? "Your profile, class details, and personal attendance summary"
+    : pageDescriptions.overview;
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -144,7 +281,7 @@ export default function DashboardPage() {
       
       trend.push({
         date: dateStr,
-        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        day: formatWeekdayShort(date),
         rate: Math.round(rate),
       });
     }
@@ -159,28 +296,242 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 -m-6 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="surface-card flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Dashboard</h1>
-            <p className="text-slate-600 dark:text-slate-400 mt-1">
-              {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            <p className="section-label mb-1">Dashboard</p>
+            <h1 className="page-title">
+              {dashboardView === "overview" ? overviewTitle : pageTitles[dashboardView]}
+            </h1>
+            <p className="page-subtitle mt-1">
+              {dashboardView === "overview" ? overviewDescription : pageDescriptions[dashboardView]}
             </p>
+            {dashboardView === "overview" && (
+              <p className="mt-2 text-sm text-slate-500">
+                {formatDateLong(currentTime)}
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-3">
-            <div className="px-4 py-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-              <p className="text-sm text-slate-600 dark:text-slate-400">Current Time</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-50">
-                {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+          {dashboardView === "overview" && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
+              <p className="text-xs font-medium text-slate-500">Current Time</p>
+              <p className="text-lg font-semibold text-slate-900">
+                {formatTime(currentTime)}
               </p>
             </div>
-          </div>
+          )}
         </div>
 
+        {dashboardView === "overview" && isStudentView && (
+          <>
+            {!currentStudent ? (
+              <div className="surface-card p-8 text-center">
+                <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
+                <h2 className="text-xl font-semibold text-slate-900">Student Profile Not Found</h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  We could not match your account to a student record. Please contact the school office.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="surface-card p-6">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="rounded-xl bg-blue-50 p-3">
+                        <GraduationCap className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-semibold text-slate-900">
+                          {currentStudent.firstName} {currentStudent.lastName}
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Student ID: {currentStudent.studentId}
+                          {currentStudent.rollNumber ? ` · Roll ${currentStudent.rollNumber}` : ""}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Class: {currentStudent.class} {currentStudent.section}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold capitalize text-emerald-700">
+                      {currentStudent.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="surface-card p-6">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Today&apos;s Status
+                    </p>
+                    <p className="mt-2 text-3xl font-bold capitalize text-slate-900">
+                      {studentMetrics.todayStatus ?? "Not marked"}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">Your attendance for today</p>
+                  </div>
+
+                  <div className="surface-card p-6">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      My Attendance Rate
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                      {studentMetrics.attendanceRate}%
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">Based on your records</p>
+                  </div>
+
+                  <div className="surface-card p-6">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
+                      Present Days
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-emerald-700">
+                      {studentMetrics.presentDays}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">Including late arrivals</p>
+                  </div>
+
+                  <div className="surface-card p-6">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
+                      Absent Days
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-red-700">
+                      {studentMetrics.absentDays}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">Recorded absences only</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                  <div className="surface-card p-6 lg:col-span-2">
+                    <div className="mb-6 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-semibold text-slate-900">My Attendance Trend</h2>
+                        <p className="mt-1 text-sm text-slate-500">Your last 7 days</p>
+                      </div>
+                      <BarChart3 className="h-5 w-5 text-blue-600" />
+                    </div>
+
+                    <div className="space-y-3">
+                      {studentAttendanceTrend.map((day) => (
+                        <div key={day.date} className="flex items-center gap-4">
+                          <div className="w-12 text-sm font-medium text-slate-500">{day.day}</div>
+                          <div className="flex-1">
+                            <div className="relative h-10 overflow-hidden rounded-lg bg-slate-100">
+                              <div
+                                className={`h-full rounded-lg transition-all duration-500 ${
+                                  day.status === "present" || day.status === "late"
+                                    ? "bg-emerald-500"
+                                    : day.status === "excused"
+                                      ? "bg-blue-500"
+                                      : day.status === "absent"
+                                        ? "bg-red-500"
+                                        : "bg-slate-300"
+                                }`}
+                                style={{ width: `${day.rate}%` }}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {day.status === "none"
+                                    ? "No record"
+                                    : day.status.charAt(0).toUpperCase() + day.status.slice(1)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="w-20 text-right text-sm text-slate-500">
+                            {formatDayMonth(day.date)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="surface-card p-6">
+                    <h3 className="text-lg font-semibold text-slate-900">My Details</h3>
+                    <div className="mt-4 space-y-3 text-sm">
+                      <div>
+                        <p className="text-slate-500">Class</p>
+                        <p className="font-medium text-slate-900">
+                          {currentStudent.class} {currentStudent.section}
+                        </p>
+                      </div>
+                      {currentStudent.admissionDate && (
+                        <div>
+                          <p className="text-slate-500">Admission Date</p>
+                          <p className="font-medium text-slate-900">{formatDate(currentStudent.admissionDate)}</p>
+                        </div>
+                      )}
+                      {currentStudent.guardianName && (
+                        <div>
+                          <p className="text-slate-500">Guardian</p>
+                          <p className="font-medium text-slate-900">{currentStudent.guardianName}</p>
+                        </div>
+                      )}
+                      {userSession?.email && (
+                        <div>
+                          <p className="text-slate-500">Email</p>
+                          <p className="font-medium text-slate-900">{userSession.email}</p>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => router.push("/attendance?view=records")}
+                      className="btn-primary mt-6 w-full"
+                    >
+                      View My Attendance
+                    </button>
+                  </div>
+                </div>
+
+                <div className="surface-card p-6">
+                  <h2 className="text-xl font-semibold text-slate-900">Recent Attendance</h2>
+                  <div className="mt-4 space-y-3">
+                    {studentRecentAttendance.length === 0 ? (
+                      <p className="py-6 text-center text-sm text-slate-500">
+                        No attendance records found for your account yet.
+                      </p>
+                    ) : (
+                      studentRecentAttendance.map((record) => {
+                        const config = statusConfig[record.status as keyof typeof statusConfig];
+                        const StatusIcon = config?.icon || CheckCircle;
+
+                        return (
+                          <div
+                            key={record.id}
+                            className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4"
+                          >
+                            <div
+                              className={`flex h-10 w-10 items-center justify-center rounded-full ${config?.color || "bg-slate-500"}`}
+                            >
+                              <StatusIcon className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-semibold text-slate-900">{formatDate(record.date)}</p>
+                              <p className="text-sm text-slate-500">
+                                {currentStudent.class} {currentStudent.section}
+                              </p>
+                            </div>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${config?.color || "bg-slate-500"}`}
+                            >
+                              {config?.label || record.status}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {dashboardView === "overview" && !isStudentView && (
+          <>
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group cursor-pointer"
                onClick={() => router.push('/students')}>
             <div className="flex items-center justify-between mb-4">
@@ -244,152 +595,280 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Attendance Trend Chart */}
-          <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-            <div className="flex items-center justify-between mb-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="surface-card p-6 lg:col-span-2">
+            <div className="mb-6 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Attendance Trend</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Last 7 days performance</p>
+                <h2 className="text-xl font-semibold text-slate-900">Attendance Trend</h2>
+                <p className="mt-1 text-sm text-slate-500">Last 7 days performance</p>
               </div>
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <div className="rounded-lg bg-blue-50 p-2">
+                <BarChart3 className="h-5 w-5 text-blue-600" />
               </div>
             </div>
-            
+
             <div className="space-y-3">
               {attendanceTrend.map((day, index) => (
                 <div key={index} className="flex items-center gap-4">
-                  <div className="w-12 text-sm font-medium text-slate-600 dark:text-slate-400">
-                    {day.day}
-                  </div>
+                  <div className="w-12 text-sm font-medium text-slate-500">{day.day}</div>
                   <div className="flex-1">
-                    <div className="h-10 bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden relative">
-                      <div 
+                    <div className="relative h-10 overflow-hidden rounded-lg bg-slate-100">
+                      <div
                         className={`h-full rounded-lg transition-all duration-500 ${
-                          day.rate >= 95 ? 'bg-emerald-500' :
-                          day.rate >= 85 ? 'bg-amber-500' :
-                          'bg-red-500'
+                          day.rate >= 95
+                            ? "bg-emerald-500"
+                            : day.rate >= 85
+                              ? "bg-amber-500"
+                              : "bg-red-500"
                         }`}
                         style={{ width: `${day.rate}%` }}
                       />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-sm font-bold text-slate-900 dark:text-slate-50">
-                          {day.rate}%
-                        </span>
+                        <span className="text-sm font-semibold text-slate-900">{day.rate}%</span>
                       </div>
                     </div>
                   </div>
-                  <div className="w-20 text-right text-sm text-slate-600 dark:text-slate-400">
-                    {new Date(day.date).getDate()}/{new Date(day.date).getMonth() + 1}
+                  <div className="w-20 text-right text-sm text-slate-500">
+                    {formatDayMonth(day.date)}
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="space-y-6">
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 text-white">
-              <h3 className="text-lg font-bold mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                <button
-                  onClick={() => router.push('/attendance')}
-                  className="w-full px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all flex items-center justify-between group"
-                >
-                  <span className="font-medium">Take Attendance</span>
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button
-                  onClick={() => router.push('/students')}
-                  className="w-full px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all flex items-center justify-between group"
-                >
-                  <span className="font-medium">Add Student</span>
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button
-                  onClick={() => router.push('/finance')}
-                  className="w-full px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl transition-all flex items-center justify-between group"
-                >
-                  <span className="font-medium">Create Invoice</span>
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-              </div>
+          <div className="surface-card p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Class Distribution</h3>
+              <PieChart className="h-5 w-5 text-slate-400" />
             </div>
-
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Class Distribution</h3>
-                <PieChart className="w-5 h-5 text-slate-400" />
-              </div>
-              <div className="space-y-3">
-                {classBreakdown.length === 0 ? (
-                  <p className="text-sm text-slate-600 dark:text-slate-400 text-center py-4">
-                    No students yet
-                  </p>
-                ) : (
-                  classBreakdown.map(([className, count], index) => (
-                    <div key={className} className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${
-                        index === 0 ? 'bg-blue-500' :
-                        index === 1 ? 'bg-emerald-500' :
-                        index === 2 ? 'bg-purple-500' :
-                        index === 3 ? 'bg-amber-500' :
-                        index === 4 ? 'bg-red-500' :
-                        'bg-slate-500'
-                      }`} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{className}</p>
-                      </div>
-                      <span className="text-sm font-bold text-slate-900 dark:text-slate-50">{count}</span>
+            <div className="space-y-3">
+              {classBreakdown.length === 0 ? (
+                <p className="py-4 text-center text-sm text-slate-500">No students yet</p>
+              ) : (
+                classBreakdown.map(([className, count], index) => (
+                  <div key={className} className="flex items-center gap-3">
+                    <div
+                      className={`h-3 w-3 rounded-full ${
+                        index === 0
+                          ? "bg-blue-500"
+                          : index === 1
+                            ? "bg-emerald-500"
+                            : index === 2
+                              ? "bg-purple-500"
+                              : index === 3
+                                ? "bg-amber-500"
+                                : index === 4
+                                  ? "bg-red-500"
+                                  : "bg-slate-500"
+                      }`}
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-900">{className}</p>
                     </div>
-                  ))
-                )}
-              </div>
+                    <span className="text-sm font-semibold text-slate-900">{count}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
 
-        {/* Recent Activity & Alerts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Activity */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Recent Activity</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Latest attendance records</p>
-              </div>
-              <Activity className="w-5 h-5 text-slate-400" />
+        <div className="surface-card p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">System Alerts</h2>
+              <p className="mt-1 text-sm text-slate-500">Important notifications</p>
             </div>
-            
+          </div>
+          <div className="space-y-3">
+            {metrics.absentStudents > 0 && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                  <div>
+                    <p className="font-semibold text-red-900">
+                      {metrics.absentStudents} student{metrics.absentStudents > 1 ? "s" : ""} absent today
+                    </p>
+                    <p className="mt-1 text-sm text-red-700">
+                      Review attendance and contact guardians if needed
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {metrics.totalStudents === 0 && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <div className="flex items-start gap-3">
+                  <Users className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                  <div>
+                    <p className="font-semibold text-blue-900">No students enrolled yet</p>
+                    <p className="mt-1 text-sm text-blue-700">Start by adding students to the system</p>
+                    <button
+                      onClick={() => router.push("/students?action=add")}
+                      className="mt-2 text-sm font-medium text-blue-600 hover:underline"
+                    >
+                      Add students →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {metrics.totalStudents > 0 && metrics.todayRecords === 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <Clock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="font-semibold text-amber-900">No attendance taken today</p>
+                    <p className="mt-1 text-sm text-amber-700">Take attendance to track student presence</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {metrics.totalStudents > 0 && metrics.todayRecords > 0 && metrics.absentStudents === 0 && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                  <div>
+                    <p className="font-semibold text-emerald-900">All systems operational</p>
+                    <p className="mt-1 text-sm text-emerald-700">No critical alerts at this time</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+          </>
+        )}
+
+        {dashboardView === "actions" && !isStudentView && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {[
+              {
+                title: "Take Attendance",
+                description: "Mark daily attendance for any class",
+                href: "/attendance?view=mark",
+                icon: CalendarCheck,
+                color: "bg-emerald-50 text-emerald-700",
+                roles: ["teacher"] as UserRole[],
+              },
+              {
+                title: "Teacher Check-in",
+                description: "Submit your daily attendance for approval",
+                href: "/teacher-attendance",
+                icon: UserCheck,
+                color: "bg-indigo-50 text-indigo-700",
+                roles: ["teacher"] as UserRole[],
+              },
+              {
+                title: "Add Student",
+                description: "Register a new student profile",
+                href: "/students?action=add",
+                icon: Users2,
+                color: "bg-blue-50 text-blue-700",
+                roles: ["admin", "teacher"] as UserRole[],
+              },
+              {
+                title: "Create Invoice",
+                description: "Generate a new fee invoice",
+                href: "/finance?tab=invoices",
+                icon: Receipt,
+                color: "bg-violet-50 text-violet-700",
+                roles: ["admin"] as UserRole[],
+              },
+              {
+                title: "Enter Exam Marks",
+                description: "Record student exam scores",
+                href: "/admin/exams",
+                icon: ClipboardList,
+                color: "bg-purple-50 text-purple-700",
+                roles: ["admin"] as UserRole[],
+              },
+              {
+                title: "Manage Staff",
+                description: "View and update staff records",
+                href: "/staff",
+                icon: GraduationCap,
+                color: "bg-orange-50 text-orange-700",
+                roles: ["admin"] as UserRole[],
+              },
+              {
+                title: "View Reports",
+                description: "Open admin reports and analytics",
+                href: "/admin/reports",
+                icon: BarChart3,
+                color: "bg-cyan-50 text-cyan-700",
+                roles: ["admin"] as UserRole[],
+              },
+            ]
+              .filter((action) => action.roles.includes(userRole))
+              .map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.title}
+                  onClick={() => router.push(action.href)}
+                  className="surface-card group flex items-start gap-4 p-5 text-left transition-all hover:border-blue-200 hover:shadow-md"
+                >
+                  <div className={`rounded-xl p-3 ${action.color}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-900 group-hover:text-blue-700">{action.title}</p>
+                    <p className="mt-1 text-sm text-slate-500">{action.description}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-600" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {dashboardView === "activity" && !isStudentView && (
+          <div className="surface-card p-6">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Today&apos;s Activity</h2>
+                <p className="mt-1 text-sm text-slate-500">Latest attendance records</p>
+              </div>
+              <Activity className="h-5 w-5 text-slate-400" />
+            </div>
+
             <div className="space-y-3">
               {recentActivity.length === 0 ? (
-                <div className="text-center py-8">
-                  <Calendar className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-600 dark:text-slate-400">No attendance records yet</p>
+                <div className="py-12 text-center">
+                  <Calendar className="mx-auto mb-3 h-12 w-12 text-slate-300" />
+                  <p className="text-slate-500">No attendance records yet today</p>
+                  {userRole === "teacher" && (
                   <button
-                    onClick={() => router.push('/attendance')}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    onClick={() => router.push("/attendance?view=mark")}
+                    className="btn-primary mt-4"
                   >
                     Take Attendance
                   </button>
+                  )}
                 </div>
               ) : (
                 recentActivity.map((activity) => {
                   const config = statusConfig[activity.status as keyof typeof statusConfig];
                   const StatusIcon = config?.icon || CheckCircle;
-                  
+
                   return (
-                    <div key={activity.id} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
-                      <div className={`w-10 h-10 rounded-full ${config?.color || 'bg-slate-500'} flex items-center justify-center`}>
-                        <StatusIcon className="w-5 h-5 text-white" />
+                    <div
+                      key={activity.id}
+                      className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full ${config?.color || "bg-slate-500"}`}
+                      >
+                        <StatusIcon className="h-5 w-5 text-white" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-semibold text-slate-900 dark:text-slate-50">{activity.studentName}</p>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">{activity.className}</p>
+                        <p className="font-semibold text-slate-900">{activity.studentName}</p>
+                        <p className="text-sm text-slate-500">{activity.className}</p>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${config?.color || 'bg-slate-500'} text-white`}>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${config?.color || "bg-slate-500"}`}
+                      >
                         {config?.label || activity.status}
                       </span>
                     </div>
@@ -398,91 +877,7 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-
-          {/* System Alerts */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">System Alerts</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Important notifications</p>
-              </div>
-              <Bell className="w-5 h-5 text-slate-400" />
-            </div>
-            
-            <div className="space-y-3">
-              {metrics.absentStudents > 0 && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-red-900 dark:text-red-50">
-                        {metrics.absentStudents} student{metrics.absentStudents > 1 ? 's' : ''} absent today
-                      </p>
-                      <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                        Review attendance and contact guardians if needed
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {metrics.totalStudents === 0 && (
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <Users className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-blue-900 dark:text-blue-50">
-                        No students enrolled yet
-                      </p>
-                      <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                        Start by adding students to the system
-                      </p>
-                      <button
-                        onClick={() => router.push('/test-data')}
-                        className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        Add test students →
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {metrics.totalStudents > 0 && metrics.todayRecords === 0 && (
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-amber-900 dark:text-amber-50">
-                        No attendance taken today
-                      </p>
-                      <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                        Take attendance to track student presence
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {metrics.totalStudents > 0 && metrics.todayRecords > 0 && metrics.absentStudents === 0 && (
-                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-emerald-900 dark:text-emerald-50">
-                        All systems operational
-                      </p>
-                      <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
-                        No critical alerts at this time
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+        )}
     </div>
   );
 }

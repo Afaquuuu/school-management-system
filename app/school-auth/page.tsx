@@ -1,140 +1,182 @@
 "use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useSchool } from '@/lib/school-context';
-import { Building2, Mail, Phone, MapPin, ArrowRight, School, CheckCircle } from 'lucide-react';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSchool } from "@/lib/school-context";
+import {
+  createInitialAdminUser,
+  isValidLoginEmail,
+} from "@/lib/system-users";
+import { establishUserSession } from "@/lib/teacher-check-in";
+import { Building2, ArrowRight, School, CheckCircle, Shield, Eye, EyeOff } from "lucide-react";
 
 export default function SchoolAuthPage() {
   const router = useRouter();
   const { schools, addSchool, setCurrentSchool } = useSchool();
-  const [mode, setMode] = useState<'select' | 'register'>('select');
+  const [mode, setMode] = useState<"select" | "register">("select");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    address: '',
-    phone: '',
-    email: '',
+    name: "",
+    address: "",
+    phone: "",
+    email: "",
+    adminName: "",
+    adminEmail: "",
+    adminPassword: "",
+    confirmPassword: "",
   });
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name || !formData.email) {
-      alert('Please fill in school name and email');
+      alert("Please fill in school name and email");
       return;
     }
 
-    const newSchool = addSchool(formData);
+    if (!formData.adminName.trim() || !formData.adminEmail.trim() || !formData.adminPassword) {
+      alert("Please set up the principal / admin account.");
+      return;
+    }
+
+    if (!isValidLoginEmail(formData.adminEmail)) {
+      alert("Please enter a valid admin login email.");
+      return;
+    }
+
+    if (formData.adminPassword.length < 6) {
+      alert("Admin password must be at least 6 characters.");
+      return;
+    }
+
+    if (formData.adminPassword !== formData.confirmPassword) {
+      alert("Admin passwords do not match.");
+      return;
+    }
+
+    const newSchool = addSchool({
+      name: formData.name,
+      address: formData.address,
+      phone: formData.phone,
+      email: formData.email,
+    });
+
     setCurrentSchool(newSchool);
-    router.push('/dashboard');
+
+    const adminUser = createInitialAdminUser(newSchool.id, {
+      name: formData.adminName,
+      email: formData.adminEmail,
+      password: formData.adminPassword,
+      phone: formData.phone,
+    });
+
+    establishUserSession(adminUser, newSchool.id);
+    window.location.href = "/admin";
   };
 
   const handleSelectSchool = (schoolId: string) => {
-    const school = schools.find(s => s.id === schoolId);
+    const school = schools.find((s) => s.id === schoolId);
     if (school) {
       setCurrentSchool(school);
-      router.push('/dashboard');
+      router.push("/login");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
-      <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Side - Branding */}
+    <div className="auth-shell flex items-center justify-center">
+      <div className="grid w-full max-w-6xl grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-16">
         <div className="flex flex-col justify-center space-y-6 text-center lg:text-left">
-          <div className="flex items-center justify-center lg:justify-start gap-3">
-            <div className="p-3 bg-blue-600 rounded-2xl">
-              <School className="w-10 h-10 text-white" />
+          <div className="flex items-center justify-center gap-3 lg:justify-start">
+            <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 p-3 shadow-lg shadow-blue-600/20">
+              <School className="h-8 w-8 text-white" />
             </div>
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
-              School Management SaaS
-            </h1>
+            <div>
+              <p className="section-label mb-1">Enterprise Platform</p>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+                School Management
+              </h1>
+            </div>
           </div>
-          
-          <p className="text-xl text-slate-600 dark:text-slate-300">
-            Complete school management solution for modern educational institutions
+
+          <p className="text-lg leading-relaxed text-slate-600">
+            Complete school operations platform for modern educational institutions.
           </p>
 
-          <div className="space-y-4 pt-6">
+          <div className="grid gap-3 pt-2 sm:grid-cols-2">
             {[
-              'Student & Staff Management',
-              'Attendance Tracking',
-              'Exam & Marks Management',
-              'Performance Analytics',
-              'Finance Management',
-              'Communication Tools',
-            ].map((feature, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-slate-700 dark:text-slate-300">{feature}</span>
+              "Student & Staff Management",
+              "Attendance Tracking",
+              "Exam & Marks Management",
+              "Performance Analytics",
+              "Finance Management",
+              "Communication Tools",
+            ].map((feature) => (
+              <div
+                key={feature}
+                className="flex items-center gap-2.5 rounded-lg border border-slate-200/80 bg-white/60 px-3 py-2.5"
+              >
+                <CheckCircle className="h-4 w-4 shrink-0 text-blue-600" />
+                <span className="text-sm text-slate-700">{feature}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Right Side - Auth Form */}
-        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8">
-          <div className="flex gap-2 mb-6">
+        <div className="auth-card">
+          <div className="mb-6 flex gap-1 rounded-lg bg-slate-100 p-1">
             <button
-              onClick={() => setMode('select')}
-              className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
-                mode === 'select'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+              onClick={() => setMode("select")}
+              className={`flex-1 rounded-md px-4 py-2.5 text-sm font-semibold transition-all ${
+                mode === "select"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
               }`}
             >
               Select School
             </button>
             <button
-              onClick={() => setMode('register')}
-              className={`flex-1 px-4 py-3 rounded-xl font-semibold transition-all ${
-                mode === 'register'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+              onClick={() => setMode("register")}
+              className={`flex-1 rounded-md px-4 py-2.5 text-sm font-semibold transition-all ${
+                mode === "register"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              Register New School
+              Register School
             </button>
           </div>
 
-          {mode === 'select' ? (
+          {mode === "select" ? (
             <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
-                Select Your School
-              </h2>
-              
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Select your school</h2>
+                <p className="mt-1 text-sm text-slate-500">Choose an institution, then sign in</p>
+              </div>
+
               {schools.length === 0 ? (
-                <div className="text-center py-12">
-                  <Building2 className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-600 dark:text-slate-400 mb-4">
-                    No schools registered yet
-                  </p>
-                  <button
-                    onClick={() => setMode('register')}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
-                  >
+                <div className="py-10 text-center">
+                  <Building2 className="mx-auto mb-4 h-14 w-14 text-slate-300" />
+                  <p className="mb-4 text-slate-500">No schools registered yet</p>
+                  <button onClick={() => setMode("register")} className="btn-primary">
                     Register Your School
                   </button>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {schools.map((school) => (
                     <button
                       key={school.id}
                       onClick={() => handleSelectSchool(school.id)}
-                      className="w-full p-4 border-2 border-slate-200 dark:border-slate-600 rounded-xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left group"
+                      className="group flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-blue-300 hover:shadow-sm"
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-blue-600">
-                            {school.name}
-                          </h3>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
-                            {school.email}
-                          </p>
-                        </div>
-                        <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+                      <div>
+                        <h3 className="font-semibold text-slate-900 group-hover:text-blue-700">
+                          {school.name}
+                        </h3>
+                        <p className="text-sm text-slate-500">{school.email}</p>
                       </div>
+                      <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-600" />
                     </button>
                   ))}
                 </div>
@@ -142,77 +184,173 @@ export default function SchoolAuthPage() {
             </div>
           ) : (
             <form onSubmit={handleRegister} className="space-y-4">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
-                Register Your School
-              </h2>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Register your school</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Set up your institution and create the first principal / admin login
+                </p>
+              </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  <Building2 className="w-4 h-4 inline mr-2" />
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   School Name *
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Springfield High School"
-                  className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Quaid-e-Azam School System"
+                  className="input-field"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  <Mail className="w-4 h-4 inline mr-2" />
-                  Email Address *
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  School Email *
                 </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="admin@school.com"
-                  className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="info@school.com"
+                  className="input-field"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  <Phone className="w-4 h-4 inline mr-2" />
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Phone Number
                 </label>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+1 (555) 123-4567"
-                  className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="+92 300 000 0000"
+                  className="input-field"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  <MapPin className="w-4 h-4 inline mr-2" />
-                  Address
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Address</label>
                 <textarea
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="123 Education Street, City, State, ZIP"
-                  rows={3}
-                  className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="School address"
+                  rows={2}
+                  className="input-field resize-none"
                 />
               </div>
 
-              <button
-                type="submit"
-                className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold text-lg shadow-lg transition-all"
-              >
-                Register School & Continue
+              <div className="rounded-xl border border-purple-200 bg-purple-50/80 p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-purple-700" />
+                  <div>
+                    <h3 className="text-sm font-bold text-purple-900">Principal / Admin Account</h3>
+                    <p className="text-xs text-purple-700">
+                      This person will manage the school and issue logins to staff and students.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Admin Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.adminName}
+                      onChange={(e) => setFormData({ ...formData, adminName: e.target.value })}
+                      placeholder="e.g., Dr. Ali Khan"
+                      className="input-field"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Admin Login Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.adminEmail}
+                      onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
+                      placeholder="principal@gmail.com"
+                      className="input-field"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Admin Password *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.adminPassword}
+                        onChange={(e) =>
+                          setFormData({ ...formData, adminPassword: e.target.value })
+                        }
+                        placeholder="At least 6 characters"
+                        className="input-field pr-11"
+                        required
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      Confirm Password *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={formData.confirmPassword}
+                        onChange={(e) =>
+                          setFormData({ ...formData, confirmPassword: e.target.value })
+                        }
+                        placeholder="Re-enter password"
+                        className="input-field pr-11"
+                        required
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" className="btn-primary w-full py-3">
+                Create School & Admin Account
               </button>
 
-              <p className="text-sm text-slate-600 dark:text-slate-400 text-center">
-                By registering, you agree to our Terms of Service and Privacy Policy
+              <p className="text-center text-xs text-slate-400">
+                You will be signed in automatically as the school administrator.
               </p>
             </form>
           )}

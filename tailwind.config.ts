@@ -9,6 +9,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-manrope)", "system-ui", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -39,13 +42,22 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar))",
+          foreground: "hsl(var(--sidebar-foreground))",
+          muted: "hsl(var(--sidebar-muted))",
+          accent: "hsl(var(--sidebar-accent))",
+        },
       },
       borderRadius: {
-        xl: "1rem",
-        "2xl": "1.5rem",
+        xl: "0.875rem",
+        "2xl": "1rem",
+        "3xl": "1.25rem",
       },
       boxShadow: {
-        soft: "0 20px 60px rgba(15, 23, 42, 0.08)",
+        soft: "0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06)",
+        elevated: "0 4px 6px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.08)",
+        sidebar: "4px 0 24px rgba(15, 23, 42, 0.06)",
       },
     },
   },
@@ -53,7 +65,3 @@ const config: Config = {
 };
 
 export default config;
-
-
-
-

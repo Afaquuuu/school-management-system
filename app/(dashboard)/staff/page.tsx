@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
   UserPlus,
@@ -22,6 +23,17 @@ import {
   DollarSign,
 } from "lucide-react";
 import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
+import { syncStaffToSystemUsers } from "@/lib/system-users";
+import { getUserSession } from "@/lib/teacher-check-in";
+import { exportTableData, slugifyFileName } from "@/lib/export-data";
+import { AlertCircle } from "lucide-react";
+import {
+  RecordFormSection,
+  RecordFormShell,
+  recordFormFieldInput,
+  recordFormFieldInputAccent,
+  recordFormFieldLabel,
+} from "@/components/ui/record-form-layout";
 
 type StaffStatus = "active" | "inactive" | "on_leave" | "terminated";
 type StaffRole = "teacher" | "admin" | "librarian" | "accountant" | "support";
@@ -48,49 +60,6 @@ type Staff = {
   emergencyPhone: string;
 };
 
-const sampleStaff: Staff[] = [
-  {
-    id: "1",
-    staffId: "STF001",
-    firstName: "Akosua",
-    lastName: "Mensah",
-    dateOfBirth: "1985-03-15",
-    gender: "female",
-    email: "akosua.mensah@school.com",
-    phone: "+233 24 123 4567",
-    address: "123 Accra Street, Accra",
-    role: "teacher",
-    department: "Mathematics",
-    qualification: "M.Sc. Mathematics",
-    experience: "8 years",
-    joiningDate: "2018-09-01",
-    salary: "₵5,500",
-    status: "active",
-    emergencyContact: "Mr. Kwame Mensah",
-    emergencyPhone: "+233 24 765 4321",
-  },
-  {
-    id: "2",
-    staffId: "STF002",
-    firstName: "Kwabena",
-    lastName: "Osei",
-    dateOfBirth: "1982-07-22",
-    gender: "male",
-    email: "kwabena.osei@school.com",
-    phone: "+233 24 234 5678",
-    address: "456 Kumasi Road, Kumasi",
-    role: "teacher",
-    department: "Science",
-    qualification: "Ph.D. Physics",
-    experience: "12 years",
-    joiningDate: "2015-09-01",
-    salary: "₵6,800",
-    status: "active",
-    emergencyContact: "Mrs. Grace Osei",
-    emergencyPhone: "+233 24 876 5432",
-  },
-];
-
 const statusConfig: Record<StaffStatus, { color: string; label: string }> = {
   active: { color: "bg-green-100 text-green-700 border-green-200", label: "Active" },
   inactive: { color: "bg-gray-100 text-gray-700 border-gray-200", label: "Inactive" },
@@ -107,30 +76,45 @@ const roleConfig: Record<StaffRole, { color: string; label: string; icon: any }>
 };
 
 export default function StaffPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentSchool } = useSchool();
+  const isAddMode = searchParams.get("action") === "add";
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   
-  // Load staff from scoped localStorage on mount
-  const [staff, setStaff] = useState<Staff[]>(() => {
-    if (typeof window !== 'undefined' && currentSchool) {
-      try {
-        const stored = getScopedItem(currentSchool.id, 'school_staff');
-        if (stored) {
-          return JSON.parse(stored);
-        }
-      } catch (error) {
-        console.error('Error loading staff from localStorage:', error);
-      }
+  // Load staff from scoped localStorage when the school is available
+  const [staff, setStaff] = useState<Staff[]>([]);
+
+  useEffect(() => {
+    if (!currentSchool) {
+      setStaff([]);
+      return;
     }
-    return sampleStaff;
-  });
+
+    try {
+      const stored = getScopedItem(currentSchool.id, "school_staff");
+      setStaff(stored ? JSON.parse(stored) : []);
+    } catch (error) {
+      console.error("Error loading staff from localStorage:", error);
+      setStaff([]);
+    }
+  }, [currentSchool]);
   
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [showAddStaff, setShowAddStaff] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [formData, setFormData] = useState<Partial<Staff>>({});
+
+  const closeAddForm = () => {
+    setFormData({});
+    router.push("/staff");
+  };
+
+  const openAddForm = () => {
+    router.push("/staff?action=add");
+  };
 
   // Save staff to scoped localStorage whenever they change
   const updateStaff = (newStaff: Staff[]) => {
@@ -138,6 +122,7 @@ export default function StaffPage() {
     if (typeof window !== 'undefined' && currentSchool) {
       try {
         setScopedItem(currentSchool.id, 'school_staff', JSON.stringify(newStaff));
+        syncStaffToSystemUsers(currentSchool.id);
       } catch (error) {
         console.error('Error saving staff to localStorage:', error);
       }
@@ -159,6 +144,30 @@ export default function StaffPage() {
     [staff, searchTerm, filterRole, filterDepartment, filterStatus]
   );
 
+  const handleExportStaff = () => {
+    const exported = exportTableData(
+      `staff-${slugifyFileName(currentSchool?.name ?? "school")}`,
+      [
+        { header: "Staff ID", value: (member) => member.staffId },
+        { header: "First Name", value: (member) => member.firstName },
+        { header: "Last Name", value: (member) => member.lastName },
+        { header: "Role", value: (member) => roleConfig[member.role].label },
+        { header: "Department", value: (member) => member.department },
+        { header: "Email", value: (member) => member.email },
+        { header: "Phone", value: (member) => member.phone },
+        { header: "Qualification", value: (member) => member.qualification },
+        { header: "Experience", value: (member) => member.experience },
+        { header: "Joining Date", value: (member) => member.joiningDate },
+        { header: "Status", value: (member) => statusConfig[member.status].label },
+      ],
+      filteredStaff,
+    );
+
+    if (!exported) {
+      alert("No staff records to export for the current filters.");
+    }
+  };
+
   const stats = useMemo(() => ({
     total: staff.length,
     active: staff.filter(s => s.status === "active").length,
@@ -170,6 +179,11 @@ export default function StaffPage() {
     Array.from(new Set(staff.map(s => s.department))).sort(),
     [staff]
   );
+
+  useEffect(() => {
+    const session = getUserSession();
+    setIsAdmin(session?.role === "admin");
+  }, []);
 
   const handleAddStaff = () => {
     if (!formData.firstName || !formData.lastName || !formData.email) {
@@ -200,8 +214,8 @@ export default function StaffPage() {
 
     updateStaff([...staff, newStaff]);
     setFormData({});
-    setShowAddStaff(false);
     alert("Staff member added successfully!");
+    router.push("/staff");
   };
 
   const handleDeleteStaff = (staffId: string) => {
@@ -210,6 +224,111 @@ export default function StaffPage() {
       alert("Staff member deleted successfully!");
     }
   };
+
+  if (isAdmin === false) {
+    return (
+      <div className="surface-card p-8 text-center">
+        <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
+        <h1 className="page-title">Admin Access Required</h1>
+        <p className="page-subtitle mt-2">
+          Staff records can only be managed by administrators.
+        </p>
+      </div>
+    );
+  }
+
+  if (isAddMode) {
+    return (
+      <RecordFormShell
+        accent="purple"
+        eyebrow="Staff"
+        title="Add New Staff Member"
+        description="Create a staff profile with contact details, role, and department assignment."
+        icon={UserPlus}
+        onClose={closeAddForm}
+        onSubmit={handleAddStaff}
+        submitLabel="Save Staff Member"
+      >
+        <RecordFormSection
+          title="Personal Information"
+          description="Identity and contact details for the staff member."
+          icon={User}
+        >
+          <div>
+            <label className={recordFormFieldLabel}>First Name *</label>
+            <input
+              type="text"
+              value={formData.firstName || ""}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              placeholder="Enter first name"
+              className={`${recordFormFieldInput} ${recordFormFieldInputAccent.purple}`}
+            />
+          </div>
+          <div>
+            <label className={recordFormFieldLabel}>Last Name *</label>
+            <input
+              type="text"
+              value={formData.lastName || ""}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+              placeholder="Enter last name"
+              className={`${recordFormFieldInput} ${recordFormFieldInputAccent.purple}`}
+            />
+          </div>
+          <div>
+            <label className={recordFormFieldLabel}>Email *</label>
+            <input
+              type="email"
+              value={formData.email || ""}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="staff@school.edu"
+              className={`${recordFormFieldInput} ${recordFormFieldInputAccent.purple}`}
+            />
+          </div>
+          <div>
+            <label className={recordFormFieldLabel}>Phone</label>
+            <input
+              type="tel"
+              value={formData.phone || ""}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="+233 XX XXX XXXX"
+              className={`${recordFormFieldInput} ${recordFormFieldInputAccent.purple}`}
+            />
+          </div>
+        </RecordFormSection>
+
+        <RecordFormSection
+          title="Role & Department"
+          description="Employment role and organizational placement."
+          icon={Briefcase}
+        >
+          <div>
+            <label className={recordFormFieldLabel}>Role</label>
+            <select
+              value={formData.role || "teacher"}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as StaffRole })}
+              className={`${recordFormFieldInput} ${recordFormFieldInputAccent.purple}`}
+            >
+              <option value="teacher">Teacher</option>
+              <option value="admin">Admin</option>
+              <option value="librarian">Librarian</option>
+              <option value="accountant">Accountant</option>
+              <option value="support">Support</option>
+            </select>
+          </div>
+          <div>
+            <label className={recordFormFieldLabel}>Department</label>
+            <input
+              type="text"
+              value={formData.department || ""}
+              onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              placeholder="e.g. Mathematics, Administration"
+              className={`${recordFormFieldInput} ${recordFormFieldInputAccent.purple}`}
+            />
+          </div>
+        </RecordFormSection>
+      </RecordFormShell>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 -m-6 p-6">
@@ -233,12 +352,15 @@ export default function StaffPage() {
                 <Upload className="w-4 h-4" />
                 Import
               </button>
-              <button className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-medium">
+              <button
+                onClick={handleExportStaff}
+                className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-medium"
+              >
                 <Download className="w-4 h-4" />
                 Export
               </button>
               <button
-                onClick={() => setShowAddStaff(true)}
+                onClick={openAddForm}
                 className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-purple-500/30"
               >
                 <UserPlus className="w-4 h-4" />
@@ -425,99 +547,6 @@ export default function StaffPage() {
             </table>
           </div>
         </div>
-
-        {/* Add Staff Modal */}
-        {showAddStaff && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Add New Staff Member</h3>
-                <button onClick={() => { setShowAddStaff(false); setFormData({}); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto flex-1">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">First Name *</label>
-                      <input
-                        type="text"
-                        value={formData.firstName || ""}
-                        onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Last Name *</label>
-                      <input
-                        type="text"
-                        value={formData.lastName || ""}
-                        onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Email *</label>
-                      <input
-                        type="email"
-                        value={formData.email || ""}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Phone</label>
-                      <input
-                        type="tel"
-                        value={formData.phone || ""}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Role</label>
-                      <select
-                        value={formData.role || "teacher"}
-                        onChange={(e) => setFormData({...formData, role: e.target.value as StaffRole})}
-                        className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      >
-                        <option value="teacher">Teacher</option>
-                        <option value="admin">Admin</option>
-                        <option value="librarian">Librarian</option>
-                        <option value="accountant">Accountant</option>
-                        <option value="support">Support</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Department</label>
-                      <input
-                        type="text"
-                        value={formData.department || ""}
-                        onChange={(e) => setFormData({...formData, department: e.target.value})}
-                        className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
-                <button 
-                  onClick={handleAddStaff}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-purple-500/30"
-                >
-                  Add Staff Member
-                </button>
-                <button 
-                  onClick={() => { setShowAddStaff(false); setFormData({}); }}
-                  className="px-6 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

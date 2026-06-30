@@ -1,8 +1,10 @@
 ﻿"use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Edit, Trash2, Calendar, X, BookOpen, Award, Target, FileText, Users, Clock, CheckCircle } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, X, BookOpen, Award, Target, FileText, Users, Clock, CheckCircle, ChevronDown } from "lucide-react";
 import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
+import { addDaysToIsoDate, formatDate, getTodayIsoDate, isIsoDateAfter } from "@/lib/date-format";
+import { DateInput } from "@/components/ui/date-input";
 
 type ExamCycle = {
   id: string;
@@ -12,6 +14,40 @@ type ExamCycle = {
   status: "active" | "completed" | "upcoming";
   description: string;
 };
+
+type ExamCycleStatus = ExamCycle["status"];
+
+function normalizeExamCycleStatus(status: string | undefined): ExamCycleStatus {
+  const value = String(status ?? "upcoming").trim().toLowerCase();
+  if (value === "active" || value === "completed" || value === "upcoming") {
+    return value;
+  }
+  return "upcoming";
+}
+
+function getEffectiveExamCycleStatus(
+  cycle: Pick<ExamCycle, "status" | "startDate" | "endDate">,
+  today = getTodayIsoDate(),
+): ExamCycleStatus {
+  const stored = normalizeExamCycleStatus(cycle.status);
+  if (stored === "completed") return "completed";
+  if (cycle.endDate && cycle.endDate < today) return "completed";
+  return stored;
+}
+
+function isExamCycleClosed(
+  cycle: Pick<ExamCycle, "status" | "startDate" | "endDate">,
+  today = getTodayIsoDate(),
+): boolean {
+  return getEffectiveExamCycleStatus(cycle, today) === "completed";
+}
+
+function normalizeExamCycles(cycles: ExamCycle[], today = getTodayIsoDate()): ExamCycle[] {
+  return cycles.map((cycle) => ({
+    ...cycle,
+    status: getEffectiveExamCycleStatus(cycle, today),
+  }));
+}
 
 type Subject = {
   id: string;
@@ -93,6 +129,15 @@ export default function ExamsPage() {
     section: "",
     subjectId: "",
   });
+  const [expandedScheduleGroups, setExpandedScheduleGroups] = useState<Record<string, boolean>>({});
+
+  const toggleScheduleGroup = (cycleId: string, className: string) => {
+    const key = `${cycleId}::${className}`;
+    setExpandedScheduleGroups((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentSchool) {
@@ -101,7 +146,17 @@ export default function ExamsPage() {
       const storedStudents = getScopedItem(currentSchool.id, 'school_students');
       const storedMarks = getScopedItem(currentSchool.id, 'exam_marks');
       
-      if (storedCycles) setCycles(JSON.parse(storedCycles));
+      if (storedCycles) {
+        const parsed: ExamCycle[] = JSON.parse(storedCycles);
+        const normalized = normalizeExamCycles(parsed);
+        const changed = normalized.some(
+          (cycle, index) => cycle.status !== getEffectiveExamCycleStatus(parsed[index]),
+        );
+        setCycles(normalized);
+        if (changed) {
+          setScopedItem(currentSchool.id, "exam_cycles", JSON.stringify(normalized));
+        }
+      }
       if (storedSchedules) setSchedules(JSON.parse(storedSchedules));
       if (storedStudents) setStudents(JSON.parse(storedStudents));
       if (storedMarks) setMarks(JSON.parse(storedMarks));
@@ -110,8 +165,9 @@ export default function ExamsPage() {
 
   const saveCycles = (newCycles: ExamCycle[]) => {
     if (!currentSchool) return;
-    setCycles(newCycles);
-    setScopedItem(currentSchool.id, 'exam_cycles', JSON.stringify(newCycles));
+    const normalized = normalizeExamCycles(newCycles);
+    setCycles(normalized);
+    setScopedItem(currentSchool.id, "exam_cycles", JSON.stringify(normalized));
   };
 
   const saveSchedules = (newSchedules: ExamSchedule[]) => {
@@ -137,6 +193,25 @@ export default function ExamsPage() {
     if (percentage >= 33) return 'D';
     return 'F';
   };
+
+  // Cycles available for scheduling and marks entry (exclude completed / past end date)
+  const openCycles = useMemo(
+    () => cycles.filter((cycle) => !isExamCycleClosed(cycle)),
+    [cycles],
+  );
+
+  useEffect(() => {
+    const selectedMarksCycle = cycles.find((cycle) => cycle.id === marksFilter.cycleId);
+    if (selectedMarksCycle && isExamCycleClosed(selectedMarksCycle)) {
+      setMarksFilter((prev) => ({
+        ...prev,
+        cycleId: "",
+        className: "",
+        section: "",
+        subjectId: "",
+      }));
+    }
+  }, [cycles, marksFilter.cycleId]);
 
   // Get unique sections from students
   const uniqueSections = useMemo(() => {
@@ -248,12 +323,18 @@ export default function ExamsPage() {
       return;
     }
 
+    if (!isIsoDateAfter(cycleForm.endDate, cycleForm.startDate)) {
+      alert("End date must be after the start date.");
+      return;
+    }
+
     if (editingCycle) {
-      saveCycles(cycles.map(c => c.id === editingCycle.id ? { ...editingCycle, ...cycleForm } : c));
+      saveCycles(cycles.map(c => c.id === editingCycle.id ? { ...editingCycle, ...cycleForm, status: normalizeExamCycleStatus(cycleForm.status) } : c));
     } else {
       const newCycle: ExamCycle = {
         id: Date.now().toString(),
         ...cycleForm,
+        status: normalizeExamCycleStatus(cycleForm.status),
       };
       saveCycles([...cycles, newCycle]);
     }
@@ -304,13 +385,18 @@ export default function ExamsPage() {
 
     // Validate exam date is within cycle date range
     const selectedCycle = cycles.find(c => c.id === scheduleForm.cycleId);
+    if (selectedCycle && isExamCycleClosed(selectedCycle)) {
+      alert("Cannot schedule exams for a completed cycle.");
+      return;
+    }
+
     if (selectedCycle) {
       const examDate = new Date(scheduleForm.examDate);
       const startDate = new Date(selectedCycle.startDate);
       const endDate = new Date(selectedCycle.endDate);
       
       if (examDate < startDate || examDate > endDate) {
-        alert(`Exam date must be between ${selectedCycle.startDate} and ${selectedCycle.endDate} for ${selectedCycle.name}`);
+        alert(`Exam date must be between ${formatDate(selectedCycle.startDate)} and ${formatDate(selectedCycle.endDate)} for ${selectedCycle.name}`);
         return;
       }
     }
@@ -483,7 +569,9 @@ export default function ExamsPage() {
               </div>
             ) : (
               <div className="grid gap-4">
-                {cycles.map((cycle) => (
+                {cycles.map((cycle) => {
+                  const cycleStatus = getEffectiveExamCycleStatus(cycle);
+                  return (
                   <div
                     key={cycle.id}
                     className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 hover:shadow-lg transition-all"
@@ -493,7 +581,7 @@ export default function ExamsPage() {
                         <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">{cycle.name}</h3>
                         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mt-2">
                           <Calendar className="w-4 h-4" />
-                          {cycle.startDate} → {cycle.endDate}
+                          {formatDate(cycle.startDate)} → {formatDate(cycle.endDate)}
                         </div>
                         {cycle.description && (
                           <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">{cycle.description}</p>
@@ -501,14 +589,14 @@ export default function ExamsPage() {
                       </div>
                       <span
                         className={'px-4 py-1.5 rounded-full text-xs font-bold ' + (
-                          cycle.status === "active"
+                          cycleStatus === "active"
                             ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                            : cycle.status === "upcoming"
+                            : cycleStatus === "upcoming"
                             ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                             : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
                         )}
                       >
-                        {cycle.status.toUpperCase()}
+                        {cycleStatus.toUpperCase()}
                       </span>
                     </div>
                     <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
@@ -531,7 +619,8 @@ export default function ExamsPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -600,14 +689,32 @@ export default function ExamsPage() {
                         if (classSchedules.length === 0) return null;
 
                         return (
-                          <div key={className} className="mb-6 last:mb-0">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Users className="w-5 h-5 text-purple-600" />
-                              <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{className}</h4>
-                              <span className="text-sm text-slate-600 dark:text-slate-400">({classSchedules.length} exams)</span>
-                            </div>
-                            
-                            <div className="grid gap-3">
+                          <div key={className} className="mb-4 last:mb-0">
+                            <button
+                              type="button"
+                              onClick={() => toggleScheduleGroup(cycle.id, className)}
+                              className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition-colors hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-700/50 dark:hover:bg-slate-700"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Users className="h-5 w-5 text-purple-600" />
+                                <h4 className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                                  {className}
+                                </h4>
+                                <span className="text-sm text-slate-600 dark:text-slate-400">
+                                  ({classSchedules.length} exam{classSchedules.length === 1 ? "" : "s"})
+                                </span>
+                              </div>
+                              <ChevronDown
+                                className={`h-5 w-5 text-slate-500 transition-transform ${
+                                  expandedScheduleGroups[`${cycle.id}::${className}`]
+                                    ? "rotate-180"
+                                    : ""
+                                }`}
+                              />
+                            </button>
+
+                            {expandedScheduleGroups[`${cycle.id}::${className}`] && (
+                            <div className="mt-3 grid gap-3">
                               {classSchedules.map(schedule => {
                                 const subject = subjects.find(s => s.id === schedule.subjectId);
                                 const examDate = new Date(schedule.examDate);
@@ -630,7 +737,7 @@ export default function ExamsPage() {
                                         <div>
                                           <p className="text-slate-500 dark:text-slate-400">Date</p>
                                           <p className="font-semibold text-slate-900 dark:text-slate-50">
-                                            {examDate.toLocaleDateString()}
+                                            {formatDate(examDate)}
                                           </p>
                                         </div>
                                         <div>
@@ -676,6 +783,7 @@ export default function ExamsPage() {
                                 );
                               })}
                             </div>
+                            )}
                           </div>
                         );
                       })}
@@ -739,7 +847,7 @@ export default function ExamsPage() {
                     className="w-full px-4 py-2 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50"
                   >
                     <option value="">Select Cycle</option>
-                    {cycles.map(cycle => (
+                    {openCycles.map(cycle => (
                       <option key={cycle.id} value={cycle.id}>{cycle.name}</option>
                     ))}
                   </select>
@@ -971,21 +1079,43 @@ export default function ExamsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Start Date *</label>
-                    <input
-                      type="date"
+                    <DateInput
                       value={cycleForm.startDate}
-                      onChange={(e) => setCycleForm({...cycleForm, startDate: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50"
+                      onChange={(startDate) =>
+                        setCycleForm((prev) => ({
+                          ...prev,
+                          startDate,
+                          endDate:
+                            prev.endDate && !isIsoDateAfter(prev.endDate, startDate)
+                              ? ""
+                              : prev.endDate,
+                        }))
+                      }
+                      max={
+                        cycleForm.endDate
+                          ? addDaysToIsoDate(cycleForm.endDate, -1) ?? undefined
+                          : undefined
+                      }
+                      className="rounded-xl border-2 border-slate-200 px-4 py-3 dark:border-slate-600"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">End Date *</label>
-                    <input
-                      type="date"
+                    <DateInput
                       value={cycleForm.endDate}
-                      onChange={(e) => setCycleForm({...cycleForm, endDate: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50"
+                      onChange={(endDate) => setCycleForm({ ...cycleForm, endDate })}
+                      min={
+                        cycleForm.startDate
+                          ? addDaysToIsoDate(cycleForm.startDate, 1) ?? undefined
+                          : undefined
+                      }
+                      className="rounded-xl border-2 border-slate-200 px-4 py-3 dark:border-slate-600"
                     />
+                    {cycleForm.startDate && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Must be after {formatDate(cycleForm.startDate)}.
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -1049,7 +1179,7 @@ export default function ExamsPage() {
                     className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50"
                   >
                     <option value="">Select Cycle</option>
-                    {cycles.map(cycle => (
+                    {openCycles.map(cycle => (
                       <option key={cycle.id} value={cycle.id}>{cycle.name}</option>
                     ))}
                   </select>
@@ -1127,18 +1257,25 @@ export default function ExamsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Exam Date *</label>
-                    <input
-                      type="date"
+                    <DateInput
                       value={scheduleForm.examDate}
-                      onChange={(e) => setScheduleForm({...scheduleForm, examDate: e.target.value})}
-                      min={scheduleForm.cycleId ? cycles.find(c => c.id === scheduleForm.cycleId)?.startDate : undefined}
-                      max={scheduleForm.cycleId ? cycles.find(c => c.id === scheduleForm.cycleId)?.endDate : undefined}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50"
+                      onChange={(examDate) => setScheduleForm({ ...scheduleForm, examDate })}
+                      min={
+                        scheduleForm.cycleId
+                          ? cycles.find((c) => c.id === scheduleForm.cycleId)?.startDate
+                          : undefined
+                      }
+                      max={
+                        scheduleForm.cycleId
+                          ? cycles.find((c) => c.id === scheduleForm.cycleId)?.endDate
+                          : undefined
+                      }
                       disabled={!scheduleForm.cycleId}
+                      className="rounded-xl border-2 border-slate-200 px-4 py-3 dark:border-slate-600 disabled:opacity-60"
                     />
                     {scheduleForm.cycleId && (
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Must be between {cycles.find(c => c.id === scheduleForm.cycleId)?.startDate} and {cycles.find(c => c.id === scheduleForm.cycleId)?.endDate}
+                        Must be between {formatDate(cycles.find(c => c.id === scheduleForm.cycleId)?.startDate)} and {formatDate(cycles.find(c => c.id === scheduleForm.cycleId)?.endDate)}
                       </p>
                     )}
                   </div>

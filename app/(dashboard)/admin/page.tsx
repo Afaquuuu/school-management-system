@@ -6,15 +6,24 @@ import {
   UserCheck, Receipt, GraduationCap, AlertCircle, Clock
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSchool } from "@/lib/school-context";
+import { getPendingCheckIns, getTodayDateString, loadTeacherCheckIns } from "@/lib/teacher-check-in";
 
 const adminSections = [
   {
     title: "Users",
-    description: "Manage students, teachers, parents, and admin accounts",
+    description: "Issue Gmail/login email and password credentials to teachers, students, and parents",
     href: "/admin/users",
     icon: Users,
     color: "bg-blue-500",
+  },
+  {
+    title: "Teacher Check-ins",
+    description: "Approve or reject daily teacher attendance submissions",
+    href: "/admin/teacher-attendance",
+    icon: UserCheck,
+    color: "bg-indigo-500",
   },
   {
     title: "Exams",
@@ -62,9 +71,9 @@ const adminSections = [
 
 const quickActions = [
   {
-    title: "Mark Attendance",
-    description: "Take daily attendance for any class",
-    href: "/attendance",
+    title: "View Attendance",
+    description: "Review saved attendance records across classes",
+    href: "/attendance?view=records",
     icon: UserCheck,
     color: "bg-emerald-600",
     hoverColor: "hover:bg-emerald-700",
@@ -126,15 +135,36 @@ const recentActivity = [
   { action: "Invoice generated", user: "Grade 9B - 32 students", time: "2 hours ago", icon: Receipt, color: "text-orange-600" },
 ];
 
-const pendingTasks = [
-  { task: "Review 8 pending leave requests", priority: "high", icon: AlertCircle, href: "/admin/staff-leave" },
-  { task: "Approve 12 exam mark entries", priority: "medium", icon: ClipboardList, href: "/admin/exams" },
-  { task: "Process 5 overdue invoices", priority: "high", icon: Receipt, href: "/finance" },
+const staticPendingTasks = [
+  { task: "Approve exam mark entries", priority: "medium", icon: ClipboardList, href: "/admin/exams" },
+  { task: "Process overdue invoices", priority: "high", icon: Receipt, href: "/finance" },
   { task: "Update academic calendar", priority: "low", icon: Calendar, href: "/admin/settings" },
 ];
 
 export default function AdminDashboard() {
+  const { currentSchool } = useSchool();
   const [selectedView, setSelectedView] = useState<"overview" | "actions">("overview");
+  const [pendingCheckIns, setPendingCheckIns] = useState(0);
+
+  useEffect(() => {
+    if (!currentSchool) return;
+    const records = loadTeacherCheckIns(currentSchool.id);
+    setPendingCheckIns(getPendingCheckIns(records, getTodayDateString()).length);
+  }, [currentSchool]);
+
+  const pendingTasks = [
+    ...(pendingCheckIns > 0
+      ? [
+          {
+            task: `Review ${pendingCheckIns} pending teacher check-in${pendingCheckIns > 1 ? "s" : ""}`,
+            priority: "high",
+            icon: UserCheck,
+            href: "/admin/teacher-attendance",
+          },
+        ]
+      : []),
+    ...staticPendingTasks,
+  ];
 
   return (
     <div className="space-y-8">

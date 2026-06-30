@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
   UserPlus,
@@ -24,7 +25,18 @@ import {
   AlertCircle,
   UserCheck,
 } from "lucide-react";
+import { formatStudentClassLabel, getUniqueClassLabels, getUniqueSchoolClassesByName } from "@/lib/class-labels";
+import { exportTableData, slugifyFileName } from "@/lib/export-data";
 import { useSchool, getScopedItem, setScopedItem, getSchoolClasses, getUniqueClassNames, getUniqueSections, getSectionsForClass } from "@/lib/school-context";
+import { formatDate, getTodayIsoDate } from "@/lib/date-format";
+import { DateInput } from "@/components/ui/date-input";
+import {
+  RecordFormSection,
+  RecordFormShell,
+  recordFormFieldInput,
+  recordFormFieldInputAccent,
+  recordFormFieldLabel,
+} from "@/components/ui/record-form-layout";
 
 type StudentStatus = "active" | "inactive" | "graduated" | "transferred";
 type Gender = "male" | "female" | "other";
@@ -51,89 +63,6 @@ type Student = {
   photo?: string;
 };
 
-const sampleStudents: Student[] = [
-  {
-    id: "1",
-    studentId: "STU001",
-    firstName: "Kwame",
-    lastName: "Mensah",
-    dateOfBirth: "2010-05-15",
-    gender: "male",
-    email: "kwame.mensah@student.school.com",
-    phone: "+233 24 123 4567",
-    address: "123 Accra Street, Accra",
-    guardianName: "Mr. Joseph Mensah",
-    guardianPhone: "+233 24 765 4321",
-    guardianEmail: "joseph.mensah@email.com",
-    class: "Grade 8",
-    section: "A",
-    rollNumber: "08A001",
-    admissionDate: "2023-09-01",
-    status: "active",
-    bloodGroup: "O+",
-  },
-  {
-    id: "2",
-    studentId: "STU002",
-    firstName: "Ama",
-    lastName: "Osei",
-    dateOfBirth: "2010-08-22",
-    gender: "female",
-    email: "ama.osei@student.school.com",
-    phone: "+233 24 234 5678",
-    address: "456 Kumasi Road, Kumasi",
-    guardianName: "Mrs. Grace Osei",
-    guardianPhone: "+233 24 876 5432",
-    guardianEmail: "grace.osei@email.com",
-    class: "Grade 8",
-    section: "A",
-    rollNumber: "08A002",
-    admissionDate: "2023-09-01",
-    status: "active",
-    bloodGroup: "A+",
-  },
-  {
-    id: "3",
-    studentId: "STU003",
-    firstName: "Kofi",
-    lastName: "Asante",
-    dateOfBirth: "2010-03-10",
-    gender: "male",
-    email: "kofi.asante@student.school.com",
-    phone: "+233 24 345 6789",
-    address: "789 Tema Avenue, Tema",
-    guardianName: "Mr. Samuel Asante",
-    guardianPhone: "+233 24 987 6543",
-    guardianEmail: "samuel.asante@email.com",
-    class: "Grade 8",
-    section: "B",
-    rollNumber: "08B001",
-    admissionDate: "2023-09-01",
-    status: "active",
-    bloodGroup: "B+",
-  },
-  {
-    id: "4",
-    studentId: "STU004",
-    firstName: "Akua",
-    lastName: "Boateng",
-    dateOfBirth: "2010-11-05",
-    gender: "female",
-    email: "akua.boateng@student.school.com",
-    phone: "+233 24 456 7890",
-    address: "321 Cape Coast Street, Cape Coast",
-    guardianName: "Mrs. Elizabeth Boateng",
-    guardianPhone: "+233 24 098 7654",
-    guardianEmail: "elizabeth.boateng@email.com",
-    class: "Grade 7",
-    section: "A",
-    rollNumber: "07A001",
-    admissionDate: "2022-09-01",
-    status: "active",
-    bloodGroup: "AB+",
-  },
-];
-
 const statusConfig: Record<StudentStatus, { color: string; label: string }> = {
   active: { color: "bg-green-100 text-green-700 border-green-200", label: "Active" },
   inactive: { color: "bg-gray-100 text-gray-700 border-gray-200", label: "Inactive" },
@@ -142,30 +71,36 @@ const statusConfig: Record<StudentStatus, { color: string; label: string }> = {
 };
 
 export default function StudentsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isAddMode = searchParams.get("action") === "add";
   const { currentSchool } = useSchool();
   
   // Load manually created classes
   const [availableClasses, setAvailableClasses] = useState<ReturnType<typeof getSchoolClasses>>([]);
   
-  // Load students from scoped localStorage on mount
-  const [students, setStudents] = useState<Student[]>(() => {
-    if (typeof window !== 'undefined' && currentSchool) {
-      try {
-        const stored = getScopedItem(currentSchool.id, 'school_students');
-        if (stored) {
-          return JSON.parse(stored);
-        }
-      } catch (error) {
-        console.error('Error loading students from localStorage:', error);
-      }
+  // Load students from scoped localStorage when the school is available
+  const [students, setStudents] = useState<Student[]>([]);
+
+  useEffect(() => {
+    if (!currentSchool) {
+      setStudents([]);
+      return;
     }
-    return sampleStudents;
-  });
+
+    try {
+      const stored = getScopedItem(currentSchool.id, "school_students");
+      setStudents(stored ? JSON.parse(stored) : []);
+    } catch (error) {
+      console.error("Error loading students from localStorage:", error);
+      setStudents([]);
+    }
+  }, [currentSchool]);
   
   // Load classes on mount and when school changes
   useEffect(() => {
     if (currentSchool) {
-      const classes = getSchoolClasses(currentSchool.id);
+      const classes = getUniqueSchoolClassesByName(getSchoolClasses(currentSchool.id));
       console.log('Loaded classes:', classes);
       console.log('Unique class names:', getUniqueClassNames(classes));
       console.log('Unique sections:', getUniqueSections(classes));
@@ -182,13 +117,21 @@ export default function StudentsPage() {
   const [filterSection, setFilterSection] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [showAddStudent, setShowAddStudent] = useState(false);
   const [showEditStudent, setShowEditStudent] = useState(false);
   const [showViewStudent, setShowViewStudent] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   // Form states
   const [formData, setFormData] = useState<Partial<Student>>({});
+
+  const closeAddForm = () => {
+    setFormData({});
+    router.push("/students");
+  };
+
+  const openAddForm = () => {
+    router.push("/students?action=add");
+  };
   
   // Get sections for selected class in form (must be after formData declaration)
   const availableSectionsForClass = formData.class 
@@ -222,6 +165,31 @@ export default function StudentsPage() {
     [students, searchTerm, filterClass, filterSection, filterStatus]
   );
 
+  const handleExportStudents = () => {
+    const exported = exportTableData(
+      `students-${slugifyFileName(currentSchool?.name ?? "school")}`,
+      [
+        { header: "Student ID", value: (student) => student.studentId },
+        { header: "First Name", value: (student) => student.firstName },
+        { header: "Last Name", value: (student) => student.lastName },
+        { header: "Class", value: (student) => student.class },
+        { header: "Section", value: (student) => student.section },
+        { header: "Roll Number", value: (student) => student.rollNumber },
+        { header: "Email", value: (student) => student.email },
+        { header: "Phone", value: (student) => student.phone },
+        { header: "Guardian", value: (student) => student.guardianName },
+        { header: "Guardian Phone", value: (student) => student.guardianPhone },
+        { header: "Status", value: (student) => student.status },
+        { header: "Admission Date", value: (student) => student.admissionDate },
+      ],
+      filteredStudents,
+    );
+
+    if (!exported) {
+      alert("No students to export for the current filters.");
+    }
+  };
+
   const stats = useMemo(() => ({
     total: students.length,
     active: students.filter(s => s.status === "active").length,
@@ -234,9 +202,9 @@ export default function StudentsPage() {
     }).length,
   }), [students]);
 
-  const classes = useMemo(() => 
-    Array.from(new Set(students.map(s => s.class))).sort(),
-    [students]
+  const classes = useMemo(
+    () => getUniqueClassLabels(students.map((s) => formatStudentClassLabel(s.class, s.section))),
+    [students],
   );
 
   const sections = useMemo(() => 
@@ -266,15 +234,15 @@ export default function StudentsPage() {
       class: formData.class || "",
       section: formData.section || "",
       rollNumber: formData.rollNumber || "",
-      admissionDate: formData.admissionDate || new Date().toISOString().split('T')[0],
+      admissionDate: formData.admissionDate || getTodayIsoDate(),
       status: formData.status || "active",
       bloodGroup: formData.bloodGroup || "",
     };
 
     updateStudents([...students, newStudent]);
     setFormData({});
-    setShowAddStudent(false);
     alert("Student added successfully!");
+    router.push("/students");
   };
 
   const handleEditStudent = () => {
@@ -283,9 +251,36 @@ export default function StudentsPage() {
       return;
     }
 
+    const updatedStudent = { ...selectedStudent, ...formData } as Student;
     updateStudents(students.map(s => 
-      s.id === selectedStudent.id ? { ...s, ...formData } : s
+      s.id === selectedStudent.id ? updatedStudent : s
     ));
+
+    if (currentSchool) {
+      const storedAttendance = getScopedItem(currentSchool.id, "attendance_records");
+      if (storedAttendance) {
+        try {
+          const records = JSON.parse(storedAttendance) as Array<{
+            studentId: string;
+            studentName: string;
+          }>;
+          const fullName = `${updatedStudent.firstName} ${updatedStudent.lastName}`.trim();
+          const syncedRecords = records.map((record) =>
+            record.studentId === updatedStudent.id
+              ? { ...record, studentName: fullName }
+              : record,
+          );
+          setScopedItem(
+            currentSchool.id,
+            "attendance_records",
+            JSON.stringify(syncedRecords),
+          );
+        } catch (error) {
+          console.error("Error syncing attendance student names:", error);
+        }
+      }
+    }
+
     setFormData({});
     setSelectedStudent(null);
     setShowEditStudent(false);
@@ -310,6 +305,240 @@ export default function StudentsPage() {
     setShowEditStudent(true);
   };
 
+  if (isAddMode) {
+    return (
+      <RecordFormShell
+        accent="blue"
+        eyebrow="Students"
+        title="Add New Student"
+        description="Register a student profile, assign their class, and capture guardian contact details."
+        icon={UserPlus}
+        onClose={closeAddForm}
+        onSubmit={handleAddStudent}
+        submitLabel="Save Student"
+      >
+            <RecordFormSection
+              title="Personal Information"
+              description="Basic identity and contact details for the student."
+              icon={User}
+            >
+              <div>
+                <label className={recordFormFieldLabel}>First Name *</label>
+                <input
+                  type="text"
+                  value={formData.firstName || ""}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="Enter first name"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Last Name *</label>
+                <input
+                  type="text"
+                  value={formData.lastName || ""}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  placeholder="Enter last name"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Date of Birth</label>
+                <DateInput
+                  value={formData.dateOfBirth || ""}
+                  onChange={(dateOfBirth) => setFormData({ ...formData, dateOfBirth })}
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Gender</label>
+                <select
+                  value={formData.gender || "male"}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value as Gender })}
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Blood Group</label>
+                <select
+                  value={formData.bloodGroup || ""}
+                  onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                >
+                  <option value="">Select blood group</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Email *</label>
+                <input
+                  type="email"
+                  value={formData.email || ""}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="student@school.edu"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Phone</label>
+                <input
+                  type="tel"
+                  value={formData.phone || ""}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="+233 XX XXX XXXX"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className={recordFormFieldLabel}>Address</label>
+                <textarea
+                  rows={2}
+                  value={formData.address || ""}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Residential address"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+            </RecordFormSection>
+
+            <RecordFormSection
+              title="Academic Information"
+              description="Class placement and enrollment details."
+              icon={BookOpen}
+            >
+              {availableClasses.length === 0 && (
+                <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">No classes available</p>
+                      <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                        Create classes in{" "}
+                        <a href="/admin/academics" className="font-semibold underline hover:no-underline">
+                          Admin → Academics Config
+                        </a>{" "}
+                        before enrolling students.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className={recordFormFieldLabel}>Class *</label>
+                <select
+                  value={formData.class || ""}
+                  onChange={(e) => setFormData({ ...formData, class: e.target.value, section: "" })}
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                  disabled={availableClasses.length === 0}
+                >
+                  <option value="">Select class</option>
+                  {uniqueClassNames.map((className) => (
+                    <option key={className} value={className}>
+                      {className}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Section *</label>
+                <select
+                  value={formData.section || ""}
+                  onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                  disabled={!formData.class || availableClasses.length === 0}
+                >
+                  <option value="">Select section</option>
+                  {availableSectionsForClass.map((section) => (
+                    <option key={section} value={section}>
+                      Section {section}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Roll Number</label>
+                <input
+                  type="text"
+                  value={formData.rollNumber || ""}
+                  onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
+                  placeholder="Optional roll number"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Admission Date</label>
+                <DateInput
+                  value={formData.admissionDate || ""}
+                  onChange={(admissionDate) => setFormData({ ...formData, admissionDate })}
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+            </RecordFormSection>
+
+            <RecordFormSection
+              title="Guardian Information"
+              description="Primary guardian or parent contact details."
+              icon={Users}
+            >
+              <div>
+                <label className={recordFormFieldLabel}>Guardian Name</label>
+                <input
+                  type="text"
+                  value={formData.guardianName || ""}
+                  onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
+                  placeholder="Full name"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+
+              <div>
+                <label className={recordFormFieldLabel}>Guardian Phone</label>
+                <input
+                  type="tel"
+                  value={formData.guardianPhone || ""}
+                  onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
+                  placeholder="+233 XX XXX XXXX"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className={recordFormFieldLabel}>Guardian Email</label>
+                <input
+                  type="email"
+                  value={formData.guardianEmail || ""}
+                  onChange={(e) => setFormData({ ...formData, guardianEmail: e.target.value })}
+                  placeholder="guardian@email.com"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                />
+              </div>
+            </RecordFormSection>
+      </RecordFormShell>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 -m-6 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -332,12 +561,15 @@ export default function StudentsPage() {
                 <Upload className="w-4 h-4" />
                 Import
               </button>
-              <button className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all font-medium text-slate-700 dark:text-slate-200">
+              <button
+                onClick={handleExportStudents}
+                className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all font-medium text-slate-700 dark:text-slate-200"
+              >
                 <Download className="w-4 h-4" />
                 Export
               </button>
               <button
-                onClick={() => setShowAddStudent(true)}
+                onClick={openAddForm}
                 className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-blue-500/30"
               >
                 <UserPlus className="w-4 h-4" />
@@ -547,250 +779,6 @@ export default function StudentsPage() {
           </div>
         </div>
 
-        {/* Add Student Modal */}
-        {showAddStudent && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Add New Student</h3>
-                <button onClick={() => { setShowAddStudent(false); setFormData({}); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto flex-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Personal Information */}
-                  <div className="md:col-span-2">
-                    <h4 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-4 flex items-center gap-2">
-                      <User className="w-5 h-5" />
-                      Personal Information
-                    </h4>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">First Name *</label>
-                    <input
-                      type="text"
-                      value={formData.firstName || ""}
-                      onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Last Name *</label>
-                    <input
-                      type="text"
-                      value={formData.lastName || ""}
-                      onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Date of Birth</label>
-                    <input
-                      type="date"
-                      value={formData.dateOfBirth || ""}
-                      onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Gender</label>
-                    <select
-                      value={formData.gender || "male"}
-                      onChange={(e) => setFormData({...formData, gender: e.target.value as Gender})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Blood Group</label>
-                    <select
-                      value={formData.bloodGroup || ""}
-                      onChange={(e) => setFormData({...formData, bloodGroup: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select Blood Group</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Email *</label>
-                    <input
-                      type="email"
-                      value={formData.email || ""}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Phone</label>
-                    <input
-                      type="tel"
-                      value={formData.phone || ""}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Address</label>
-                    <textarea
-                      rows={2}
-                      value={formData.address || ""}
-                      onChange={(e) => setFormData({...formData, address: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  {/* Academic Information */}
-                  <div className="md:col-span-2 mt-4">
-                    <h4 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-4 flex items-center gap-2">
-                      <BookOpen className="w-5 h-5" />
-                      Academic Information
-                    </h4>
-                  </div>
-
-                  {availableClasses.length === 0 && (
-                    <div className="md:col-span-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold text-amber-900 dark:text-amber-50">No Classes Available</p>
-                          <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                            Please create classes first in the Class Configuration page before adding students.{" "}
-                            <a href="/admin/academics" className="underline hover:no-underline font-semibold">
-                              Go to Class Configuration
-                            </a>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Class *</label>
-                    <select
-                      value={formData.class || ""}
-                      onChange={(e) => setFormData({...formData, class: e.target.value, section: ""})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      disabled={availableClasses.length === 0}
-                    >
-                      <option value="">Select Class</option>
-                      {uniqueClassNames.map(className => (
-                        <option key={className} value={className}>{className}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Section *</label>
-                    <select
-                      value={formData.section || ""}
-                      onChange={(e) => setFormData({...formData, section: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      disabled={!formData.class || availableClasses.length === 0}
-                    >
-                      <option value="">Select Section</option>
-                      {availableSectionsForClass.map(section => (
-                        <option key={section} value={section}>Section {section}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Roll Number</label>
-                    <input
-                      type="text"
-                      value={formData.rollNumber || ""}
-                      onChange={(e) => setFormData({...formData, rollNumber: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Admission Date</label>
-                    <input
-                      type="date"
-                      value={formData.admissionDate || ""}
-                      onChange={(e) => setFormData({...formData, admissionDate: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  {/* Guardian Information */}
-                  <div className="md:col-span-2 mt-4">
-                    <h4 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-4 flex items-center gap-2">
-                      <Users className="w-5 h-5" />
-                      Guardian Information
-                    </h4>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Guardian Name</label>
-                    <input
-                      type="text"
-                      value={formData.guardianName || ""}
-                      onChange={(e) => setFormData({...formData, guardianName: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Guardian Phone</label>
-                    <input
-                      type="tel"
-                      value={formData.guardianPhone || ""}
-                      onChange={(e) => setFormData({...formData, guardianPhone: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Guardian Email</label>
-                    <input
-                      type="email"
-                      value={formData.guardianEmail || ""}
-                      onChange={(e) => setFormData({...formData, guardianEmail: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
-                <button 
-                  onClick={handleAddStudent}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-blue-500/30"
-                >
-                  Add Student
-                </button>
-                <button 
-                  onClick={() => { setShowAddStudent(false); setFormData({}); }}
-                  className="px-6 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Edit Student Modal */}
         {showEditStudent && selectedStudent && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -914,7 +902,7 @@ export default function StudentsPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-slate-500 dark:text-slate-400">Date of Birth</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.dateOfBirth}</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{formatDate(selectedStudent.dateOfBirth)}</p>
                       </div>
                       <div>
                         <p className="text-sm text-slate-500 dark:text-slate-400">Gender</p>
@@ -960,7 +948,7 @@ export default function StudentsPage() {
                       </div>
                       <div>
                         <p className="text-sm text-slate-500 dark:text-slate-400">Admission Date</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedStudent.admissionDate}</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-50">{formatDate(selectedStudent.admissionDate)}</p>
                       </div>
                     </div>
                   </div>

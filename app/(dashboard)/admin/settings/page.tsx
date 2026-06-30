@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Save, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";
 
 const settingsSections = [
   {
@@ -118,6 +119,13 @@ export default function SettingsPage() {
                           </option>
                         ))}
                       </select>
+                    ) : field.type === "date" ? (
+                      <DateInput
+                        value={field.value as string}
+                        onChange={() => {}}
+                        disabled={'readOnly' in field ? Boolean(field.readOnly) : false}
+                        className="rounded-lg"
+                      />
                     ) : (
                       <div className="relative">
                         <input

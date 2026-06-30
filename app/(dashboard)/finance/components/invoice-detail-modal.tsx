@@ -1,6 +1,8 @@
 "use client";
 
 import { X, Download, Printer, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { formatDate } from "@/lib/date-format";
+import { exportKeyValueCsv, printHtml } from "@/lib/export-data";
 
 type Invoice = {
   id: string;
@@ -41,6 +43,37 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
   const statusConfig = getStatusConfig();
   const StatusIcon = statusConfig.icon;
 
+  const handleDownloadInvoice = () => {
+    exportKeyValueCsv(`invoice-${invoice.invoiceNo}`, [
+      { label: "Invoice No", value: invoice.invoiceNo },
+      { label: "Student", value: invoice.studentName },
+      { label: "Class", value: invoice.className },
+      { label: "Issued Date", value: formatDate(invoice.issuedAt) },
+      { label: "Due Date", value: formatDate(invoice.dueAt) },
+      { label: "Total Amount", value: invoice.totalAmount },
+      { label: "Paid Amount", value: invoice.paidAmount },
+      { label: "Balance Due", value: balance },
+      { label: "Status", value: statusConfig.label },
+    ]);
+  };
+
+  const handlePrintInvoice = () => {
+    printHtml(
+      `Invoice ${invoice.invoiceNo}`,
+      `<table>
+        <tr><th>Invoice No</th><td>${invoice.invoiceNo}</td></tr>
+        <tr><th>Student</th><td>${invoice.studentName}</td></tr>
+        <tr><th>Class</th><td>${invoice.className}</td></tr>
+        <tr><th>Issued</th><td>${formatDate(invoice.issuedAt)}</td></tr>
+        <tr><th>Due</th><td>${formatDate(invoice.dueAt)}</td></tr>
+        <tr><th>Total</th><td>₵${invoice.totalAmount.toFixed(2)}</td></tr>
+        <tr><th>Paid</th><td>₵${invoice.paidAmount.toFixed(2)}</td></tr>
+        <tr><th>Balance</th><td>₵${balance.toFixed(2)}</td></tr>
+        <tr><th>Status</th><td>${statusConfig.label}</td></tr>
+      </table>`,
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -53,10 +86,20 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Print">
+            <button
+              type="button"
+              onClick={handlePrintInvoice}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              title="Print"
+            >
               <Printer className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
-            <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Download">
+            <button
+              type="button"
+              onClick={handleDownloadInvoice}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              title="Download"
+            >
               <Download className="w-5 h-5 text-slate-600 dark:text-slate-400" />
             </button>
             <button
@@ -104,11 +147,11 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-600 dark:text-slate-400">Issued Date:</span>
-                    <span className="font-semibold text-slate-900 dark:text-slate-50">{invoice.issuedAt}</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-50">{formatDate(invoice.issuedAt)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-600 dark:text-slate-400">Due Date:</span>
-                    <span className="font-semibold text-slate-900 dark:text-slate-50">{invoice.dueAt}</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-50">{formatDate(invoice.dueAt)}</span>
                   </div>
                 </div>
               </div>
@@ -196,7 +239,7 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-slate-50">Payment Received</p>
                       <p className="text-sm text-slate-600 dark:text-slate-400">
-                        {new Date().toLocaleDateString()} • Cash
+                        {formatDate(new Date())} • Cash
                       </p>
                     </div>
                     <span className="text-lg font-bold text-green-600">₵{invoice.paidAmount.toFixed(2)}</span>
@@ -210,7 +253,7 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
         {/* Footer */}
         <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Generated on {new Date().toLocaleDateString()}
+            Generated on {formatDate(new Date())}
           </p>
           <button
             onClick={onClose}

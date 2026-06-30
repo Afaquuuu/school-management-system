@@ -1,38 +1,46 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Search, Edit, Trash2, Eye, X, Save, CheckCircle, Mail, Phone, User, Shield } from "lucide-react";
-import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
-
-type UserRole = "Student" | "Teacher" | "Parent" | "Admin";
-type UserStatus = "Active" | "Inactive" | "On Leave" | "Suspended";
-
-type SystemUser = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
-  classDepartment: string;
-  status: UserStatus;
-  password: string;
-  createdAt: string;
-  lastLogin?: string;
-};
-
-const sampleUsers: SystemUser[] = [
-  { id: "1", name: "Ama Johnson", email: "ama@school.edu", phone: "+233 24 123 4567", role: "Student", classDepartment: "Grade 8A", status: "Active", password: "password123", createdAt: "2024-01-15" },
-  { id: "2", name: "David Mensah", email: "david@school.edu", phone: "+233 24 234 5678", role: "Student", classDepartment: "Grade 9B", status: "Active", password: "password123", createdAt: "2024-01-16" },
-  { id: "3", name: "A. Mensah", email: "a.mensah@school.edu", phone: "+233 24 345 6789", role: "Teacher", classDepartment: "Math", status: "Active", password: "password123", createdAt: "2024-01-10" },
-  { id: "4", name: "S. Okafor", email: "s.okafor@school.edu", phone: "+233 24 456 7890", role: "Teacher", classDepartment: "English", status: "On Leave", password: "password123", createdAt: "2024-01-11" },
-  { id: "5", name: "Principal Dr. K. Osei", email: "principal@school.edu", phone: "+233 24 567 8901", role: "Admin", classDepartment: "System", status: "Active", password: "admin123", createdAt: "2024-01-01" },
-];
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  Eye,
+  EyeOff,
+  X,
+  Save,
+  CheckCircle,
+  Mail,
+  Phone,
+  User,
+  Shield,
+  KeyRound,
+  Copy,
+  RefreshCw,
+  ClipboardCopy,
+} from "lucide-react";
+import { useSchool } from "@/lib/school-context";
+import {
+  credentialRoles,
+  formatCredentialsText,
+  generateLoginPassword,
+  getClassDepartmentLabel,
+  isValidLoginEmail,
+  loadSystemUsers,
+  saveSystemUsers,
+  syncStaffToSystemUsers,
+  type SystemUser,
+  type SystemUserRole,
+  type SystemUserStatus,
+} from "@/lib/system-users";
+import { formatDateTime } from "@/lib/date-format";
 
 const rolesConfig = [
-  { label: "Student", description: "Can view grades, attendance, messages", permissions: 5 },
-  { label: "Teacher", description: "Can manage classes, attendance, marks", permissions: 12 },
-  { label: "Parent", description: "Can view child's progress and reports", permissions: 4 },
-  { label: "Admin", description: "Full system control", permissions: 28 },
+  { label: "Student", description: "Receives login to view own grades and attendance", permissions: 5 },
+  { label: "Teacher", description: "Receives login for classes, attendance, and check-in", permissions: 12 },
+  { label: "Parent", description: "Receives login to view child's progress and reports", permissions: 4 },
+  { label: "Admin", description: "Full system control including credential issuance", permissions: 28 },
 ];
 
 export default function UsersPage() {
@@ -40,123 +48,188 @@ export default function UsersPage() {
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [issuedUser, setIssuedUser] = useState<SystemUser | null>(null);
   const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  
-  // Form state
+  const [showFormPassword, setShowFormPassword] = useState(true);
+  const [showViewPassword, setShowViewPassword] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
   const [formData, setFormData] = useState<Partial<SystemUser>>({
     name: "",
     email: "",
     phone: "",
-    role: "Student",
+    role: "Teacher",
     classDepartment: "",
     status: "Active",
     password: "",
   });
 
-  // Load users from localStorage
   useEffect(() => {
     if (currentSchool) {
-      const stored = getScopedItem(currentSchool.id, 'system_users');
-      if (stored) {
-        setUsers(JSON.parse(stored));
-      } else {
-        // Initialize with sample data
-        setUsers(sampleUsers);
-        setScopedItem(currentSchool.id, 'system_users', JSON.stringify(sampleUsers));
-      }
+      setUsers(syncStaffToSystemUsers(currentSchool.id));
     }
   }, [currentSchool]);
 
-  // Save users to localStorage
-  const saveUsers = (updatedUsers: SystemUser[]) => {
+  const persistUsers = (updatedUsers: SystemUser[]) => {
     if (currentSchool) {
       setUsers(updatedUsers);
-      setScopedItem(currentSchool.id, 'system_users', JSON.stringify(updatedUsers));
+      saveSystemUsers(currentSchool.id, updatedUsers);
     }
   };
 
   const showSuccessNotification = (message: string) => {
     setSuccessMessage(message);
     setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    setTimeout(() => setShowSuccess(false), 4000);
   };
 
-  const handleAddUser = () => {
-    if (!formData.name || !formData.email || !formData.role) {
-      alert("Please fill in all required fields");
+  const copyText = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(label);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      alert("Could not copy to clipboard.");
+    }
+  };
+
+  const resetForm = (role: SystemUserRole = "Teacher") => {
+    setFormData({
+      name: "",
+      email: "",
+      phone: "",
+      role,
+      classDepartment: "",
+      status: "Active",
+      password: generateLoginPassword(),
+    });
+    setShowFormPassword(true);
+  };
+
+  const openIssueModal = (role: SystemUserRole = "Teacher") => {
+    resetForm(role);
+    setShowIssueModal(true);
+  };
+
+  const closeIssueModal = () => {
+    setShowIssueModal(false);
+    resetForm();
+  };
+
+  const handleIssueCredentials = () => {
+    if (!formData.name?.trim() || !formData.email?.trim() || !formData.role) {
+      alert("Please fill in name, login email, and role.");
       return;
     }
 
-    // Check for duplicate email
-    if (users.some(u => u.email.toLowerCase() === formData.email?.toLowerCase())) {
-      alert("Email already exists");
+    if (!isValidLoginEmail(formData.email)) {
+      alert("Please enter a valid login email address (e.g. teacher@gmail.com).");
+      return;
+    }
+
+    if (!formData.password?.trim()) {
+      alert("Please set a login password before issuing credentials.");
+      return;
+    }
+
+    if (users.some((u) => u.email.toLowerCase() === formData.email!.trim().toLowerCase())) {
+      alert("This login email is already issued to another user.");
       return;
     }
 
     const newUser: SystemUser = {
       id: `user_${Date.now()}`,
-      name: formData.name!,
-      email: formData.email!,
+      name: formData.name.trim(),
+      email: formData.email.trim().toLowerCase(),
       phone: formData.phone || "",
-      role: formData.role as UserRole,
+      role: formData.role as SystemUserRole,
       classDepartment: formData.classDepartment || "",
-      status: formData.status as UserStatus || "Active",
-      password: formData.password || "password123",
-      createdAt: new Date().toISOString().split('T')[0],
+      status: (formData.status as SystemUserStatus) || "Active",
+      password: formData.password.trim(),
+      createdAt: new Date().toISOString().split("T")[0],
+      credentialsIssuedAt: new Date().toISOString(),
     };
 
-    const updatedUsers = [...users, newUser];
-    saveUsers(updatedUsers);
-    
-    setShowAddModal(false);
-    resetForm();
-    showSuccessNotification(`User ${newUser.name} added successfully!`);
+    persistUsers([...users, newUser]);
+    setShowIssueModal(false);
+    setIssuedUser(newUser);
+    setShowCredentialsModal(true);
+    resetForm(newUser.role);
+    showSuccessNotification(`Login credentials issued to ${newUser.name}.`);
   };
 
   const handleEditUser = () => {
-    if (!selectedUser || !formData.name || !formData.email) {
-      alert("Please fill in all required fields");
+    if (!selectedUser || !formData.name?.trim() || !formData.email?.trim()) {
+      alert("Please fill in all required fields.");
       return;
     }
 
-    // Check for duplicate email (excluding current user)
-    if (users.some(u => u.id !== selectedUser.id && u.email.toLowerCase() === formData.email?.toLowerCase())) {
-      alert("Email already exists");
+    if (!isValidLoginEmail(formData.email)) {
+      alert("Please enter a valid login email address.");
       return;
     }
 
-    const updatedUsers = users.map(u =>
+    if (
+      users.some(
+        (u) =>
+          u.id !== selectedUser.id &&
+          u.email.toLowerCase() === formData.email!.trim().toLowerCase(),
+      )
+    ) {
+      alert("This login email is already used by another account.");
+      return;
+    }
+
+    const updatedUsers = users.map((u) =>
       u.id === selectedUser.id
         ? {
             ...u,
-            name: formData.name!,
-            email: formData.email!,
+            name: formData.name!.trim(),
+            email: formData.email!.trim().toLowerCase(),
             phone: formData.phone || u.phone,
-            role: formData.role as UserRole || u.role,
+            role: (formData.role as SystemUserRole) || u.role,
             classDepartment: formData.classDepartment || u.classDepartment,
-            status: formData.status as UserStatus || u.status,
-            password: formData.password || u.password,
+            status: (formData.status as SystemUserStatus) || u.status,
+            password: formData.password?.trim() || u.password,
           }
-        : u
+        : u,
     );
 
-    saveUsers(updatedUsers);
+    persistUsers(updatedUsers);
     setShowEditModal(false);
     setSelectedUser(null);
     resetForm();
-    showSuccessNotification(`User ${formData.name} updated successfully!`);
+    showSuccessNotification(`Login details updated for ${formData.name}.`);
+  };
+
+  const handleReissuePassword = (user: SystemUser) => {
+    const newPassword = generateLoginPassword();
+    const updatedUsers = users.map((u) =>
+      u.id === user.id
+        ? {
+            ...u,
+            password: newPassword,
+            credentialsIssuedAt: new Date().toISOString(),
+          }
+        : u,
+    );
+    persistUsers(updatedUsers);
+    const updated = updatedUsers.find((u) => u.id === user.id) ?? null;
+    setIssuedUser(updated);
+    setShowCredentialsModal(true);
+    showSuccessNotification(`New password issued for ${user.name}.`);
   };
 
   const handleDeleteUser = (user: SystemUser) => {
-    if (confirm(`Delete user ${user.name}?`)) {
-      const updatedUsers = users.filter(u => u.id !== user.id);
-      saveUsers(updatedUsers);
-      showSuccessNotification(`User ${user.name} deleted successfully!`);
+    if (confirm(`Revoke login access for ${user.name}? This will delete their account.`)) {
+      persistUsers(users.filter((u) => u.id !== user.id));
+      showSuccessNotification(`Login access revoked for ${user.name}.`);
     }
   };
 
@@ -176,171 +249,201 @@ export default function UsersPage() {
 
   const openViewModal = (user: SystemUser) => {
     setSelectedUser(user);
+    setShowViewPassword(false);
     setShowViewModal(true);
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      role: "Student",
-      classDepartment: "",
-      status: "Active",
-      password: "",
-    });
-  };
-
-  const closeAddModal = () => {
-    setShowAddModal(false);
-    resetForm();
-  };
-
-  const closeEditModal = () => {
-    setShowEditModal(false);
-    setSelectedUser(null);
-    resetForm();
-  };
-
-  const closeViewModal = () => {
-    setShowViewModal(false);
-    setSelectedUser(null);
   };
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
-      const matchesSearch = 
+      const matchesSearch =
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesRole = selectedRoleFilter === "all" || user.role.toLowerCase() === selectedRoleFilter.toLowerCase();
+      const matchesRole =
+        selectedRoleFilter === "all" ||
+        user.role.toLowerCase() === selectedRoleFilter.toLowerCase();
       return matchesSearch && matchesRole;
     });
   }, [users, searchTerm, selectedRoleFilter]);
 
+  const credentialStats = useMemo(
+    () => ({
+      teachers: users.filter((u) => u.role === "Teacher").length,
+      students: users.filter((u) => u.role === "Student").length,
+      parents: users.filter((u) => u.role === "Parent").length,
+      active: users.filter((u) => u.status === "Active").length,
+    }),
+    [users],
+  );
+
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">User Management</h1>
-          <p className="mt-1 text-slate-600 dark:text-slate-400">Add, edit, and manage users across all roles</p>
+      <div className="surface-card p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="section-label mb-1">Admin</p>
+            <h1 className="page-title">User Management</h1>
+            <p className="page-subtitle mt-1">
+              Issue login email and password credentials to teachers, students, and parents.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {credentialRoles.map((role) => (
+              <button
+                key={role}
+                onClick={() => openIssueModal(role)}
+                className="btn-primary inline-flex items-center gap-2"
+              >
+                <KeyRound className="h-4 w-4" />
+                Issue {role} Login
+              </button>
+            ))}
+          </div>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold"
-        >
-          <Plus className="w-4 h-4" />
-          Add New User
-        </button>
       </div>
 
-      {/* Success Notification */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p className="text-sm text-blue-800">
+          <strong>How login works:</strong> Create an account here with a Gmail/login email and password.
+          Share those credentials with the user. They will sign in on the school login page using that email and password.
+        </p>
+      </div>
+
       {showSuccess && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-          <div>
-            <p className="font-semibold text-green-900 dark:text-green-50">Success</p>
-            <p className="text-sm text-green-700 dark:text-green-300">{successMessage}</p>
-          </div>
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <CheckCircle className="h-5 w-5 text-emerald-600" />
+          <p className="text-sm font-medium text-emerald-800">{successMessage}</p>
         </div>
       )}
 
-      {/* Search & Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="surface-card p-4">
+          <p className="text-xs font-semibold uppercase text-emerald-600">Teacher Logins</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{credentialStats.teachers}</p>
+        </div>
+        <div className="surface-card p-4">
+          <p className="text-xs font-semibold uppercase text-blue-600">Student Logins</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{credentialStats.students}</p>
+        </div>
+        <div className="surface-card p-4">
+          <p className="text-xs font-semibold uppercase text-purple-600">Parent Logins</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{credentialStats.parents}</p>
+        </div>
+        <div className="surface-card p-4">
+          <p className="text-xs font-semibold uppercase text-slate-500">Active Accounts</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{credentialStats.active}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 md:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by name or email..."
+            placeholder="Search by name or login email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input-field pl-10"
           />
         </div>
-        <select 
+        <select
           value={selectedRoleFilter}
           onChange={(e) => setSelectedRoleFilter(e.target.value)}
-          className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input-field md:w-48"
         >
           <option value="all">All Roles</option>
-          <option value="student">Students</option>
           <option value="teacher">Teachers</option>
+          <option value="student">Students</option>
           <option value="parent">Parents</option>
           <option value="admin">Admins</option>
         </select>
+        <button
+          onClick={() => openIssueModal("Teacher")}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4" />
+          Issue Login Credentials
+        </button>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:bg-slate-800">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+          <thead className="border-b border-slate-200 bg-slate-50 dark:bg-slate-900">
             <tr>
-              <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Name</th>
-              <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Email</th>
-              <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Role</th>
-              <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Class/Department</th>
-              <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Status</th>
-              <th className="px-6 py-3 text-right font-semibold text-slate-900 dark:text-slate-50">Actions</th>
+              <th className="px-6 py-3 text-left font-semibold text-slate-900">Name</th>
+              <th className="px-6 py-3 text-left font-semibold text-slate-900">Login Email</th>
+              <th className="px-6 py-3 text-left font-semibold text-slate-900">Role</th>
+              <th className="px-6 py-3 text-left font-semibold text-slate-900">Class/Department</th>
+              <th className="px-6 py-3 text-left font-semibold text-slate-900">Status</th>
+              <th className="px-6 py-3 text-right font-semibold text-slate-900">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+          <tbody className="divide-y divide-slate-200">
             {filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                  No users found
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  No login accounts issued yet. Use &quot;Issue Login Credentials&quot; to create one.
                 </td>
               </tr>
             ) : (
               filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                  <td className="px-6 py-4 text-slate-900 dark:text-slate-50 font-medium">{user.name}</td>
-                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{user.email}</td>
+                <tr key={user.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 font-medium text-slate-900">{user.name}</td>
+                  <td className="px-6 py-4 text-slate-600">{user.email}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      user.role === "Student"
-                        ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
-                        : user.role === "Teacher"
-                        ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200"
-                        : user.role === "Parent"
-                        ? "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200"
-                        : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200"
-                    }`}>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        user.role === "Student"
+                          ? "bg-blue-100 text-blue-800"
+                          : user.role === "Teacher"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : user.role === "Parent"
+                              ? "bg-purple-100 text-purple-800"
+                              : "bg-red-100 text-red-800"
+                      }`}
+                    >
                       {user.role}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{user.classDepartment}</td>
+                  <td className="px-6 py-4 text-slate-600">{user.classDepartment || "—"}</td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs font-medium rounded ${
-                      user.status === "Active"
-                        ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
-                        : user.status === "On Leave"
-                        ? "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200"
-                        : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200"
-                    }`}>
+                    <span
+                      className={`rounded px-2 py-1 text-xs font-medium ${
+                        user.status === "Active"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
                       {user.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right flex gap-2 justify-end">
-                    <button 
+                  <td className="flex justify-end gap-1 px-6 py-4">
+                    <button
                       onClick={() => openViewModal(user)}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" 
-                      title="View"
+                      className="rounded p-2 hover:bg-slate-100"
+                      title="View credentials"
                     >
-                      <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      <Eye className="h-4 w-4 text-slate-600" />
                     </button>
-                    <button 
+                    <button
+                      onClick={() => handleReissuePassword(user)}
+                      className="rounded p-2 hover:bg-slate-100"
+                      title="Reissue password"
+                    >
+                      <RefreshCw className="h-4 w-4 text-amber-600" />
+                    </button>
+                    <button
                       onClick={() => openEditModal(user)}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" 
-                      title="Edit"
+                      className="rounded p-2 hover:bg-slate-100"
+                      title="Edit account"
                     >
-                      <Edit className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <Edit className="h-4 w-4 text-blue-600" />
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDeleteUser(user)}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" 
-                      title="Delete"
+                      className="rounded p-2 hover:bg-slate-100"
+                      title="Revoke access"
                     >
-                      <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      <Trash2 className="h-4 w-4 text-red-600" />
                     </button>
                   </td>
                 </tr>
@@ -350,116 +453,126 @@ export default function UsersPage() {
         </table>
       </div>
 
-      {/* Roles Configuration */}
-      <div className="mt-8">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50 mb-4">Role Permissions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div>
+        <h2 className="mb-4 text-2xl font-bold text-slate-900">Account Types</h2>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {rolesConfig.map((role) => (
-            <div key={role.label} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-              <h3 className="font-bold text-slate-900 dark:text-slate-50 mb-2">{role.label}</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">{role.description}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 dark:text-slate-500">{role.permissions} permissions</span>
-                <button className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-semibold">Configure</button>
-              </div>
+            <div key={role.label} className="surface-card p-4">
+              <h3 className="mb-2 font-bold text-slate-900">{role.label}</h3>
+              <p className="mb-3 text-sm text-slate-600">{role.description}</p>
+              <span className="text-xs text-slate-500">{role.permissions} permissions</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Add User Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-800">
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Add New User</h3>
-              <button onClick={closeAddModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                <X className="w-5 h-5" />
+      {showIssueModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white p-6">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900">Issue Login Credentials</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Create the Gmail/login email and password this user will use to sign in.
+                </p>
+              </div>
+              <button onClick={closeIssueModal} className="rounded-lg p-2 hover:bg-slate-100">
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-4 p-6">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    <User className="w-4 h-4 inline mr-2" />
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <User className="mr-2 inline h-4 w-4" />
                     Full Name *
                   </label>
                   <input
                     type="text"
                     value={formData.name || ""}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="John Doe"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="input-field"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    <Mail className="w-4 h-4 inline mr-2" />
-                    Email *
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <Mail className="mr-2 inline h-4 w-4" />
+                    Login Email (Gmail) *
                   </label>
                   <input
                     type="email"
                     value={formData.email || ""}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    placeholder="john@school.edu"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="user@gmail.com"
+                    className="input-field"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    <Phone className="w-4 h-4 inline mr-2" />
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone || ""}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    placeholder="+233 24 123 4567"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    <Shield className="w-4 h-4 inline mr-2" />
-                    Role *
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <Shield className="mr-2 inline h-4 w-4" />
+                    Account Type *
                   </label>
                   <select
-                    value={formData.role || "Student"}
-                    onChange={(e) => setFormData({...formData, role: e.target.value as UserRole})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={formData.role || "Teacher"}
+                    onChange={(e) =>
+                      setFormData({ ...formData, role: e.target.value as SystemUserRole })
+                    }
+                    className="input-field"
                   >
-                    <option value="Student">Student</option>
                     <option value="Teacher">Teacher</option>
+                    <option value="Student">Student</option>
                     <option value="Parent">Parent</option>
                     <option value="Admin">Admin</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Class/Department
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    {getClassDepartmentLabel(formData.role as SystemUserRole)}
                   </label>
                   <input
                     type="text"
                     value={formData.classDepartment || ""}
-                    onChange={(e) => setFormData({...formData, classDepartment: e.target.value})}
-                    placeholder="Grade 8A or Math Dept"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) =>
+                      setFormData({ ...formData, classDepartment: e.target.value })
+                    }
+                    placeholder={
+                      formData.role === "Student"
+                        ? "Grade 7B"
+                        : formData.role === "Parent"
+                          ? "Child name or class"
+                          : "Mathematics"
+                    }
+                    className="input-field"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Status
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <Phone className="mr-2 inline h-4 w-4" />
+                    Phone
                   </label>
+                  <input
+                    type="tel"
+                    value={formData.phone || ""}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="+233 24 123 4567"
+                    className="input-field"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">Status</label>
                   <select
                     value={formData.status || "Active"}
-                    onChange={(e) => setFormData({...formData, status: e.target.value as UserStatus})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) =>
+                      setFormData({ ...formData, status: e.target.value as SystemUserStatus })
+                    }
+                    className="input-field"
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -469,128 +582,202 @@ export default function UsersPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Password *
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <KeyRound className="mr-2 inline h-4 w-4" />
+                    Login Password *
                   </label>
-                  <input
-                    type="password"
-                    value={formData.password || ""}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    placeholder="Enter password"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type={showFormPassword ? "text" : "password"}
+                      value={formData.password || ""}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Set login password"
+                      className="input-field flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowFormPassword((v) => !v)}
+                      className="rounded-lg border border-slate-300 px-3 hover:bg-slate-50"
+                    >
+                      {showFormPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, password: generateLoginPassword() })
+                      }
+                      className="rounded-lg border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50"
+                    >
+                      Generate
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3 justify-end">
+            <div className="flex justify-end gap-3 border-t border-slate-200 p-6">
               <button
-                onClick={closeAddModal}
-                className="px-6 py-3 border-2 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                onClick={closeIssueModal}
+                className="rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
-                onClick={handleAddUser}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
+                onClick={handleIssueCredentials}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
               >
-                <Save className="w-5 h-5" />
-                Add User
+                <Save className="h-5 w-5" />
+                Issue Credentials
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Edit User Modal */}
-      {showEditModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-800">
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Edit User</h3>
-              <button onClick={closeEditModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                <X className="w-5 h-5" />
+      {showCredentialsModal && issuedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Credentials Issued</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Share these login details with {issuedUser.name}.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setIssuedUser(null);
+                }}
+                className="rounded-lg p-2 hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    <User className="w-4 h-4 inline mr-2" />
-                    Full Name *
-                  </label>
+                  <p className="text-xs uppercase text-emerald-700">Login Email</p>
+                  <p className="font-semibold text-slate-900">{issuedUser.email}</p>
+                </div>
+                <button
+                  onClick={() => copyText("email", issuedUser.email)}
+                  className="rounded-lg border border-emerald-200 bg-white p-2 hover:bg-emerald-100"
+                >
+                  <Copy className="h-4 w-4 text-emerald-700" />
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase text-emerald-700">Password</p>
+                  <p className="font-semibold text-slate-900">{issuedUser.password}</p>
+                </div>
+                <button
+                  onClick={() => copyText("password", issuedUser.password)}
+                  className="rounded-lg border border-emerald-200 bg-white p-2 hover:bg-emerald-100"
+                >
+                  <Copy className="h-4 w-4 text-emerald-700" />
+                </button>
+              </div>
+              <div>
+                <p className="text-xs uppercase text-emerald-700">Role</p>
+                <p className="font-semibold text-slate-900">{issuedUser.role}</p>
+              </div>
+            </div>
+
+            {copiedField && (
+              <p className="mt-3 text-sm text-emerald-700">
+                {copiedField === "all" ? "All credentials copied." : `${copiedField} copied.`}
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() =>
+                  copyText("all", formatCredentialsText(issuedUser, currentSchool?.name))
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold hover:bg-slate-50"
+              >
+                <ClipboardCopy className="h-4 w-4" />
+                Copy All
+              </button>
+              <button
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setIssuedUser(null);
+                }}
+                className="btn-primary"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white p-6">
+              <h3 className="text-2xl font-bold text-slate-900">Edit Login Account</h3>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedUser(null);
+                  resetForm();
+                }}
+                className="rounded-lg p-2 hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">Full Name *</label>
                   <input
                     type="text"
                     value={formData.name || ""}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="input-field"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    <Mail className="w-4 h-4 inline mr-2" />
-                    Email *
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Login Email (Gmail) *
                   </label>
                   <input
                     type="email"
                     value={formData.email || ""}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="input-field"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    <Phone className="w-4 h-4 inline mr-2" />
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone || ""}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    <Shield className="w-4 h-4 inline mr-2" />
-                    Role *
-                  </label>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">Account Type</label>
                   <select
                     value={formData.role || "Student"}
-                    onChange={(e) => setFormData({...formData, role: e.target.value as UserRole})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) =>
+                      setFormData({ ...formData, role: e.target.value as SystemUserRole })
+                    }
+                    className="input-field"
                   >
-                    <option value="Student">Student</option>
                     <option value="Teacher">Teacher</option>
+                    <option value="Student">Student</option>
                     <option value="Parent">Parent</option>
                     <option value="Admin">Admin</option>
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Class/Department
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.classDepartment || ""}
-                    onChange={(e) => setFormData({...formData, classDepartment: e.target.value})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Status
-                  </label>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">Status</label>
                   <select
                     value={formData.status || "Active"}
-                    onChange={(e) => setFormData({...formData, status: e.target.value as UserStatus})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) =>
+                      setFormData({ ...formData, status: e.target.value as SystemUserStatus })
+                    }
+                    className="input-field"
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -598,21 +785,34 @@ export default function UsersPage() {
                     <option value="Suspended">Suspended</option>
                   </select>
                 </div>
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-bold text-slate-700">Login Password</label>
+                  <input
+                    type="text"
+                    value={formData.password || ""}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="input-field"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3 justify-end">
+            <div className="flex justify-end gap-3 border-t border-slate-200 p-6">
               <button
-                onClick={closeEditModal}
-                className="px-6 py-3 border-2 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedUser(null);
+                  resetForm();
+                }}
+                className="rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700"
               >
                 Cancel
               </button>
               <button
                 onClick={handleEditUser}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
               >
-                <Save className="w-5 h-5" />
+                <Save className="h-5 w-5" />
                 Save Changes
               </button>
             </div>
@@ -620,58 +820,85 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* View User Modal */}
       {showViewModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">User Details</h3>
-              <button onClick={closeViewModal} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 p-6">
+              <h3 className="text-2xl font-bold text-slate-900">Login Credentials</h3>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setSelectedUser(null);
+                }}
+                className="rounded-lg p-2 hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-4 p-6">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Name</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedUser.name}</p>
+                  <p className="text-sm text-slate-500">Name</p>
+                  <p className="font-semibold text-slate-900">{selectedUser.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Email</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedUser.email}</p>
+                  <p className="text-sm text-slate-500">Login Email</p>
+                  <p className="font-semibold text-slate-900">{selectedUser.email}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Phone</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedUser.phone || "N/A"}</p>
+                  <p className="text-sm text-slate-500">Password</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-slate-900">
+                      {showViewPassword ? selectedUser.password : "••••••••"}
+                    </p>
+                    <button
+                      onClick={() => setShowViewPassword((v) => !v)}
+                      className="rounded p-1 hover:bg-slate-100"
+                    >
+                      {showViewPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Role</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedUser.role}</p>
+                  <p className="text-sm text-slate-500">Role</p>
+                  <p className="font-semibold text-slate-900">{selectedUser.role}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Class/Department</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedUser.classDepartment}</p>
+                  <p className="text-sm text-slate-500">Class/Department</p>
+                  <p className="font-semibold text-slate-900">
+                    {selectedUser.classDepartment || "—"}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Status</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedUser.status}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Created At</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedUser.createdAt}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Last Login</p>
-                  <p className="font-semibold text-slate-900 dark:text-slate-50">{selectedUser.lastLogin || "Never"}</p>
+                  <p className="text-sm text-slate-500">Last Login</p>
+                  <p className="font-semibold text-slate-900">
+                    {selectedUser.lastLogin ? formatDateTime(selectedUser.lastLogin) : "Never"}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3 justify-end">
+            <div className="flex justify-end gap-3 border-t border-slate-200 p-6">
               <button
-                onClick={closeViewModal}
-                className="px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-50 rounded-xl font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                onClick={() =>
+                  copyText("all", formatCredentialsText(selectedUser, currentSchool?.name))
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold hover:bg-slate-50"
+              >
+                <ClipboardCopy className="h-4 w-4" />
+                Copy Credentials
+              </button>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setSelectedUser(null);
+                }}
+                className="btn-primary"
               >
                 Close
               </button>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Bell,
   MessageSquare,
@@ -21,7 +22,25 @@ import {
   Trash2,
   X,
   Paperclip,
+  CornerUpLeft,
 } from "lucide-react";
+import { formatDate, getTodayIsoDate } from "@/lib/date-format";
+import { useSchool } from "@/lib/school-context";
+import { getUserSession, type UserSession } from "@/lib/teacher-check-in";
+import {
+  deleteSchoolMessage,
+  getComposeRecipientOptions,
+  getInboxMessages,
+  loadSchoolMessages,
+  markSchoolMessageRead,
+  sendSchoolMessage,
+  sendSchoolReply,
+  type SchoolMessage,
+} from "@/lib/school-messages";
+
+function isReplyMessage(message: SchoolMessage): boolean {
+  return Boolean(message.replyToId) || message.subject.trim().toLowerCase().startsWith("re:");
+}
 
 type AnnouncementPriority = "low" | "normal" | "high" | "urgent";
 
@@ -37,15 +56,7 @@ type Announcement = {
   isPinned: boolean;
 };
 
-type Message = {
-  id: string;
-  sender: string;
-  subject: string;
-  preview: string;
-  timestamp: string;
-  isRead: boolean;
-  hasAttachment: boolean;
-};
+type Message = SchoolMessage;
 
 const sampleAnnouncements: Announcement[] = [
   {
@@ -94,45 +105,6 @@ const sampleAnnouncements: Announcement[] = [
   },
 ];
 
-const sampleMessages: Message[] = [
-  {
-    id: "1",
-    sender: "A. Mensah (Math Teacher)",
-    subject: "Assignment Submission Reminder",
-    preview: "Please remind students to submit their calculus assignments by Friday...",
-    timestamp: "2 hours ago",
-    isRead: false,
-    hasAttachment: true,
-  },
-  {
-    id: "2",
-    sender: "Parent - Mrs. Johnson",
-    subject: "Regarding Ama's Attendance",
-    preview: "I wanted to discuss my daughter's recent attendance record...",
-    timestamp: "5 hours ago",
-    isRead: false,
-    hasAttachment: false,
-  },
-  {
-    id: "3",
-    sender: "Principal Office",
-    subject: "Staff Meeting Minutes",
-    preview: "Please find attached the minutes from yesterday's staff meeting...",
-    timestamp: "1 day ago",
-    isRead: true,
-    hasAttachment: true,
-  },
-  {
-    id: "4",
-    sender: "S. Okafor (English Teacher)",
-    subject: "Book Club Update",
-    preview: "The next book club session will be held on Thursday at 3 PM...",
-    timestamp: "2 days ago",
-    isRead: true,
-    hasAttachment: false,
-  },
-];
-
 const priorityConfig: Record<AnnouncementPriority, { color: string; label: string; icon: any }> = {
   urgent: { color: "bg-red-100 text-red-700 border-red-200", label: "Urgent", icon: AlertCircle },
   high: { color: "bg-orange-100 text-orange-700 border-orange-200", label: "High Priority", icon: AlertCircle },
@@ -141,6 +113,26 @@ const priorityConfig: Record<AnnouncementPriority, { color: string; label: strin
 };
 
 export default function CommunicationPage() {
+  const { currentSchool } = useSchool();
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const isSectionView =
+    tabFromUrl === "announcements" ||
+    tabFromUrl === "messages" ||
+    tabFromUrl === "compose";
+
+  const sectionTitles = {
+    announcements: "Announcements",
+    messages: "Messages",
+    compose: "Compose",
+  } as const;
+
+  const sectionDescriptions = {
+    announcements: "Publish and manage school-wide announcements",
+    messages: "Read and manage direct messages",
+    compose: "Send a new message or announcement",
+  } as const;
+
   const [selectedTab, setSelectedTab] = useState<"announcements" | "messages" | "compose">("announcements");
   const [searchTerm, setSearchTerm] = useState("");
   const [showComposeAnnouncement, setShowComposeAnnouncement] = useState(false);
@@ -150,7 +142,9 @@ export default function CommunicationPage() {
   
   // State management
   const [announcements, setAnnouncements] = useState<Announcement[]>(sampleAnnouncements);
-  const [messages, setMessages] = useState<Message[]>(sampleMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [session, setSession] = useState<UserSession | null>(null);
+  const [replyText, setReplyText] = useState("");
   
   // Compose form states
   const [composeRecipient, setComposeRecipient] = useState("");
@@ -162,6 +156,28 @@ export default function CommunicationPage() {
   const [announcementAudience, setAnnouncementAudience] = useState<string[]>([]);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "announcements" || tab === "messages" || tab === "compose") {
+      setSelectedTab(tab);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    setSession(getUserSession());
+  }, []);
+
+  useEffect(() => {
+    if (!currentSchool || !session) return;
+    setMessages(getInboxMessages(currentSchool.id, session.email));
+  }, [currentSchool, session]);
+
+  useEffect(() => {
+    if (!selectedMessage) {
+      setReplyText("");
+    }
+  }, [selectedMessage]);
 
   const filteredAnnouncements = useMemo(() => 
     announcements.filter(
@@ -178,7 +194,7 @@ export default function CommunicationPage() {
   const filteredMessages = useMemo(() =>
     messages.filter(
       (message) =>
-        message.sender.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        message.senderName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         message.subject.toLowerCase().includes(searchTerm.toLowerCase())
     ),
     [messages, searchTerm]
@@ -186,14 +202,34 @@ export default function CommunicationPage() {
 
   const unreadCount = useMemo(() => messages.filter((m) => !m.isRead).length, [messages]);
 
+  const originalReplyMessage = useMemo(() => {
+    if (!currentSchool || !selectedMessage?.replyToId) return null;
+    return (
+      loadSchoolMessages(currentSchool.id).find(
+        (message) => message.id === selectedMessage.replyToId,
+      ) ?? null
+    );
+  }, [currentSchool, selectedMessage]);
+
+  const composeRecipientOptions = useMemo(() => {
+    if (!currentSchool || !session) {
+      return [{ value: "", label: "Select recipient..." }];
+    }
+    return getComposeRecipientOptions(currentSchool.id, session);
+  }, [currentSchool, session]);
+
   const markAsRead = (messageId: string) => {
-    setMessages(prev => prev.map(msg => 
-      msg.id === messageId ? { ...msg, isRead: true } : msg
-    ));
+    if (!currentSchool) return;
+    const updated = markSchoolMessageRead(currentSchool.id, messageId);
+    if (session) {
+      setMessages(updated.filter((msg) => msg.recipientEmail.toLowerCase() === session.email.toLowerCase()));
+    }
   };
 
   const deleteMessage = (messageId: string) => {
-    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    if (!currentSchool || !session) return;
+    const updated = deleteSchoolMessage(currentSchool.id, messageId);
+    setMessages(updated.filter((msg) => msg.recipientEmail.toLowerCase() === session.email.toLowerCase()));
     setSelectedMessage(null);
   };
 
@@ -209,27 +245,40 @@ export default function CommunicationPage() {
   };
 
   const handleSendMessage = () => {
+    if (!currentSchool || !session) {
+      alert("Please sign in again to send messages.");
+      return;
+    }
+
     if (!composeRecipient || !composeSubject || !composeMessage) {
       alert("Please fill in all fields");
       return;
     }
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      sender: "You",
+    const result = sendSchoolMessage({
+      schoolId: currentSchool.id,
+      sender: {
+        id: session.id,
+        name: session.name,
+        email: session.email,
+        role: session.role,
+      },
+      recipientValue: composeRecipient,
       subject: composeSubject,
-      preview: composeMessage.substring(0, 100) + "...",
-      timestamp: "Just now",
-      isRead: true,
-      hasAttachment: false,
-    };
+      body: composeMessage,
+    });
 
-    setMessages([newMessage, ...messages]);
+    if (result.sentCount === 0) {
+      alert(result.errorReason ?? "Could not send the message. Please choose a valid recipient.");
+      return;
+    }
+
     setComposeRecipient("");
     setComposeSubject("");
     setComposeMessage("");
     setShowComposeMessage(false);
-    alert("Message sent successfully!");
+    setSelectedTab("messages");
+    alert(`Message sent to ${result.recipientLabel}.`);
   };
 
   const handleSaveDraft = () => {
@@ -240,12 +289,30 @@ export default function CommunicationPage() {
     alert("Draft saved successfully!");
   };
 
-  const handleReply = (message: Message) => {
-    setComposeRecipient(message.sender);
-    setComposeSubject(`Re: ${message.subject}`);
-    setComposeMessage("");
+  const handleSendReply = () => {
+    if (!currentSchool || !session || !selectedMessage) return;
+
+    if (!replyText.trim()) {
+      alert("Please enter your reply message.");
+      return;
+    }
+
+    sendSchoolReply({
+      schoolId: currentSchool.id,
+      originalMessage: selectedMessage,
+      sender: {
+        id: session.id,
+        name: session.name,
+        email: session.email,
+        role: session.role,
+      },
+      body: replyText.trim(),
+    });
+
+    alert(`Reply sent to ${selectedMessage.senderName}.`);
+    setReplyText("");
     setSelectedMessage(null);
-    setSelectedTab("compose");
+    setMessages(getInboxMessages(currentSchool.id, session.email));
   };
 
   const handleCreateAnnouncement = () => {
@@ -260,7 +327,7 @@ export default function CommunicationPage() {
       content: announcementContent,
       priority: announcementPriority,
       author: "You",
-      publishedAt: new Date().toISOString().split('T')[0],
+      publishedAt: getTodayIsoDate(),
       targetAudience: announcementAudience,
       views: 0,
       isPinned: false,
@@ -294,12 +361,17 @@ export default function CommunicationPage() {
                 <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
                   <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Communication Center</h1>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
+                  {isSectionView ? sectionTitles[selectedTab] : "Communication Center"}
+                </h1>
               </div>
               <p className="text-slate-600 dark:text-slate-400 ml-14">
-                Manage announcements, messages, and notifications for all school stakeholders
+                {isSectionView
+                  ? sectionDescriptions[selectedTab]
+                  : "Manage announcements, messages, and notifications for all school stakeholders"}
               </p>
             </div>
+            {!isSectionView && (
             <div className="flex gap-3">
               <button
                 onClick={() => setShowComposeMessage(true)}
@@ -316,10 +388,12 @@ export default function CommunicationPage() {
                 New Announcement
               </button>
             </div>
+            )}
           </div>
         </div>
 
       {/* Quick Stats */}
+      {!isSectionView && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
           <div className="flex items-center justify-between mb-3">
@@ -374,8 +448,10 @@ export default function CommunicationPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">Require attention</p>
         </div>
       </div>
+      )}
 
       {/* Tabs */}
+      {!isSectionView && (
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="flex gap-1 p-2 border-b border-slate-200 dark:border-slate-700">
           {(["announcements", "messages", "compose"] as const).map((tab) => (
@@ -403,6 +479,7 @@ export default function CommunicationPage() {
           ))}
         </div>
       </div>
+      )}
 
       {/* Search Bar */}
       {selectedTab !== "compose" && (
@@ -518,7 +595,7 @@ export default function CommunicationPage() {
                         </div>
                         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                           <Calendar className="w-4 h-4" />
-                          <span>{announcement.publishedAt}</span>
+                          <span>{formatDate(announcement.publishedAt)}</span>
                         </div>
                         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                           <Eye className="w-4 h-4" />
@@ -588,25 +665,53 @@ export default function CommunicationPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
-              {filteredMessages.map((message) => (
+              {filteredMessages.map((message) => {
+                const isReply = isReplyMessage(message);
+
+                return (
                 <div
                   key={message.id}
                   onClick={() => {
                     setSelectedMessage(message);
                     markAsRead(message.id);
                   }}
-                  className={`p-5 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all cursor-pointer rounded-xl ${
-                    !message.isRead ? "bg-blue-50 dark:bg-blue-900/10" : ""
+                  className={`p-5 transition-all cursor-pointer rounded-xl border-l-4 ${
+                    isReply
+                      ? `border-l-emerald-500 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/20 ${
+                          !message.isRead ? "bg-emerald-50/80 dark:bg-emerald-950/30" : "bg-white dark:bg-slate-800"
+                        }`
+                      : `border-l-indigo-500 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/20 ${
+                          !message.isRead ? "bg-indigo-50/80 dark:bg-indigo-950/30" : "bg-white dark:bg-slate-800"
+                        }`
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
                         {!message.isRead && (
-                          <div className="w-2.5 h-2.5 bg-blue-600 rounded-full animate-pulse"></div>
+                          <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${isReply ? "bg-emerald-500" : "bg-indigo-500"}`} />
                         )}
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
+                            isReply
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                              : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                          }`}
+                        >
+                          {isReply ? (
+                            <>
+                              <CornerUpLeft className="h-3 w-3" />
+                              Reply
+                            </>
+                          ) : (
+                            <>
+                              <Megaphone className="h-3 w-3" />
+                              Notice
+                            </>
+                          )}
+                        </span>
                         <h4 className={`font-bold text-base ${!message.isRead ? "text-slate-900 dark:text-slate-50" : "text-slate-700 dark:text-slate-300"}`}>
-                          {message.sender}
+                          {message.senderName}
                         </h4>
                         {message.hasAttachment && (
                           <div className="p-1 bg-slate-100 dark:bg-slate-700 rounded">
@@ -617,17 +722,22 @@ export default function CommunicationPage() {
                       <p className={`text-sm mb-2 font-semibold ${!message.isRead ? "text-slate-900 dark:text-slate-50" : "text-slate-600 dark:text-slate-400"}`}>
                         {message.subject}
                       </p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{message.preview}</p>
+                      <p className={`text-sm line-clamp-2 ${isReply ? "text-emerald-800/80 dark:text-emerald-200/80" : "text-slate-500 dark:text-slate-400"}`}>
+                        {message.preview}
+                      </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <span className="text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">{message.timestamp}</span>
                       {!message.isRead && (
-                        <span className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">New</span>
+                        <span className={`px-3 py-1 text-white text-xs font-bold rounded-full ${isReply ? "bg-emerald-600" : "bg-indigo-600"}`}>
+                          New
+                        </span>
                       )}
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </div>
@@ -652,13 +762,17 @@ export default function CommunicationPage() {
                 onChange={(e) => setComposeRecipient(e.target.value)}
                 className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
               >
-                <option value="">Select recipient...</option>
-                <option value="all_teachers">All Teachers</option>
-                <option value="all_parents">All Parents</option>
-                <option value="all_students">All Students</option>
-                <option value="grade_8a">Grade 8A</option>
-                <option value="grade_8b">Grade 8B</option>
+                {composeRecipientOptions.map((option) => (
+                  <option key={option.value || "placeholder"} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
+              {session?.role.toLowerCase() === "student" && (
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  You can message your principal, your class teachers, or your entire class.
+                </p>
+              )}
             </div>
 
             <div>
@@ -710,29 +824,103 @@ export default function CommunicationPage() {
       {selectedMessage && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">{selectedMessage.subject}</h3>
-              <button onClick={() => setSelectedMessage(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+            <div
+              className={`p-6 border-b flex items-center justify-between gap-4 ${
+                isReplyMessage(selectedMessage)
+                  ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40"
+                  : "border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/40"
+              }`}
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <div
+                  className={`rounded-xl p-2.5 shrink-0 ${
+                    isReplyMessage(selectedMessage)
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                      : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
+                  }`}
+                >
+                  {isReplyMessage(selectedMessage) ? (
+                    <CornerUpLeft className="w-5 h-5" />
+                  ) : (
+                    <Megaphone className="w-5 h-5" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide mb-2 ${
+                      isReplyMessage(selectedMessage)
+                        ? "bg-emerald-200/70 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
+                        : "bg-indigo-200/70 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200"
+                    }`}
+                  >
+                    {isReplyMessage(selectedMessage) ? "Teacher Reply" : "Class Notice"}
+                  </span>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 truncate">
+                    {selectedMessage.subject}
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                    From {selectedMessage.senderName} · {selectedMessage.timestamp}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedMessage(null)} className="p-2 hover:bg-white/60 dark:hover:bg-slate-700 rounded-lg shrink-0">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 overflow-y-auto flex-1">
-              <div className="mb-4">
-                <p className="text-sm text-slate-600 dark:text-slate-400">From: <span className="font-semibold text-slate-900 dark:text-slate-50">{selectedMessage.sender}</span></p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Time: {selectedMessage.timestamp}</p>
+              <div
+                className={`rounded-xl border p-4 mb-6 ${
+                  isReplyMessage(selectedMessage)
+                    ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20"
+                    : "border-indigo-200 bg-indigo-50/50 dark:border-indigo-900 dark:bg-indigo-950/20"
+                }`}
+              >
+                <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {selectedMessage.body || selectedMessage.preview}
+                </p>
               </div>
-              <div className="prose dark:prose-invert max-w-none">
-                <p className="text-slate-700 dark:text-slate-300">{selectedMessage.preview}</p>
+
+              {isReplyMessage(selectedMessage) && originalReplyMessage && (
+                <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Your original message
+                  </p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-1">
+                    {originalReplyMessage.subject}
+                  </p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap line-clamp-4">
+                    {originalReplyMessage.body || originalReplyMessage.preview}
+                  </p>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                <label className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-50">
+                  Reply to {selectedMessage.senderName}
+                </label>
+                <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                  Your reply will be sent directly to {selectedMessage.senderName}.
+                </p>
+                <textarea
+                  rows={5}
+                  value={replyText}
+                  onChange={(event) => setReplyText(event.target.value)}
+                  placeholder={`Write your reply to ${selectedMessage.senderName}...`}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50"
+                />
               </div>
             </div>
             <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
               <button 
-                onClick={() => handleReply(selectedMessage)}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                type="button"
+                onClick={handleSendReply}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold"
               >
-                Reply
+                <Send className="w-4 h-4" />
+                Send Reply
               </button>
               <button 
+                type="button"
                 onClick={() => deleteMessage(selectedMessage.id)}
                 className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
@@ -766,7 +954,7 @@ export default function CommunicationPage() {
               </div>
               <div className="mb-4">
                 <p className="text-sm text-slate-600 dark:text-slate-400">By: <span className="font-semibold">{selectedAnnouncement.author}</span></p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Published: {selectedAnnouncement.publishedAt}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Published: {formatDate(selectedAnnouncement.publishedAt)}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">Views: {selectedAnnouncement.views}</p>
               </div>
               <div className="prose dark:prose-invert max-w-none">
@@ -894,14 +1082,11 @@ export default function CommunicationPage() {
                   onChange={(e) => setComposeRecipient(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Select recipient...</option>
-                  <option value="all_teachers">All Teachers</option>
-                  <option value="all_parents">All Parents</option>
-                  <option value="all_students">All Students</option>
-                  <option value="grade_8a">Grade 8A</option>
-                  <option value="grade_8b">Grade 8B</option>
-                  <option value="principal">Principal</option>
-                  <option value="admin">Admin Office</option>
+                  {composeRecipientOptions.map((option) => (
+                    <option key={option.value || "placeholder"} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
