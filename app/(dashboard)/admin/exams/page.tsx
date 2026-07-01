@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Plus, Edit, Trash2, Calendar, X, BookOpen, Award, Target, FileText, Users, Clock, CheckCircle, ChevronDown } from "lucide-react";
 import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
+import { getExamSubjects } from "@/lib/school-subjects";
 import { addDaysToIsoDate, formatDate, getTodayIsoDate, isIsoDateAfter } from "@/lib/date-format";
 import { DateInput } from "@/components/ui/date-input";
 
@@ -81,13 +82,7 @@ type Mark = {
   enteredAt: string;
 };
 
-const defaultSubjects: Subject[] = [
-  { id: "1", name: "Mathematics", code: "MATH", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-  { id: "2", name: "English", code: "ENG", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-  { id: "3", name: "Science", code: "SCI", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-  { id: "4", name: "Social Studies", code: "SS", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-  { id: "5", name: "Computer Science", code: "CS", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-];
+const defaultSubjects: Subject[] = [];
 
 export default function ExamsPage() {
   const { currentSchool } = useSchool();
@@ -141,6 +136,8 @@ export default function ExamsPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentSchool) {
+      setSubjects(getExamSubjects(currentSchool.id));
+
       const storedCycles = getScopedItem(currentSchool.id, 'exam_cycles');
       const storedSchedules = getScopedItem(currentSchool.id, 'exam_schedules');
       const storedStudents = getScopedItem(currentSchool.id, 'school_students');

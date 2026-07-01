@@ -1,4 +1,5 @@
 import { getScopedItem, setScopedItem } from "@/lib/school-context";
+import { DEFAULT_SCHOOL_SUBJECTS, getActiveSubjectNames } from "@/lib/school-subjects";
 
 export const TIMETABLE_STORAGE_KEY = "weekly_timetable";
 
@@ -71,15 +72,12 @@ export type ClassAssignment = {
 
 export const CLASS_ASSIGNMENTS_KEY = "class_assignments";
 
-export const SUBJECT_OPTIONS = [
-  "Mathematics",
-  "English Language",
-  "Science",
-  "Social Studies",
-  "ICT",
-  "Creative Arts",
-  "French",
-] as const;
+/** @deprecated Use getActiveSubjectNames(schoolId) instead. */
+export function getSubjectOptions(schoolId: string): string[] {
+  return getActiveSubjectNames(schoolId);
+}
+
+export const SUBJECT_OPTIONS = DEFAULT_SCHOOL_SUBJECTS.map((subject) => subject.name);
 
 export function loadClassAssignments(
   schoolId: string,

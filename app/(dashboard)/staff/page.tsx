@@ -26,6 +26,16 @@ import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
 import { syncStaffToSystemUsers } from "@/lib/system-users";
 import { getUserSession } from "@/lib/teacher-check-in";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
+import {
+  formatImportSummary,
+  getCsvValue,
+  nextSequentialId,
+  parseCsvRecords,
+  parseStaffRole,
+  parseStaffStatus,
+  pickCsvFile,
+} from "@/lib/import-data";
+import { getTodayIsoDate } from "@/lib/date-format";
 import { AlertCircle } from "lucide-react";
 import {
   RecordFormSection,
@@ -166,6 +176,92 @@ export default function StaffPage() {
     if (!exported) {
       alert("No staff records to export for the current filters.");
     }
+  };
+
+  const handleImportStaff = async () => {
+    const content = await pickCsvFile();
+    if (!content) return;
+
+    const records = parseCsvRecords(content);
+    if (records.length === 0) {
+      alert("The selected file is empty or not a valid CSV.");
+      return;
+    }
+
+    const existingEmails = new Set(staff.map((member) => member.email.toLowerCase()));
+    const existingStaffIds = new Set(staff.map((member) => member.staffId.toLowerCase()));
+    const imported: Staff[] = [];
+    const errors: string[] = [];
+    let skippedCount = 0;
+    let nextStaffNumber = staff.length;
+
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index];
+      const rowNumber = index + 2;
+      const firstName = getCsvValue(record, "First Name", "FirstName");
+      const lastName = getCsvValue(record, "Last Name", "LastName");
+      const email = getCsvValue(record, "Email").toLowerCase();
+
+      if (!firstName || !lastName) {
+        skippedCount += 1;
+        errors.push(`Row ${rowNumber}: missing first or last name.`);
+        continue;
+      }
+
+      const staffId = getCsvValue(record, "Staff ID", "StaffID");
+      if (email && existingEmails.has(email)) {
+        skippedCount += 1;
+        errors.push(`Row ${rowNumber}: ${email} already exists.`);
+        continue;
+      }
+      if (staffId && existingStaffIds.has(staffId.toLowerCase())) {
+        skippedCount += 1;
+        errors.push(`Row ${rowNumber}: staff ID ${staffId} already exists.`);
+        continue;
+      }
+
+      nextStaffNumber += 1;
+      const newStaff: Staff = {
+        id: `${Date.now()}-${nextStaffNumber}`,
+        staffId:
+          staffId ||
+          nextSequentialId(
+            "STF",
+            [...staff, ...imported].map((member) => member.staffId),
+          ),
+        firstName,
+        lastName,
+        dateOfBirth: "",
+        gender: "male",
+        email: email || `${firstName}.${lastName}@import.local`.toLowerCase().replace(/\s+/g, ""),
+        phone: getCsvValue(record, "Phone"),
+        address: "",
+        role: parseStaffRole(getCsvValue(record, "Role") || "teacher"),
+        department: getCsvValue(record, "Department"),
+        qualification: getCsvValue(record, "Qualification"),
+        experience: getCsvValue(record, "Experience"),
+        joiningDate: getCsvValue(record, "Joining Date", "JoiningDate") || getTodayIsoDate(),
+        salary: "",
+        status: parseStaffStatus(getCsvValue(record, "Status") || "active"),
+        emergencyContact: "",
+        emergencyPhone: "",
+      };
+
+      if (newStaff.email) existingEmails.add(newStaff.email);
+      if (newStaff.staffId) existingStaffIds.add(newStaff.staffId.toLowerCase());
+      imported.push(newStaff);
+    }
+
+    if (imported.length > 0) {
+      updateStaff([...staff, ...imported]);
+    }
+
+    alert(
+      formatImportSummary(
+        { importedCount: imported.length, skippedCount, errors },
+        imported.length === 1 ? "staff member" : "staff members",
+      ),
+    );
   };
 
   const stats = useMemo(() => ({
@@ -348,7 +444,10 @@ export default function StaffPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <button className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-medium">
+              <button
+                onClick={handleImportStaff}
+                className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-medium"
+              >
                 <Upload className="w-4 h-4" />
                 Import
               </button>

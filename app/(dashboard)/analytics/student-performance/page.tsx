@@ -23,6 +23,7 @@ import {
 import { formatStudentClassLabel, getUniqueSchoolClassesByName, normalizeSection, studentMatchesClassSection } from "@/lib/class-labels";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
 import { useSchool, getScopedItem, getSchoolClasses, getUniqueClassNames } from "@/lib/school-context";
+import { getSubjectNameById } from "@/lib/school-subjects";
 import { getUserSession } from "@/lib/teacher-check-in";
 
 type EnrolledStudent = {
@@ -123,21 +124,6 @@ type ExamCycle = {
   description: string;
 };
 
-type SubjectDef = {
-  id: string;
-  name: string;
-  code: string;
-  classes: string[];
-};
-
-const defaultSubjects: SubjectDef[] = [
-  { id: "1", name: "Mathematics", code: "MATH", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-  { id: "2", name: "English", code: "ENG", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-  { id: "3", name: "Science", code: "SCI", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-  { id: "4", name: "Social Studies", code: "SS", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-  { id: "5", name: "Computer Science", code: "CS", classes: ["Grade 7", "Grade 8", "Grade 9", "Grade 10"] },
-];
-
 type ClassAnalyticsData = {
   className: string;
   section: string;
@@ -154,10 +140,6 @@ type TrendPoint = {
   overallScore: number;
   subjects: { name: string; percentage: number; score: number; maxScore: number }[];
 };
-
-function getSubjectName(subjectId: string): string {
-  return defaultSubjects.find((s) => s.id === subjectId)?.name ?? "Unknown";
-}
 
 function getMaxScoreForMark(mark: Mark, schedules: any[]): number {
   const schedule = schedules.find(
@@ -387,7 +369,6 @@ export default function StudentPerformanceAnalyticsPage() {
         s.subjectId === mark.subjectId
       );
       
-      const subject = defaultSubjects.find(s => s.id === mark.subjectId);
       const maxScore = schedule?.maxMarks || 100;
       const percentage = (mark.marksObtained / maxScore) * 100;
       
@@ -404,7 +385,7 @@ export default function StudentPerformanceAnalyticsPage() {
 
       return {
         id: mark.subjectId,
-        name: subject?.name || 'Unknown',
+        name: currentSchool ? getSubjectNameById(currentSchool.id, mark.subjectId) : "Unknown",
         currentScore: mark.marksObtained,
         previousScore: mark.marksObtained, // TODO: Get from previous cycle
         classAverage: Math.round(classAverage),
@@ -457,7 +438,7 @@ export default function StudentPerformanceAnalyticsPage() {
       attendanceRate: Math.round(attendanceRate * 10) / 10,
       subjects,
     };
-  }, [selectedStudentId, selectedCycleId, students, marks, schedules, attendanceRecords]);
+  }, [selectedStudentId, selectedCycleId, students, marks, schedules, attendanceRecords, currentSchool]);
 
   const classAnalytics = useMemo((): ClassAnalyticsData | null => {
     if (!selectedCycleId || !scopedClassName || !scopedSection) return null;
@@ -483,7 +464,7 @@ export default function StudentPerformanceAnalyticsPage() {
         subjectMarks.reduce((sum, m) => sum + m.marksObtained, 0) / subjectMarks.length;
       return {
         subjectId,
-        name: getSubjectName(subjectId),
+        name: currentSchool ? getSubjectNameById(currentSchool.id, subjectId) : "Unknown",
         average: Math.round(average * 10) / 10,
         maxScore,
       };
@@ -522,7 +503,7 @@ export default function StudentPerformanceAnalyticsPage() {
       subjectAverages,
       leaderboard,
     };
-  }, [selectedCycleId, scopedClassName, scopedSection, scopedStudentId, students, marks, schedules]);
+  }, [selectedCycleId, scopedClassName, scopedSection, scopedStudentId, students, marks, schedules, currentSchool]);
 
   const trendData = useMemo((): TrendPoint[] => {
     if (!scopedStudentId) return [];
@@ -538,7 +519,7 @@ export default function StudentPerformanceAnalyticsPage() {
           const maxScore = getMaxScoreForMark(mark, schedules);
           const percentage = maxScore > 0 ? (mark.marksObtained / maxScore) * 100 : 0;
           return {
-            name: getSubjectName(mark.subjectId),
+            name: currentSchool ? getSubjectNameById(currentSchool.id, mark.subjectId) : "Unknown",
             percentage: Math.round(percentage * 10) / 10,
             score: mark.marksObtained,
             maxScore,
@@ -557,7 +538,7 @@ export default function StudentPerformanceAnalyticsPage() {
           new Date(cycles.find((c) => c.id === a.cycleId)?.startDate ?? 0).getTime() -
           new Date(cycles.find((c) => c.id === b.cycleId)?.startDate ?? 0).getTime(),
       );
-  }, [scopedStudentId, marks, cycles, schedules]);
+  }, [scopedStudentId, marks, cycles, schedules, currentSchool]);
 
   const hasViewData =
     activeView === "student"

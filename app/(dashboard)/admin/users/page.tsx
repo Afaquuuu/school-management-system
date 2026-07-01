@@ -22,6 +22,15 @@ import {
 } from "lucide-react";
 import { useSchool } from "@/lib/school-context";
 import {
+  buildParentClassDepartment,
+  getLinkedStudentsForParent,
+  linkStudentsToParentAccount,
+  loadSchoolStudentRecords,
+  resolveLinkedStudentIds,
+  type SchoolStudentRecord,
+} from "@/lib/parent-student-links";
+import { ParentStudentLinker } from "@/components/admin/parent-student-linker";
+import {
   credentialRoles,
   formatCredentialsText,
   generateLoginPassword,
@@ -30,6 +39,7 @@ import {
   loadSystemUsers,
   saveSystemUsers,
   syncStaffToSystemUsers,
+  syncStudentsToSystemUsers,
   type SystemUser,
   type SystemUserRole,
   type SystemUserStatus,
@@ -59,6 +69,8 @@ export default function UsersPage() {
   const [showFormPassword, setShowFormPassword] = useState(true);
   const [showViewPassword, setShowViewPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [schoolStudents, setSchoolStudents] = useState<SchoolStudentRecord[]>([]);
+  const [linkedStudentIds, setLinkedStudentIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState<Partial<SystemUser>>({
     name: "",
@@ -72,7 +84,10 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (currentSchool) {
-      setUsers(syncStaffToSystemUsers(currentSchool.id));
+      syncStaffToSystemUsers(currentSchool.id);
+      const { users } = syncStudentsToSystemUsers(currentSchool.id);
+      setUsers(users);
+      setSchoolStudents(loadSchoolStudentRecords(currentSchool.id));
     }
   }, [currentSchool]);
 
@@ -109,6 +124,7 @@ export default function UsersPage() {
       status: "Active",
       password: generateLoginPassword(),
     });
+    setLinkedStudentIds([]);
     setShowFormPassword(true);
   };
 
@@ -138,8 +154,51 @@ export default function UsersPage() {
       return;
     }
 
+    if (formData.role === "Parent" && linkedStudentIds.length === 0) {
+      alert("Select at least one student to link to this parent account.");
+      return;
+    }
+
     if (users.some((u) => u.email.toLowerCase() === formData.email!.trim().toLowerCase())) {
       alert("This login email is already issued to another user.");
+      return;
+    }
+
+    if (formData.role === "Parent" && currentSchool) {
+      linkStudentsToParentAccount(currentSchool.id, linkedStudentIds, {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone,
+      });
+      const { users: syncedUsers } = syncStudentsToSystemUsers(currentSchool.id);
+      const parentEmail = formData.email.trim().toLowerCase();
+      const parentUser = syncedUsers.find(
+        (user) => user.role === "Parent" && user.email.toLowerCase() === parentEmail,
+      );
+
+      if (!parentUser) {
+        alert("Could not create the parent login. Please try again.");
+        return;
+      }
+
+      const finalizedUsers = syncedUsers.map((user) =>
+        user.id === parentUser.id
+          ? {
+              ...user,
+              name: formData.name!.trim(),
+              phone: formData.phone || user.phone,
+              password: formData.password!.trim(),
+            }
+          : user,
+      );
+
+      persistUsers(finalizedUsers);
+      setSchoolStudents(loadSchoolStudentRecords(currentSchool.id));
+      setShowIssueModal(false);
+      setIssuedUser(finalizedUsers.find((user) => user.id === parentUser.id) ?? parentUser);
+      setShowCredentialsModal(true);
+      resetForm("Parent");
+      showSuccessNotification(`Parent login linked to ${linkedStudentIds.length} student(s).`);
       return;
     }
 
@@ -183,6 +242,50 @@ export default function UsersPage() {
       )
     ) {
       alert("This login email is already used by another account.");
+      return;
+    }
+
+    if (formData.role === "Parent" && linkedStudentIds.length === 0) {
+      alert("Select at least one student to link to this parent account.");
+      return;
+    }
+
+    if (formData.role === "Parent" && currentSchool) {
+      linkStudentsToParentAccount(currentSchool.id, linkedStudentIds, {
+        name: formData.name!.trim(),
+        email: formData.email!.trim().toLowerCase(),
+        phone: formData.phone,
+      });
+      const { users: syncedUsers } = syncStudentsToSystemUsers(currentSchool.id);
+      const parentEmail = formData.email!.trim().toLowerCase();
+      const finalizedUsers = syncedUsers.map((user) =>
+        user.role === "Parent" && user.email.toLowerCase() === parentEmail
+          ? {
+              ...user,
+              name: formData.name!.trim(),
+              phone: formData.phone || user.phone,
+              password: formData.password?.trim() || user.password,
+            }
+          : user.id === selectedUser.id && user.role !== "Parent"
+            ? {
+                ...user,
+                name: formData.name!.trim(),
+                email: formData.email!.trim().toLowerCase(),
+                phone: formData.phone || user.phone,
+                role: (formData.role as SystemUserRole) || user.role,
+                classDepartment: formData.classDepartment || user.classDepartment,
+                status: (formData.status as SystemUserStatus) || user.status,
+                password: formData.password?.trim() || user.password,
+              }
+            : user,
+      );
+
+      persistUsers(finalizedUsers);
+      setSchoolStudents(loadSchoolStudentRecords(currentSchool.id));
+      setShowEditModal(false);
+      setSelectedUser(null);
+      resetForm();
+      showSuccessNotification(`Parent account updated and linked to ${linkedStudentIds.length} student(s).`);
       return;
     }
 
@@ -244,6 +347,11 @@ export default function UsersPage() {
       status: user.status,
       password: user.password,
     });
+    if (user.role === "Parent" && currentSchool) {
+      setLinkedStudentIds(resolveLinkedStudentIds(currentSchool.id, user));
+    } else {
+      setLinkedStudentIds([]);
+    }
     setShowEditModal(true);
   };
 
@@ -404,7 +512,15 @@ export default function UsersPage() {
                       {user.role}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-slate-600">{user.classDepartment || "—"}</td>
+                  <td className="px-6 py-4 text-slate-600">
+                    {user.role === "Parent" && currentSchool
+                      ? buildParentClassDepartment(
+                          getLinkedStudentsForParent(currentSchool.id, user),
+                        ) ||
+                        user.classDepartment ||
+                        "—"
+                      : user.classDepartment || "—"}
+                  </td>
                   <td className="px-6 py-4">
                     <span
                       className={`rounded px-2 py-1 text-xs font-medium ${
@@ -518,9 +634,13 @@ export default function UsersPage() {
                   </label>
                   <select
                     value={formData.role || "Teacher"}
-                    onChange={(e) =>
-                      setFormData({ ...formData, role: e.target.value as SystemUserRole })
-                    }
+                    onChange={(e) => {
+                      const role = e.target.value as SystemUserRole;
+                      setFormData({ ...formData, role });
+                      if (role !== "Parent") {
+                        setLinkedStudentIds([]);
+                      }
+                    }}
                     className="input-field"
                   >
                     <option value="Teacher">Teacher</option>
@@ -530,26 +650,32 @@ export default function UsersPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
-                    {getClassDepartmentLabel(formData.role as SystemUserRole)}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.classDepartment || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, classDepartment: e.target.value })
-                    }
-                    placeholder={
-                      formData.role === "Student"
-                        ? "Grade 7B"
-                        : formData.role === "Parent"
-                          ? "Child name or class"
-                          : "Mathematics"
-                    }
-                    className="input-field"
+                {formData.role === "Parent" ? (
+                  <ParentStudentLinker
+                    students={schoolStudents}
+                    linkedStudentIds={linkedStudentIds}
+                    onLinkedStudentIdsChange={setLinkedStudentIds}
                   />
-                </div>
+                ) : (
+                  <div>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                      {getClassDepartmentLabel(formData.role as SystemUserRole)}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.classDepartment || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, classDepartment: e.target.value })
+                      }
+                      placeholder={
+                        formData.role === "Student"
+                          ? "Grade 7B"
+                          : "Mathematics"
+                      }
+                      className="input-field"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -759,9 +885,13 @@ export default function UsersPage() {
                   <label className="mb-2 block text-sm font-bold text-slate-700">Account Type</label>
                   <select
                     value={formData.role || "Student"}
-                    onChange={(e) =>
-                      setFormData({ ...formData, role: e.target.value as SystemUserRole })
-                    }
+                    onChange={(e) => {
+                      const role = e.target.value as SystemUserRole;
+                      setFormData({ ...formData, role });
+                      if (role !== "Parent") {
+                        setLinkedStudentIds([]);
+                      }
+                    }}
                     className="input-field"
                   >
                     <option value="Teacher">Teacher</option>
@@ -785,6 +915,13 @@ export default function UsersPage() {
                     <option value="Suspended">Suspended</option>
                   </select>
                 </div>
+                {formData.role === "Parent" ? (
+                  <ParentStudentLinker
+                    students={schoolStudents}
+                    linkedStudentIds={linkedStudentIds}
+                    onLinkedStudentIdsChange={setLinkedStudentIds}
+                  />
+                ) : null}
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-bold text-slate-700">Login Password</label>
                   <input
@@ -869,9 +1006,17 @@ export default function UsersPage() {
                   <p className="font-semibold text-slate-900">{selectedUser.role}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">Class/Department</p>
+                  <p className="text-sm text-slate-500">
+                    {selectedUser.role === "Parent" ? "Linked Student / Child" : "Class/Department"}
+                  </p>
                   <p className="font-semibold text-slate-900">
-                    {selectedUser.classDepartment || "—"}
+                    {selectedUser.role === "Parent" && currentSchool
+                      ? buildParentClassDepartment(
+                          getLinkedStudentsForParent(currentSchool.id, selectedUser),
+                        ) ||
+                        selectedUser.classDepartment ||
+                        "—"
+                      : selectedUser.classDepartment || "—"}
                   </p>
                 </div>
                 <div>

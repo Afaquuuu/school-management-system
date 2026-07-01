@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
+import { getActiveSubjectNames } from "@/lib/school-subjects";
 
 type AssignmentRow = {
   subject: string;
@@ -43,16 +44,6 @@ type ClassData = {
   students: number;
   isManual?: boolean;
 };
-
-const subjectOptions = [
-  "Mathematics",
-  "English Language",
-  "Science",
-  "Social Studies",
-  "ICT",
-  "Creative Arts",
-  "French",
-];
 
 const ASSIGNMENTS_KEY = "class_assignments";
 
@@ -92,12 +83,13 @@ function syncClassesInCharge(
   }));
 }
 
-export function ClassConfigurationPage() {
+export function ClassConfigurationPage({ embedded = false }: { embedded?: boolean }) {
   const { currentSchool } = useSchool();
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [teachers, setTeachers] = useState<string[]>([]);
+  const [subjectOptions, setSubjectOptions] = useState<string[]>([]);
   const [selectedClassId, setSelectedClassId] = useState("");
-  const [subject, setSubject] = useState(subjectOptions[0]);
+  const [subject, setSubject] = useState("");
   const [teacher, setTeacher] = useState("");
   const [periodsPerWeek, setPeriodsPerWeek] = useState(4);
   const [leadTeacher, setLeadTeacher] = useState(false);
@@ -106,6 +98,18 @@ export function ClassConfigurationPage() {
   const [showClassForm, setShowClassForm] = useState(false);
   const [newClassName, setNewClassName] = useState("");
   const [newClassSection, setNewClassSection] = useState("");
+
+  useEffect(() => {
+    if (!currentSchool) {
+      setSubjectOptions([]);
+      setSubject("");
+      return;
+    }
+
+    const names = getActiveSubjectNames(currentSchool.id);
+    setSubjectOptions(names);
+    setSubject((current) => (current && names.includes(current) ? current : names[0] ?? ""));
+  }, [currentSchool]);
 
   useEffect(() => {
     if (!currentSchool) return;
@@ -191,7 +195,7 @@ export function ClassConfigurationPage() {
 
   const availableSubjects = useMemo(
     () => subjectOptions.filter((item) => !assignedSubjects.has(item)),
-    [assignedSubjects],
+    [assignedSubjects, subjectOptions],
   );
 
   const inChargeConflict = useMemo(() => {
@@ -255,6 +259,14 @@ export function ClassConfigurationPage() {
   const addAssignment = () => {
     if (!selectedClassId || !selectedClass) return;
 
+    if (!subject) {
+      setMessage({
+        type: "error",
+        text: "Add school subjects first under Manage Subjects.",
+      });
+      return;
+    }
+
     const existingAssignment = assignments.find((a) => a.subject === subject);
     if (existingAssignment) {
       setMessage({
@@ -303,7 +315,7 @@ export function ClassConfigurationPage() {
       showSuccess(`${subject} assigned to ${selectedClass.name}.`);
     }
 
-    setSubject(subjectOptions[0]);
+    setSubject(availableSubjects[0] ?? subjectOptions[0] ?? "");
     if (teachers.length > 0) setTeacher(teachers[0]);
     setPeriodsPerWeek(4);
     setLeadTeacher(false);
@@ -392,7 +404,7 @@ export function ClassConfigurationPage() {
   if (classes.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader />
+        {!embedded && <PageHeader />}
         <div className="surface-card p-8 text-center">
           <Users className="mx-auto mb-3 h-10 w-10 text-slate-300" />
           <h2 className="text-lg font-semibold text-slate-900">No classes yet</h2>
@@ -425,7 +437,7 @@ export function ClassConfigurationPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader />
+      {!embedded && <PageHeader />}
 
       {message && (
         <div
@@ -579,7 +591,11 @@ export function ClassConfigurationPage() {
             <span className="font-semibold text-blue-900">{effectiveInCharge}</span>
           </div>
 
-          {availableSubjects.length === 0 ? (
+          {subjectOptions.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-amber-200 bg-amber-50 px-3 py-6 text-center text-sm text-amber-900">
+              No school subjects yet. Open the <strong>Manage Subjects</strong> tab and add subjects first.
+            </div>
+          ) : availableSubjects.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-sm text-slate-500">
               All subjects are already assigned for this class.
             </div>

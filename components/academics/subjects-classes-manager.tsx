@@ -102,7 +102,7 @@ export function SubjectsClassesManager({
         <Layers className="mx-auto mb-3 h-10 w-10 text-slate-300" />
         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">No classes yet</h3>
         <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-400">
-          Classes and subject assignments are configured under Admin → Academics Config.
+          Add subjects under Admin → Academics → Manage Subjects, then assign them under Classes & Assignments.
         </p>
         <Link
           href="/admin/academics"

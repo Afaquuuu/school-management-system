@@ -27,7 +27,20 @@ import {
 } from "lucide-react";
 import { formatStudentClassLabel, getUniqueClassLabels, getUniqueSchoolClassesByName } from "@/lib/class-labels";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
+import {
+  formatImportSummary,
+  getCsvValue,
+  nextSequentialId,
+  parseCsvRecords,
+  parseStudentStatus,
+  pickCsvFile,
+} from "@/lib/import-data";
 import { useSchool, getScopedItem, setScopedItem, getSchoolClasses, getUniqueClassNames, getUniqueSections, getSectionsForClass } from "@/lib/school-context";
+import {
+  formatCredentialsText,
+  isValidLoginEmail,
+  syncStudentsToSystemUsers,
+} from "@/lib/system-users";
 import { formatDate, getTodayIsoDate } from "@/lib/date-format";
 import { DateInput } from "@/components/ui/date-input";
 import {
@@ -144,10 +157,12 @@ export default function StudentsPage() {
     if (typeof window !== 'undefined' && currentSchool) {
       try {
         setScopedItem(currentSchool.id, 'school_students', JSON.stringify(newStudents));
+        return syncStudentsToSystemUsers(currentSchool.id);
       } catch (error) {
         console.error('Error saving students to localStorage:', error);
       }
     }
+    return { users: [], newlyIssued: [] as ReturnType<typeof syncStudentsToSystemUsers>["newlyIssued"] };
   };
 
   const filteredStudents = useMemo(() => 
@@ -179,6 +194,7 @@ export default function StudentsPage() {
         { header: "Phone", value: (student) => student.phone },
         { header: "Guardian", value: (student) => student.guardianName },
         { header: "Guardian Phone", value: (student) => student.guardianPhone },
+        { header: "Guardian Email", value: (student) => student.guardianEmail },
         { header: "Status", value: (student) => student.status },
         { header: "Admission Date", value: (student) => student.admissionDate },
       ],
@@ -188,6 +204,108 @@ export default function StudentsPage() {
     if (!exported) {
       alert("No students to export for the current filters.");
     }
+  };
+
+  const handleImportStudents = async () => {
+    const content = await pickCsvFile();
+    if (!content) return;
+
+    const records = parseCsvRecords(content);
+    if (records.length === 0) {
+      alert("The selected file is empty or not a valid CSV.");
+      return;
+    }
+
+    const existingEmails = new Set(students.map((student) => student.email.toLowerCase()));
+    const existingStudentIds = new Set(students.map((student) => student.studentId.toLowerCase()));
+    const imported: Student[] = [];
+    const errors: string[] = [];
+    let skippedCount = 0;
+    let nextStudentNumber = students.length;
+
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index];
+      const rowNumber = index + 2;
+      const firstName = getCsvValue(record, "First Name", "FirstName");
+      const lastName = getCsvValue(record, "Last Name", "LastName");
+      const email = getCsvValue(record, "Email").toLowerCase();
+
+      if (!firstName || !lastName) {
+        skippedCount += 1;
+        errors.push(`Row ${rowNumber}: missing first or last name.`);
+        continue;
+      }
+
+      const studentId = getCsvValue(record, "Student ID", "StudentID");
+      const guardianName = getCsvValue(record, "Guardian", "Guardian Name");
+      const guardianPhone = getCsvValue(record, "Guardian Phone", "GuardianPhone");
+      const guardianEmail = getCsvValue(record, "Guardian Email", "GuardianEmail").toLowerCase();
+
+      if (!guardianName || !guardianPhone || !guardianEmail) {
+        skippedCount += 1;
+        errors.push(`Row ${rowNumber}: guardian name, phone, and email are required.`);
+        continue;
+      }
+
+      if (!isValidLoginEmail(guardianEmail)) {
+        skippedCount += 1;
+        errors.push(`Row ${rowNumber}: invalid guardian email (${guardianEmail}).`);
+        continue;
+      }
+
+      if (email && existingEmails.has(email)) {
+        skippedCount += 1;
+        errors.push(`Row ${rowNumber}: ${email} already exists.`);
+        continue;
+      }
+      if (studentId && existingStudentIds.has(studentId.toLowerCase())) {
+        skippedCount += 1;
+        errors.push(`Row ${rowNumber}: student ID ${studentId} already exists.`);
+        continue;
+      }
+
+      nextStudentNumber += 1;
+      const newStudent: Student = {
+        id: `${Date.now()}-${nextStudentNumber}`,
+        studentId:
+          studentId ||
+          nextSequentialId(
+            "STU",
+            [...students, ...imported].map((student) => student.studentId),
+          ),
+        firstName,
+        lastName,
+        dateOfBirth: "",
+        gender: "male",
+        email: email || `${firstName}.${lastName}@import.local`.toLowerCase().replace(/\s+/g, ""),
+        phone: getCsvValue(record, "Phone"),
+        address: "",
+        guardianName,
+        guardianPhone,
+        guardianEmail,
+        class: getCsvValue(record, "Class"),
+        section: getCsvValue(record, "Section"),
+        rollNumber: getCsvValue(record, "Roll Number", "RollNumber"),
+        admissionDate: getCsvValue(record, "Admission Date", "AdmissionDate") || getTodayIsoDate(),
+        status: parseStudentStatus(getCsvValue(record, "Status") || "active"),
+        bloodGroup: "",
+      };
+
+      if (newStudent.email) existingEmails.add(newStudent.email);
+      if (newStudent.studentId) existingStudentIds.add(newStudent.studentId.toLowerCase());
+      imported.push(newStudent);
+    }
+
+    if (imported.length > 0) {
+      updateStudents([...students, ...imported]);
+    }
+
+    alert(
+      formatImportSummary(
+        { importedCount: imported.length, skippedCount, errors },
+        imported.length === 1 ? "student" : "students",
+      ),
+    );
   };
 
   const stats = useMemo(() => ({
@@ -213,8 +331,25 @@ export default function StudentsPage() {
   );
 
   const handleAddStudent = () => {
-    if (!formData.firstName || !formData.lastName || !formData.email) {
-      alert("Please fill in all required fields");
+    if (
+      !formData.firstName ||
+      !formData.lastName ||
+      !formData.email ||
+      !formData.guardianName?.trim() ||
+      !formData.guardianPhone?.trim() ||
+      !formData.guardianEmail?.trim()
+    ) {
+      alert("Please fill in all required fields, including guardian name, phone, and email.");
+      return;
+    }
+
+    if (!isValidLoginEmail(formData.email)) {
+      alert("Please enter a valid student email address.");
+      return;
+    }
+
+    if (!isValidLoginEmail(formData.guardianEmail)) {
+      alert("Please enter a valid guardian email address. Parent login credentials will be sent to this email.");
       return;
     }
 
@@ -228,9 +363,9 @@ export default function StudentsPage() {
       email: formData.email,
       phone: formData.phone || "",
       address: formData.address || "",
-      guardianName: formData.guardianName || "",
-      guardianPhone: formData.guardianPhone || "",
-      guardianEmail: formData.guardianEmail || "",
+      guardianName: formData.guardianName.trim(),
+      guardianPhone: formData.guardianPhone.trim(),
+      guardianEmail: formData.guardianEmail.trim().toLowerCase(),
       class: formData.class || "",
       section: formData.section || "",
       rollNumber: formData.rollNumber || "",
@@ -239,9 +374,22 @@ export default function StudentsPage() {
       bloodGroup: formData.bloodGroup || "",
     };
 
-    updateStudents([...students, newStudent]);
+    let successMessage = "Student added successfully!";
+    const syncResult = updateStudents([...students, newStudent]);
+    const parentUser = syncResult.newlyIssued.find(
+      (user) =>
+        user.role === "Parent" &&
+        user.email.toLowerCase() === newStudent.guardianEmail.toLowerCase(),
+    );
+    if (parentUser && currentSchool) {
+      successMessage += `\n\nParent login credentials:\n${formatCredentialsText(parentUser, currentSchool.name)}`;
+    } else if (currentSchool) {
+      successMessage +=
+        "\n\nA parent account already exists for this guardian email. The existing password was kept unchanged.";
+    }
+
     setFormData({});
-    alert("Student added successfully!");
+    alert(successMessage);
     router.push("/students");
   };
 
@@ -499,13 +647,14 @@ export default function StudentsPage() {
 
             <RecordFormSection
               title="Guardian Information"
-              description="Primary guardian or parent contact details."
+              description="Required — parent login credentials are issued from the guardian email."
               icon={Users}
             >
               <div>
-                <label className={recordFormFieldLabel}>Guardian Name</label>
+                <label className={recordFormFieldLabel}>Guardian Name *</label>
                 <input
                   type="text"
+                  required
                   value={formData.guardianName || ""}
                   onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
                   placeholder="Full name"
@@ -514,9 +663,10 @@ export default function StudentsPage() {
               </div>
 
               <div>
-                <label className={recordFormFieldLabel}>Guardian Phone</label>
+                <label className={recordFormFieldLabel}>Guardian Phone *</label>
                 <input
                   type="tel"
+                  required
                   value={formData.guardianPhone || ""}
                   onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
                   placeholder="+233 XX XXX XXXX"
@@ -525,9 +675,10 @@ export default function StudentsPage() {
               </div>
 
               <div className="md:col-span-2">
-                <label className={recordFormFieldLabel}>Guardian Email</label>
+                <label className={recordFormFieldLabel}>Guardian Email *</label>
                 <input
                   type="email"
+                  required
                   value={formData.guardianEmail || ""}
                   onChange={(e) => setFormData({ ...formData, guardianEmail: e.target.value })}
                   placeholder="guardian@email.com"
@@ -557,7 +708,10 @@ export default function StudentsPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <button className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all font-medium text-slate-700 dark:text-slate-200">
+              <button
+                onClick={handleImportStudents}
+                className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all font-medium text-slate-700 dark:text-slate-200"
+              >
                 <Upload className="w-4 h-4" />
                 Import
               </button>

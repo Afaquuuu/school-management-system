@@ -27,6 +27,11 @@ import { useSchool, getScopedItem } from "@/lib/school-context";
 import type { UserRole } from "@/lib/auth";
 import { getUserSession, type UserSession } from "@/lib/teacher-check-in";
 import {
+  formatLinkedChildLabel,
+  getLinkedStudentsForParentEmail,
+  type SchoolStudentRecord,
+} from "@/lib/parent-student-links";
+import {
   formatDate,
   formatDateLong,
   formatDayMonth,
@@ -85,6 +90,7 @@ export default function DashboardPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedChildId, setSelectedChildId] = useState<string>("");
 
   // Load data from scoped localStorage
   useEffect(() => {
@@ -116,8 +122,32 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, [currentSchool]);
 
+  const isStudentView = userRole === "student";
+  const isParentView = userRole === "parent";
+
+  const linkedChildren = useMemo(() => {
+    if (!isParentView || !currentSchool || !userSession?.email) return [];
+    return getLinkedStudentsForParentEmail(currentSchool.id, userSession.email);
+  }, [isParentView, currentSchool, userSession?.email]);
+
+  useEffect(() => {
+    if (linkedChildren.length === 0) {
+      setSelectedChildId("");
+      return;
+    }
+
+    if (!linkedChildren.some((child) => child.id === selectedChildId)) {
+      setSelectedChildId(linkedChildren[0].id);
+    }
+  }, [linkedChildren, selectedChildId]);
+
+  const selectedChild = useMemo(
+    () => linkedChildren.find((child) => child.id === selectedChildId) ?? linkedChildren[0] ?? null,
+    [linkedChildren, selectedChildId],
+  );
+
   const currentStudent = useMemo(() => {
-    if (!userSession || userRole !== "student") return null;
+    if (!userSession || !isStudentView) return null;
 
     return (
       students.find(
@@ -129,15 +159,17 @@ export default function DashboardPage() {
           student.firstName.toLowerCase() === userSession.name.toLowerCase(),
       ) ?? null
     );
-  }, [students, userSession, userRole]);
+  }, [students, userSession, isStudentView]);
+
+  const focusStudent = isParentView ? selectedChild : currentStudent;
 
   const studentRecords = useMemo(() => {
-    if (!currentStudent) return [];
-    return attendanceRecords.filter((record) => record.studentId === currentStudent.id);
-  }, [attendanceRecords, currentStudent]);
+    if (!focusStudent) return [];
+    return attendanceRecords.filter((record) => record.studentId === focusStudent.id);
+  }, [attendanceRecords, focusStudent]);
 
   const studentMetrics = useMemo(() => {
-    if (!currentStudent) {
+    if (!focusStudent) {
       return {
         todayStatus: null as string | null,
         presentDays: 0,
@@ -166,10 +198,10 @@ export default function DashboardPage() {
       attendanceRate,
       totalRecords: studentRecords.length,
     };
-  }, [currentStudent, studentRecords]);
+  }, [focusStudent, studentRecords]);
 
   const studentAttendanceTrend = useMemo(() => {
-    if (!currentStudent) return [];
+    if (!focusStudent) return [];
 
     const trend = [];
     for (let i = 6; i >= 0; i--) {
@@ -194,7 +226,7 @@ export default function DashboardPage() {
       });
     }
     return trend;
-  }, [currentStudent, studentRecords]);
+  }, [focusStudent, studentRecords]);
 
   const studentRecentAttendance = useMemo(() => {
     return [...studentRecords]
@@ -202,11 +234,79 @@ export default function DashboardPage() {
       .slice(0, 7);
   }, [studentRecords]);
 
-  const isStudentView = userRole === "student";
-  const overviewTitle = isStudentView ? "My Overview" : pageTitles.overview;
+  const parentSummary = useMemo(() => {
+    if (!isParentView || linkedChildren.length === 0) {
+      return {
+        childCount: 0,
+        absentToday: 0,
+        presentToday: 0,
+        averageAttendanceRate: "0.0",
+      };
+    }
+
+    const today = getTodayIsoDate();
+    let absentToday = 0;
+    let presentToday = 0;
+    let rateTotal = 0;
+    let rateCount = 0;
+
+    for (const child of linkedChildren) {
+      const records = attendanceRecords.filter((record) => record.studentId === child.id);
+      const todayRecord = records.find((record) => record.date === today);
+      if (todayRecord?.status === "absent") absentToday += 1;
+      if (todayRecord?.status === "present" || todayRecord?.status === "late") presentToday += 1;
+
+      const counted = records.filter(
+        (record) =>
+          record.status === "present" || record.status === "late" || record.status === "absent",
+      );
+      const presentDays = records.filter(
+        (record) => record.status === "present" || record.status === "late",
+      ).length;
+      if (counted.length > 0) {
+        rateTotal += (presentDays / counted.length) * 100;
+        rateCount += 1;
+      }
+    }
+
+    return {
+      childCount: linkedChildren.length,
+      absentToday,
+      presentToday,
+      averageAttendanceRate:
+        rateCount > 0 ? (rateTotal / rateCount).toFixed(1) : "0.0",
+    };
+  }, [attendanceRecords, isParentView, linkedChildren]);
+
+  const parentRecentActivity = useMemo(() => {
+    if (!isParentView || linkedChildren.length === 0) return [];
+
+    const childIds = new Set(linkedChildren.map((child) => child.id));
+    return attendanceRecords
+      .filter((record) => childIds.has(record.studentId))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+      .slice(0, 8)
+      .map((record) => {
+        const child = linkedChildren.find((student) => student.id === record.studentId);
+        return {
+          ...record,
+          studentName: child ? `${child.firstName} ${child.lastName}` : "Unknown",
+          className: child ? `${child.class} ${child.section}` : "Unknown",
+        };
+      });
+  }, [attendanceRecords, isParentView, linkedChildren]);
+
+  const isPersonalView = isStudentView || isParentView;
+  const overviewTitle = isStudentView
+    ? "My Overview"
+    : isParentView
+      ? "Parent Dashboard"
+      : pageTitles.overview;
   const overviewDescription = isStudentView
     ? "Your profile, class details, and personal attendance summary"
-    : pageDescriptions.overview;
+    : isParentView
+      ? "Your linked child(ren)'s attendance, class details, and recent school activity"
+      : pageDescriptions.overview;
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -323,9 +423,18 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {dashboardView === "overview" && isStudentView && (
+        {dashboardView === "overview" && isPersonalView && (
           <>
-            {!currentStudent ? (
+            {isParentView && linkedChildren.length === 0 ? (
+              <div className="surface-card p-8 text-center">
+                <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
+                <h2 className="text-xl font-semibold text-slate-900">No Linked Children Found</h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  Your account is not linked to any student records yet. Please contact the school
+                  office to connect your parent login with your child.
+                </p>
+              </div>
+            ) : isStudentView && !currentStudent ? (
               <div className="surface-card p-8 text-center">
                 <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
                 <h2 className="text-xl font-semibold text-slate-900">Student Profile Not Found</h2>
@@ -333,33 +442,103 @@ export default function DashboardPage() {
                   We could not match your account to a student record. Please contact the school office.
                 </p>
               </div>
-            ) : (
+            ) : focusStudent ? (
               <>
+                {isParentView && linkedChildren.length > 1 ? (
+                  <div className="surface-card p-4">
+                    <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Select Child
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {linkedChildren.map((child) => (
+                        <button
+                          key={child.id}
+                          type="button"
+                          onClick={() => setSelectedChildId(child.id)}
+                          className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                            selectedChildId === child.id
+                              ? "border-purple-300 bg-purple-50 text-purple-800"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {formatLinkedChildLabel(child as SchoolStudentRecord)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {isParentView ? (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="surface-card p-6">
+                      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                        My Children
+                      </p>
+                      <p className="mt-2 text-3xl font-bold text-slate-900">
+                        {parentSummary.childCount}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">Linked student account(s)</p>
+                    </div>
+                    <div className="surface-card p-6">
+                      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                        Child&apos;s Status Today
+                      </p>
+                      <p className="mt-2 text-3xl font-bold capitalize text-slate-900">
+                        {studentMetrics.todayStatus ?? "Not marked"}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {focusStudent.firstName}&apos;s attendance today
+                      </p>
+                    </div>
+                    <div className="surface-card p-6">
+                      <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
+                        Average Attendance
+                      </p>
+                      <p className="mt-2 text-3xl font-bold text-emerald-700">
+                        {parentSummary.averageAttendanceRate}%
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">Across linked children</p>
+                    </div>
+                    <div className="surface-card p-6">
+                      <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
+                        Absent Today
+                      </p>
+                      <p className="mt-2 text-3xl font-bold text-red-700">
+                        {parentSummary.absentToday}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {parentSummary.absentToday === 0 ? "All present or not marked" : "Needs attention"}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="surface-card p-6">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-start gap-4">
-                      <div className="rounded-xl bg-blue-50 p-3">
-                        <GraduationCap className="h-6 w-6 text-blue-600" />
+                      <div className={`rounded-xl p-3 ${isParentView ? "bg-purple-50" : "bg-blue-50"}`}>
+                        <GraduationCap className={`h-6 w-6 ${isParentView ? "text-purple-600" : "text-blue-600"}`} />
                       </div>
                       <div>
                         <h2 className="text-2xl font-semibold text-slate-900">
-                          {currentStudent.firstName} {currentStudent.lastName}
+                          {focusStudent.firstName} {focusStudent.lastName}
                         </h2>
                         <p className="mt-1 text-sm text-slate-500">
-                          Student ID: {currentStudent.studentId}
-                          {currentStudent.rollNumber ? ` · Roll ${currentStudent.rollNumber}` : ""}
+                          Student ID: {focusStudent.studentId}
+                          {focusStudent.rollNumber ? ` · Roll ${focusStudent.rollNumber}` : ""}
                         </p>
                         <p className="mt-1 text-sm text-slate-600">
-                          Class: {currentStudent.class} {currentStudent.section}
+                          Class: {focusStudent.class} {focusStudent.section}
                         </p>
                       </div>
                     </div>
                     <span className="inline-flex w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold capitalize text-emerald-700">
-                      {currentStudent.status}
+                      {focusStudent.status}
                     </span>
                   </div>
                 </div>
 
+                {!isParentView ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <div className="surface-card p-6">
                     <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -401,13 +580,59 @@ export default function DashboardPage() {
                     <p className="mt-2 text-sm text-slate-500">Recorded absences only</p>
                   </div>
                 </div>
+                ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <div className="surface-card p-6">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Attendance Rate
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                      {studentMetrics.attendanceRate}%
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      {focusStudent.firstName}&apos;s overall attendance
+                    </p>
+                  </div>
+                  <div className="surface-card p-6">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
+                      Present Days
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-emerald-700">
+                      {studentMetrics.presentDays}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">Including late arrivals</p>
+                  </div>
+                  <div className="surface-card p-6">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
+                      Absent Days
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-red-700">
+                      {studentMetrics.absentDays}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">Recorded absences only</p>
+                  </div>
+                  <div className="surface-card p-6">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Records Tracked
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                      {studentMetrics.totalRecords}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">Attendance entries on file</p>
+                  </div>
+                </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div className="surface-card p-6 lg:col-span-2">
                     <div className="mb-6 flex items-center justify-between">
                       <div>
-                        <h2 className="text-xl font-semibold text-slate-900">My Attendance Trend</h2>
-                        <p className="mt-1 text-sm text-slate-500">Your last 7 days</p>
+                        <h2 className="text-xl font-semibold text-slate-900">
+                          {isParentView ? "Child's Attendance Trend" : "My Attendance Trend"}
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {isParentView ? `${focusStudent.firstName}'s last 7 days` : "Your last 7 days"}
+                        </p>
                       </div>
                       <BarChart3 className="h-5 w-5 text-blue-600" />
                     </div>
@@ -448,29 +673,37 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="surface-card p-6">
-                    <h3 className="text-lg font-semibold text-slate-900">My Details</h3>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      {isParentView ? "Child Details" : "My Details"}
+                    </h3>
                     <div className="mt-4 space-y-3 text-sm">
                       <div>
                         <p className="text-slate-500">Class</p>
                         <p className="font-medium text-slate-900">
-                          {currentStudent.class} {currentStudent.section}
+                          {focusStudent.class} {focusStudent.section}
                         </p>
                       </div>
-                      {currentStudent.admissionDate && (
+                      {focusStudent.admissionDate && (
                         <div>
                           <p className="text-slate-500">Admission Date</p>
-                          <p className="font-medium text-slate-900">{formatDate(currentStudent.admissionDate)}</p>
+                          <p className="font-medium text-slate-900">{formatDate(focusStudent.admissionDate)}</p>
                         </div>
                       )}
-                      {currentStudent.guardianName && (
+                      {isParentView && focusStudent.guardianName ? (
                         <div>
                           <p className="text-slate-500">Guardian</p>
-                          <p className="font-medium text-slate-900">{currentStudent.guardianName}</p>
+                          <p className="font-medium text-slate-900">{focusStudent.guardianName}</p>
                         </div>
-                      )}
+                      ) : null}
+                      {!isParentView && focusStudent.guardianName ? (
+                        <div>
+                          <p className="text-slate-500">Guardian</p>
+                          <p className="font-medium text-slate-900">{focusStudent.guardianName}</p>
+                        </div>
+                      ) : null}
                       {userSession?.email && (
                         <div>
-                          <p className="text-slate-500">Email</p>
+                          <p className="text-slate-500">{isParentView ? "Parent Email" : "Email"}</p>
                           <p className="font-medium text-slate-900">{userSession.email}</p>
                         </div>
                       )}
@@ -479,17 +712,21 @@ export default function DashboardPage() {
                       onClick={() => router.push("/attendance?view=records")}
                       className="btn-primary mt-6 w-full"
                     >
-                      View My Attendance
+                      {isParentView ? "View Child's Attendance" : "View My Attendance"}
                     </button>
                   </div>
                 </div>
 
                 <div className="surface-card p-6">
-                  <h2 className="text-xl font-semibold text-slate-900">Recent Attendance</h2>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    {isParentView ? "Recent Attendance" : "Recent Attendance"}
+                  </h2>
                   <div className="mt-4 space-y-3">
                     {studentRecentAttendance.length === 0 ? (
                       <p className="py-6 text-center text-sm text-slate-500">
-                        No attendance records found for your account yet.
+                        {isParentView
+                          ? `No attendance records found for ${focusStudent.firstName} yet.`
+                          : "No attendance records found for your account yet."}
                       </p>
                     ) : (
                       studentRecentAttendance.map((record) => {
@@ -509,7 +746,7 @@ export default function DashboardPage() {
                             <div className="flex-1">
                               <p className="font-semibold text-slate-900">{formatDate(record.date)}</p>
                               <p className="text-sm text-slate-500">
-                                {currentStudent.class} {currentStudent.section}
+                                {focusStudent.class} {focusStudent.section}
                               </p>
                             </div>
                             <span
@@ -524,11 +761,11 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </>
-            )}
+            ) : null}
           </>
         )}
 
-        {dashboardView === "overview" && !isStudentView && (
+        {dashboardView === "overview" && !isPersonalView && (
           <>
         {/* Key Metrics */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -740,7 +977,53 @@ export default function DashboardPage() {
           </>
         )}
 
-        {dashboardView === "actions" && !isStudentView && (
+        {dashboardView === "actions" && isParentView && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {[
+              {
+                title: "Child's Attendance",
+                description: "View attendance records for your linked child(ren)",
+                href: "/attendance?view=records",
+                icon: CalendarCheck,
+                color: "bg-emerald-50 text-emerald-700",
+              },
+              {
+                title: "Messages",
+                description: "Read notices and updates from the school",
+                href: "/communication",
+                icon: Activity,
+                color: "bg-blue-50 text-blue-700",
+              },
+              {
+                title: "Performance",
+                description: "Review your child's academic performance",
+                href: "/analytics/student-performance",
+                icon: BarChart3,
+                color: "bg-purple-50 text-purple-700",
+              },
+            ].map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.title}
+                  onClick={() => router.push(action.href)}
+                  className="surface-card group flex items-start gap-4 p-5 text-left transition-all hover:border-purple-200 hover:shadow-md"
+                >
+                  <div className={`rounded-xl p-3 ${action.color}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-900 group-hover:text-purple-700">{action.title}</p>
+                    <p className="mt-1 text-sm text-slate-500">{action.description}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-purple-600" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {dashboardView === "actions" && !isPersonalView && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {[
               {
@@ -823,7 +1106,57 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {dashboardView === "activity" && !isStudentView && (
+        {dashboardView === "activity" && isParentView && (
+          <div className="surface-card p-6">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Children&apos;s Activity</h2>
+                <p className="mt-1 text-sm text-slate-500">Recent attendance for your linked child(ren)</p>
+              </div>
+              <Activity className="h-5 w-5 text-slate-400" />
+            </div>
+
+            <div className="space-y-3">
+              {parentRecentActivity.length === 0 ? (
+                <div className="py-12 text-center">
+                  <Calendar className="mx-auto mb-3 h-12 w-12 text-slate-300" />
+                  <p className="text-slate-500">No attendance records found for your linked children yet</p>
+                </div>
+              ) : (
+                parentRecentActivity.map((activity) => {
+                  const config = statusConfig[activity.status as keyof typeof statusConfig];
+                  const StatusIcon = config?.icon || CheckCircle;
+
+                  return (
+                    <div
+                      key={activity.id}
+                      className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full ${config?.color || "bg-slate-500"}`}
+                      >
+                        <StatusIcon className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-slate-900">{activity.studentName}</p>
+                        <p className="text-sm text-slate-500">
+                          {activity.className} · {formatDate(activity.date)}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${config?.color || "bg-slate-500"}`}
+                      >
+                        {config?.label || activity.status}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {dashboardView === "activity" && !isPersonalView && (
           <div className="surface-card p-6">
             <div className="mb-6 flex items-center justify-between">
               <div>

@@ -3,6 +3,10 @@ import {
   getUniqueClassLabels,
 } from "@/lib/class-labels";
 import { getScopedItem, getSchoolClasses, setScopedItem } from "@/lib/school-context";
+import {
+  getAvailableSubjectsForReports,
+  getSubjectNameById,
+} from "@/lib/school-subjects";
 import { loadTeacherCheckIns } from "@/lib/teacher-check-in";
 import { formatDate, formatDateTime } from "@/lib/date-format";
 
@@ -37,14 +41,6 @@ export type ReportFilters = {
 };
 
 const STORAGE_KEY = "generated_reports";
-
-const SUBJECT_NAMES: Record<string, string> = {
-  "1": "Mathematics",
-  "2": "English",
-  "3": "Science",
-  "4": "Social Studies",
-  "5": "Computer Science",
-};
 
 function parseJson<T>(value: string | null, fallback: T): T {
   if (!value) return fallback;
@@ -81,8 +77,8 @@ export function formatReportSize(bytes: number): string {
   return formatBytes(bytes);
 }
 
-function getSubjectName(subjectId: string): string {
-  return SUBJECT_NAMES[subjectId] ?? subjectId;
+function getSubjectName(schoolId: string, subjectId: string): string {
+  return getSubjectNameById(schoolId, subjectId);
 }
 
 function loadAttendanceRecords(schoolId: string) {
@@ -208,9 +204,9 @@ export function getAvailableSubjects(schoolId: string): Array<{ id: string; name
   const marks = loadExamMarks(schoolId);
   const ids = [...new Set(marks.map((m) => m.subjectId))];
   if (ids.length === 0) {
-    return Object.entries(SUBJECT_NAMES).map(([id, name]) => ({ id, name }));
+    return getAvailableSubjectsForReports(schoolId);
   }
-  return ids.map((id) => ({ id, name: getSubjectName(id) }));
+  return ids.map((id) => ({ id, name: getSubjectName(schoolId, id) }));
 }
 
 export function loadGeneratedReports(schoolId: string): GeneratedReport[] {
@@ -308,7 +304,7 @@ function buildPerformanceReport(
       mark.studentId,
       student ? `${student.firstName} ${student.lastName}`.trim() : mark.studentId,
       `${mark.className} ${mark.section}`.trim(),
-      getSubjectName(mark.subjectId),
+      getSubjectName(schoolId, mark.subjectId),
       String(mark.marksObtained),
       mark.remarks ?? "",
       mark.enteredAt ? formatDateTime(mark.enteredAt) : "",
@@ -420,7 +416,7 @@ function buildExamReport(
     rows.push([
       cycleMap.get(mark.cycleId) ?? mark.cycleId,
       `${mark.className} ${mark.section}`.trim(),
-      getSubjectName(mark.subjectId),
+      getSubjectName(schoolId, mark.subjectId),
       mark.studentId,
       String(mark.marksObtained),
       mark.remarks ?? "",

@@ -9,6 +9,7 @@ import {
 import { getUniqueSchoolClassesByName } from "@/lib/class-labels";
 import { useSchool, getScopedItem, setScopedItem, removeScopedItem, getSchoolClasses, type SchoolClass } from "@/lib/school-context";
 import { getUserSession } from "@/lib/teacher-check-in";
+import { getLinkedStudentsForParentEmail } from "@/lib/parent-student-links";
 import type { UserRole } from "@/lib/auth";
 import { formatDate, formatDateLong, getTodayIsoDate } from "@/lib/date-format";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
@@ -346,6 +347,24 @@ function getStudentPersonalAttendanceList(
 function findEnrolledStudent(schoolId: string, session: ReturnType<typeof getUserSession>): EnrolledStudent | null {
   if (!session) return null;
 
+  const role = typeof window !== "undefined" ? localStorage.getItem("user_role") : null;
+
+  if (role === "parent") {
+    const linkedChildren = getLinkedStudentsForParentEmail(schoolId, session.email);
+    const child = linkedChildren[0];
+    if (child) {
+      return {
+        id: child.id,
+        studentId: child.studentId,
+        firstName: child.firstName,
+        lastName: child.lastName,
+        email: child.guardianEmail || session.email,
+        class: child.class,
+        section: child.section,
+      };
+    }
+  }
+
   const storedStudents = getScopedItem(schoolId, "school_students");
   if (storedStudents) {
     try {
@@ -407,12 +426,14 @@ export default function AttendancePage() {
   const [readOnlyMode, setReadOnlyMode] = useState(false);
 
   const isStudentView = userRole === "student";
+  const isParentView = userRole === "parent";
+  const isPersonalAttendanceView = isStudentView || isParentView;
   const isAdminView = userRole === "admin";
   const canMarkAttendance = userRole === "teacher";
   const enrolledClassLabel = enrolledStudent ? getEnrolledClassLabel(enrolledStudent) : "";
   const isViewingAttendanceEntry =
     showAttendanceEntry &&
-    (isStudentView || isAdminView
+    (isPersonalAttendanceView || isAdminView
       ? attendanceView === "records" && readOnlyMode
       : attendanceView === "mark" || attendanceView === "records");
   const isEditingFromRecords =
@@ -430,43 +451,43 @@ export default function AttendancePage() {
   }, [currentSchool]);
 
   useEffect(() => {
-    if ((isStudentView || isAdminView) && attendanceView === "mark") {
+    if ((isPersonalAttendanceView || isAdminView) && attendanceView === "mark") {
       router.replace("/attendance?view=records");
     }
-  }, [isStudentView, isAdminView, attendanceView, router]);
+  }, [isPersonalAttendanceView, isAdminView, attendanceView, router]);
 
   useEffect(() => {
-    if (isStudentView || isAdminView) {
+    if (isPersonalAttendanceView || isAdminView) {
       setReadOnlyMode(true);
     }
-  }, [isStudentView, isAdminView]);
+  }, [isPersonalAttendanceView, isAdminView]);
 
   const visibleSavedAttendanceList = useMemo(() => {
-    if (!isStudentView || !enrolledStudent) return savedAttendanceList;
+    if (!isPersonalAttendanceView || !enrolledStudent) return savedAttendanceList;
     return savedAttendanceList.filter((record) =>
       matchesEnrolledClass(record.class, enrolledStudent),
     );
-  }, [savedAttendanceList, isStudentView, enrolledStudent]);
+  }, [savedAttendanceList, isPersonalAttendanceView, enrolledStudent]);
 
   const studentPersonalAttendanceList = useMemo(() => {
-    if (!isStudentView || !enrolledStudent || !currentSchool) return [];
+    if (!isPersonalAttendanceView || !enrolledStudent || !currentSchool) return [];
     return getStudentPersonalAttendanceList(currentSchool.id, enrolledStudent);
-  }, [isStudentView, enrolledStudent, currentSchool, savedAttendanceList]);
+  }, [isPersonalAttendanceView, enrolledStudent, currentSchool, savedAttendanceList]);
 
   useEffect(() => {
     if (attendanceView === "mark") {
-      if (!isAdminView && !isStudentView) {
+      if (!isAdminView && !isPersonalAttendanceView) {
         setShowAttendanceEntry(true);
         setReadOnlyMode(false);
       }
     } else if (attendanceView === "records") {
       setShowAttendanceEntry(false);
-      if (!isStudentView && !isAdminView) {
+      if (!isPersonalAttendanceView && !isAdminView) {
         setReadOnlyMode(false);
       }
       loadSavedAttendanceList();
     }
-  }, [attendanceView, isStudentView, isAdminView]);
+  }, [attendanceView, isPersonalAttendanceView, isAdminView]);
 
   // Get today's date for max date restriction
   const today = getTodayIsoDate();

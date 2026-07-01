@@ -1,4 +1,5 @@
 import { getScopedItem, setScopedItem } from "@/lib/school-context";
+import { formatLinkedChildLabel } from "@/lib/parent-student-links";
 
 export type SystemUserRole = "Student" | "Teacher" | "Parent" | "Admin";
 export type SystemUserStatus = "Active" | "Inactive" | "On Leave" | "Suspended";
@@ -10,6 +11,7 @@ export type SystemUser = {
   phone: string;
   role: SystemUserRole;
   classDepartment: string;
+  linkedStudentIds?: string[];
   status: SystemUserStatus;
   password: string;
   createdAt: string;
@@ -151,6 +153,177 @@ export function syncStaffToSystemUsers(schoolId: string): SystemUser[] {
 
   saveSystemUsers(schoolId, updatedUsers);
   return updatedUsers;
+}
+
+type StudentRecord = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  class: string;
+  section: string;
+  status?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianEmail?: string;
+};
+
+function mapStudentStatusToSystemStatus(status?: string): SystemUserStatus {
+  switch (status) {
+    case "active":
+      return "Active";
+    case "inactive":
+    case "graduated":
+    case "transferred":
+      return "Inactive";
+    default:
+      return "Active";
+  }
+}
+
+function formatStudentClassDepartment(className: string, section: string): string {
+  const cls = className.trim();
+  const sec = section.trim();
+  if (!cls) return sec;
+  if (!sec) return cls;
+  if (cls.toLowerCase().endsWith(sec.toLowerCase())) return cls;
+  return `${cls} ${sec}`;
+}
+
+/** Keep User Management in sync with Student records (student + parent login entries). */
+export function syncStudentsToSystemUsers(schoolId: string): {
+  users: SystemUser[];
+  newlyIssued: SystemUser[];
+} {
+  const storedStudents = getScopedItem(schoolId, "school_students");
+  const existingUsers = loadSystemUsers(schoolId);
+  const newlyIssued: SystemUser[] = [];
+
+  if (!storedStudents) {
+    return { users: existingUsers, newlyIssued };
+  }
+
+  let studentRecords: StudentRecord[];
+  try {
+    studentRecords = JSON.parse(storedStudents) as StudentRecord[];
+  } catch {
+    return { users: existingUsers, newlyIssued };
+  }
+
+  const studentIds = new Set(studentRecords.map((student) => student.id));
+  const guardianEmails = new Set(
+    studentRecords
+      .map((student) => student.guardianEmail?.trim().toLowerCase())
+      .filter((email): email is string => Boolean(email && isValidLoginEmail(email))),
+  );
+
+  const updatedUsers = existingUsers.filter((user) => {
+    if (user.id.startsWith("user_student_")) {
+      const studentId = user.id.replace("user_student_", "");
+      return studentIds.has(studentId);
+    }
+    if (user.id.startsWith("user_parent_")) {
+      return guardianEmails.has(user.email.toLowerCase());
+    }
+    return true;
+  });
+
+  for (const student of studentRecords) {
+    const studentEmail = student.email?.trim().toLowerCase();
+    if (studentEmail && isValidLoginEmail(studentEmail)) {
+      const studentName = `${student.firstName} ${student.lastName}`.trim();
+      const existingIndex = updatedUsers.findIndex(
+        (user) => user.email.toLowerCase() === studentEmail && user.role === "Student",
+      );
+      const syncedFields = {
+        name: studentName,
+        email: studentEmail,
+        phone: student.phone || "",
+        role: "Student" as SystemUserRole,
+        classDepartment: formatStudentClassDepartment(student.class, student.section),
+        status: mapStudentStatusToSystemStatus(student.status),
+      };
+
+      if (existingIndex >= 0) {
+        updatedUsers[existingIndex] = {
+          ...updatedUsers[existingIndex],
+          ...syncedFields,
+        };
+      } else {
+        const created: SystemUser = {
+          id: `user_student_${student.id}`,
+          ...syncedFields,
+          password: generateLoginPassword(),
+          createdAt: new Date().toISOString().split("T")[0],
+          credentialsIssuedAt: new Date().toISOString(),
+        };
+        updatedUsers.push(created);
+        newlyIssued.push(created);
+      }
+    }
+  }
+
+  const parentsByEmail = new Map<
+    string,
+    { students: StudentRecord[]; guardianName: string; guardianPhone: string }
+  >();
+
+  for (const student of studentRecords) {
+    const guardianEmail = student.guardianEmail?.trim().toLowerCase();
+    if (!guardianEmail || !isValidLoginEmail(guardianEmail)) continue;
+
+    const group = parentsByEmail.get(guardianEmail) ?? {
+      students: [],
+      guardianName: student.guardianName?.trim() || "Parent",
+      guardianPhone: student.guardianPhone || "",
+    };
+    group.students.push(student);
+    if (student.guardianName?.trim()) {
+      group.guardianName = student.guardianName.trim();
+    }
+    if (student.guardianPhone?.trim()) {
+      group.guardianPhone = student.guardianPhone.trim();
+    }
+    parentsByEmail.set(guardianEmail, group);
+  }
+
+  for (const [guardianEmail, group] of parentsByEmail) {
+    const linkedStudentIds = group.students.map((student) => student.id);
+    const linkedChildren = group.students.map(formatLinkedChildLabel);
+    const existingParentIndex = updatedUsers.findIndex(
+      (user) => user.role === "Parent" && user.email.toLowerCase() === guardianEmail,
+    );
+    const parentFields = {
+      name: group.guardianName,
+      email: guardianEmail,
+      phone: group.guardianPhone,
+      role: "Parent" as SystemUserRole,
+      classDepartment: linkedChildren.join(", "),
+      linkedStudentIds,
+      status: mapStudentStatusToSystemStatus(group.students[0]?.status),
+    };
+
+    if (existingParentIndex >= 0) {
+      updatedUsers[existingParentIndex] = {
+        ...updatedUsers[existingParentIndex],
+        ...parentFields,
+      };
+    } else {
+      const created: SystemUser = {
+        id: `user_parent_${group.students[0]?.id ?? Date.now()}`,
+        ...parentFields,
+        password: generateLoginPassword(),
+        createdAt: new Date().toISOString().split("T")[0],
+        credentialsIssuedAt: new Date().toISOString(),
+      };
+      updatedUsers.push(created);
+      newlyIssued.push(created);
+    }
+  }
+
+  saveSystemUsers(schoolId, updatedUsers);
+  return { users: updatedUsers, newlyIssued };
 }
 
 export function isValidLoginEmail(email: string): boolean {
