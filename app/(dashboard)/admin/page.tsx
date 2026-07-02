@@ -6,9 +6,12 @@ import {
   UserCheck, Receipt, GraduationCap, AlertCircle, Clock
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useSchool } from "@/lib/school-context";
+import { useEffect, useMemo, useState } from "react";
+import { useSchool, getScopedItem } from "@/lib/school-context";
+import { loadFinanceInvoices } from "@/lib/finance-invoices";
+import { loadSystemUsers } from "@/lib/system-users";
 import { getPendingCheckIns, getTodayDateString, loadTeacherCheckIns } from "@/lib/teacher-check-in";
+import { getTodayIsoDate } from "@/lib/date-format";
 
 const adminSections = [
   {
@@ -120,26 +123,14 @@ const quickActions = [
   },
 ];
 
-const adminStats = [
-  { label: "Total Users", value: "1,248", change: "+6.2%", icon: Users, color: "text-blue-600" },
-  { label: "Active Exams", value: "18", change: "this month", icon: ClipboardList, color: "text-purple-600" },
-  { label: "Pending Invoices", value: "42", change: "₵12,450", icon: Receipt, color: "text-orange-600" },
-  { label: "Today's Attendance", value: "94.2%", change: "1,175/1,248", icon: CheckSquare, color: "text-emerald-600" },
-];
-
-const recentActivity = [
-  { action: "New student enrolled", user: "Ama Johnson", time: "5 mins ago", icon: Users, color: "text-blue-600" },
-  { action: "Exam marks entered", user: "Teacher A. Mensah", time: "12 mins ago", icon: ClipboardList, color: "text-purple-600" },
-  { action: "Payment received", user: "Kofi Badu", time: "23 mins ago", icon: DollarSign, color: "text-green-600" },
-  { action: "Attendance marked", user: "Grade 8A", time: "1 hour ago", icon: UserCheck, color: "text-emerald-600" },
-  { action: "Invoice generated", user: "Grade 9B - 32 students", time: "2 hours ago", icon: Receipt, color: "text-orange-600" },
-];
-
-const staticPendingTasks = [
-  { task: "Approve exam mark entries", priority: "medium", icon: ClipboardList, href: "/admin/exams" },
-  { task: "Process overdue invoices", priority: "high", icon: Receipt, href: "/finance" },
-  { task: "Update academic calendar", priority: "low", icon: Calendar, href: "/admin/settings" },
-];
+function parseStored<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function AdminDashboard() {
   const { currentSchool } = useSchool();
@@ -152,19 +143,191 @@ export default function AdminDashboard() {
     setPendingCheckIns(getPendingCheckIns(records, getTodayDateString()).length);
   }, [currentSchool]);
 
-  const pendingTasks = [
-    ...(pendingCheckIns > 0
-      ? [
-          {
-            task: `Review ${pendingCheckIns} pending teacher check-in${pendingCheckIns > 1 ? "s" : ""}`,
-            priority: "high",
-            icon: UserCheck,
-            href: "/admin/teacher-attendance",
-          },
-        ]
-      : []),
-    ...staticPendingTasks,
-  ];
+  const adminStats = useMemo(() => {
+    if (!currentSchool) {
+      return [
+        { label: "Total Users", value: "0", change: "No school selected", icon: Users, color: "text-blue-600" },
+        { label: "Active Exams", value: "0", change: "No cycles yet", icon: ClipboardList, color: "text-purple-600" },
+        { label: "Pending Invoices", value: "0", change: "₵0 outstanding", icon: Receipt, color: "text-orange-600" },
+        { label: "Today's Attendance", value: "0%", change: "0/0 present", icon: CheckSquare, color: "text-emerald-600" },
+      ];
+    }
+
+    const users = loadSystemUsers(currentSchool.id);
+    const students = parseStored<Array<{ id: string; status?: string }>>(
+      getScopedItem(currentSchool.id, "school_students"),
+      [],
+    );
+    const activeStudents = students.filter((student) => student.status === "active" || !student.status).length;
+    const examCycles = parseStored<Array<{ status?: string }>>(
+      getScopedItem(currentSchool.id, "exam_cycles"),
+      [],
+    );
+    const activeExams = examCycles.filter((cycle) => cycle.status === "active").length;
+    const invoices = loadFinanceInvoices(currentSchool.id);
+    const pendingInvoices = invoices.filter(
+      (invoice) => invoice.status !== "paid" && invoice.status !== "void",
+    );
+    const pendingInvoiceTotal = pendingInvoices.reduce(
+      (sum, invoice) => sum + Math.max(invoice.totalAmount - invoice.paidAmount, 0),
+      0,
+    );
+
+    const today = getTodayIsoDate();
+    const todayRecords = parseStored<Array<{ date: string; status: string; studentId: string }>>(
+      getScopedItem(currentSchool.id, "attendance_records"),
+      [],
+    ).filter((record) => record.date === today);
+    const presentToday = todayRecords.filter(
+      (record) => record.status === "present" || record.status === "late",
+    ).length;
+    const attendanceRate =
+      todayRecords.length > 0 ? ((presentToday / todayRecords.length) * 100).toFixed(1) : "0.0";
+
+    return [
+      {
+        label: "Total Users",
+        value: String(users.length),
+        change: `${activeStudents} enrolled student${activeStudents === 1 ? "" : "s"}`,
+        icon: Users,
+        color: "text-blue-600",
+      },
+      {
+        label: "Active Exams",
+        value: String(activeExams),
+        change: `${examCycles.length} total cycle${examCycles.length === 1 ? "" : "s"}`,
+        icon: ClipboardList,
+        color: "text-purple-600",
+      },
+      {
+        label: "Pending Invoices",
+        value: String(pendingInvoices.length),
+        change: `₵${pendingInvoiceTotal.toLocaleString()} outstanding`,
+        icon: Receipt,
+        color: "text-orange-600",
+      },
+      {
+        label: "Today's Attendance",
+        value: `${attendanceRate}%`,
+        change: `${presentToday}/${todayRecords.length || activeStudents} marked today`,
+        icon: CheckSquare,
+        color: "text-emerald-600",
+      },
+    ];
+  }, [currentSchool]);
+
+  const recentActivity = useMemo(() => {
+    if (!currentSchool) return [];
+
+    const items: Array<{
+      action: string;
+      user: string;
+      time: string;
+      icon: typeof Users;
+      color: string;
+    }> = [];
+
+    const students = parseStored<
+      Array<{ firstName: string; lastName: string; admissionDate?: string }>
+    >(getScopedItem(currentSchool.id, "school_students"), []);
+    const latestStudent = [...students].sort((a, b) =>
+      (b.admissionDate ?? "").localeCompare(a.admissionDate ?? ""),
+    )[0];
+    if (latestStudent) {
+      items.push({
+        action: "Latest student record",
+        user: `${latestStudent.firstName} ${latestStudent.lastName}`.trim(),
+        time: latestStudent.admissionDate ? `Added ${latestStudent.admissionDate}` : "Recently added",
+        icon: Users,
+        color: "text-blue-600",
+      });
+    }
+
+    const todayRecords = parseStored<
+      Array<{ date: string; class?: string; status: string; studentId: string }>
+    >(getScopedItem(currentSchool.id, "attendance_records"), [])
+      .filter((record) => record.date === getTodayIsoDate())
+      .slice(-3)
+      .reverse();
+
+    for (const record of todayRecords) {
+      items.push({
+        action: `Attendance marked: ${record.status}`,
+        user: record.class || "Class attendance",
+        time: "Today",
+        icon: UserCheck,
+        color: "text-emerald-600",
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        action: "School setup started",
+        user: currentSchool.name,
+        time: "Add students, staff, and classes to begin",
+        icon: AlertCircle,
+        color: "text-slate-600",
+      });
+    }
+
+    return items.slice(0, 5);
+  }, [currentSchool]);
+
+  const pendingTasks = useMemo(() => {
+    const tasks = [
+      ...(pendingCheckIns > 0
+        ? [
+            {
+              task: `Review ${pendingCheckIns} pending teacher check-in${pendingCheckIns > 1 ? "s" : ""}`,
+              priority: "high" as const,
+              icon: UserCheck,
+              href: "/admin/teacher-attendance",
+            },
+          ]
+        : []),
+    ];
+
+    if (!currentSchool) return tasks;
+
+    const students = parseStored<unknown[]>(
+      getScopedItem(currentSchool.id, "school_students"),
+      [],
+    );
+    const classes = parseStored<unknown[]>(
+      getScopedItem(currentSchool.id, "school_classes"),
+      [],
+    );
+
+    if (students.length === 0) {
+      tasks.push({
+        task: "Add your first students",
+        priority: "high",
+        icon: Users,
+        href: "/students?action=add",
+      });
+    }
+
+    if (classes.length === 0) {
+      tasks.push({
+        task: "Create classes and subject assignments",
+        priority: "medium",
+        icon: GraduationCap,
+        href: "/admin/academics",
+      });
+    }
+
+    const users = loadSystemUsers(currentSchool.id);
+    if (users.filter((user) => user.role === "Teacher").length === 0) {
+      tasks.push({
+        task: "Add staff and issue teacher logins",
+        priority: "medium",
+        icon: UserCheck,
+        href: "/admin/users",
+      });
+    }
+
+    return tasks;
+  }, [currentSchool, pendingCheckIns]);
 
   return (
     <div className="space-y-8">

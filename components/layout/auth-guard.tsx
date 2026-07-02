@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { School } from "lucide-react";
+import { getUserSession } from "@/lib/teacher-check-in";
 
 type UserSession = {
   id: string;
@@ -23,24 +24,24 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Public routes that don't require authentication
   const publicRoutes = ['/login', '/school-auth', '/unauthorized'];
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const session = localStorage.getItem('user_session');
-      
-      if (session) {
-        try {
-          const parsedSession = JSON.parse(session);
-          setUserSession(parsedSession);
-        } catch (error) {
-          console.error('Error parsing user session:', error);
-          localStorage.removeItem('user_session');
-          localStorage.removeItem('user_role');
-        }
-      }
-      
-      setIsLoading(false);
-    }
+  const syncSession = useCallback(() => {
+    setUserSession(getUserSession());
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    syncSession();
+    window.addEventListener("user-session-changed", syncSession);
+    window.addEventListener("storage", syncSession);
+    return () => {
+      window.removeEventListener("user-session-changed", syncSession);
+      window.removeEventListener("storage", syncSession);
+    };
+  }, [syncSession]);
+
+  useEffect(() => {
+    syncSession();
+  }, [pathname, syncSession]);
 
   useEffect(() => {
     if (!isLoading) {

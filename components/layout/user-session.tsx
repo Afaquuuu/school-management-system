@@ -1,43 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
 import { User, LogOut, ChevronDown } from "lucide-react";
-
-type UserSession = {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  classDepartment: string;
-  schoolId: string;
-  loginTime: string;
-};
+import { clearUserSession, getUserSession, redirectToLogin } from "@/lib/teacher-check-in";
 
 export function UserSession() {
-  const router = useRouter();
-  const [userSession, setUserSession] = useState<UserSession | null>(null);
+  const [userSession, setUserSession] = useState(() =>
+    typeof window !== "undefined" ? getUserSession() : null,
+  );
   const [showDropdown, setShowDropdown] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const session = localStorage.getItem("user_session");
-      if (session) {
-        try {
-          setUserSession(JSON.parse(session));
-        } catch (error) {
-          console.error("Error parsing user session:", error);
-        }
-      }
-    }
+  const syncSession = useCallback(() => {
+    setUserSession(getUserSession());
   }, []);
 
+  useEffect(() => {
+    syncSession();
+    window.addEventListener("user-session-changed", syncSession);
+    window.addEventListener("storage", syncSession);
+    return () => {
+      window.removeEventListener("user-session-changed", syncSession);
+      window.removeEventListener("storage", syncSession);
+    };
+  }, [syncSession]);
+
   const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("user_session");
-      localStorage.removeItem("user_role");
-    }
-    router.push("/login");
+    setShowDropdown(false);
+    setUserSession(null);
+    redirectToLogin();
   };
 
   if (!userSession) {

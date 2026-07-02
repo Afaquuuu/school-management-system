@@ -131,9 +131,23 @@ export function establishUserSession(
   if (typeof window !== "undefined") {
     localStorage.setItem("user_session", JSON.stringify(userSession));
     localStorage.setItem("user_role", user.role.toLowerCase());
+    window.dispatchEvent(new Event("user-session-changed"));
   }
 
   return userSession;
+}
+
+export function clearUserSession(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("user_session");
+  localStorage.removeItem("user_role");
+  window.dispatchEvent(new Event("user-session-changed"));
+}
+
+export function redirectToLogin(): void {
+  if (typeof window === "undefined") return;
+  clearUserSession();
+  window.location.href = "/login";
 }
 
 export function createTeacherCheckIn(input: {

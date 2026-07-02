@@ -4,7 +4,8 @@ import {
   getUniqueClassNames,
   setScopedItem,
 } from "@/lib/school-context";
-import { loadClassAssignments } from "@/lib/timetable";
+
+const CLASS_ASSIGNMENTS_KEY = "class_assignments";
 
 export type SchoolSubject = {
   id: string;
@@ -127,7 +128,15 @@ export function isSubjectNameTaken(
 
 export function isSubjectInUse(schoolId: string, subjectName: string): boolean {
   const normalized = normalizeSubjectName(subjectName).toLowerCase();
-  const assignments = loadClassAssignments(schoolId);
+  const stored = getScopedItem(schoolId, CLASS_ASSIGNMENTS_KEY);
+  if (!stored) return false;
+
+  let assignments: Record<string, Array<{ subject: string }>>;
+  try {
+    assignments = JSON.parse(stored) as Record<string, Array<{ subject: string }>>;
+  } catch {
+    return false;
+  }
 
   return Object.values(assignments).some((rows) =>
     rows.some((row) => normalizeSubjectName(row.subject).toLowerCase() === normalized),
