@@ -274,7 +274,12 @@ export default function AdminDashboard() {
   }, [currentSchool]);
 
   const pendingTasks = useMemo(() => {
-    const tasks = [
+    const tasks: Array<{
+      task: string;
+      priority: "high" | "medium";
+      icon: typeof Users;
+      href: string;
+    }> = [
       ...(pendingCheckIns > 0
         ? [
             {

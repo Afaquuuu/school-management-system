@@ -32,21 +32,23 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   // Load schools and current school from localStorage on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Load all schools
-      const storedSchools = localStorage.getItem('saas_schools');
-      if (storedSchools) {
-        setSchools(JSON.parse(storedSchools));
-      }
+    const storedSchools = localStorage.getItem("saas_schools");
+    let parsedSchools: School[] = [];
 
-      // Load current school
-      const currentSchoolId = localStorage.getItem('saas_current_school_id');
-      if (currentSchoolId && storedSchools) {
-        const parsedSchools = JSON.parse(storedSchools);
-        const school = parsedSchools.find((s: School) => s.id === currentSchoolId);
-        if (school) {
-          setCurrentSchoolState(school);
-        }
+    if (storedSchools) {
+      try {
+        parsedSchools = JSON.parse(storedSchools) as School[];
+        setSchools(parsedSchools);
+      } catch {
+        parsedSchools = [];
+      }
+    }
+
+    const currentSchoolId = localStorage.getItem("saas_current_school_id");
+    if (currentSchoolId && parsedSchools.length > 0) {
+      const school = parsedSchools.find((item) => item.id === currentSchoolId);
+      if (school) {
+        setCurrentSchoolState(school);
       }
     }
   }, []);

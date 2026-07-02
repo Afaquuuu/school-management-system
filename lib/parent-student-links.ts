@@ -8,6 +8,8 @@ export type SchoolStudentRecord = {
   lastName: string;
   class: string;
   section: string;
+  rollNumber?: string;
+  admissionDate?: string;
   guardianName?: string;
   guardianPhone?: string;
   guardianEmail?: string;

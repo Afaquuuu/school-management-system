@@ -157,6 +157,7 @@ export function syncStaffToSystemUsers(schoolId: string): SystemUser[] {
 
 type StudentRecord = {
   id: string;
+  studentId?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -290,7 +291,20 @@ export function syncStudentsToSystemUsers(schoolId: string): {
 
   for (const [guardianEmail, group] of parentsByEmail) {
     const linkedStudentIds = group.students.map((student) => student.id);
-    const linkedChildren = group.students.map(formatLinkedChildLabel);
+    const linkedChildren = group.students.map((student) =>
+      formatLinkedChildLabel({
+        id: student.id,
+        studentId: student.studentId ?? student.id,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        class: student.class,
+        section: student.section,
+        guardianName: student.guardianName,
+        guardianPhone: student.guardianPhone,
+        guardianEmail: student.guardianEmail,
+        status: student.status,
+      }),
+    );
     const existingParentIndex = updatedUsers.findIndex(
       (user) => user.role === "Parent" && user.email.toLowerCase() === guardianEmail,
     );

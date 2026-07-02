@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Plus, Edit, Trash2, AlertCircle, X, Save, CheckCircle } from "lucide-react";
+import { useState, useEffect, useMemo, type Dispatch, type SetStateAction } from "react";
+import { Plus, Edit, Trash2, AlertCircle, X, CheckCircle, Building2, Users } from "lucide-react";
 import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
+import {
+  RecordFormSection,
+  recordFormFieldInput,
+  recordFormFieldInputAccent,
+  recordFormFieldLabel,
+} from "@/components/ui/record-form-layout";
 import {
   detectTimetableConflicts,
   formatTimeRange,
@@ -221,6 +227,8 @@ export default function ResourcesPage() {
     setSelectedResource(null);
     resetForm();
   };
+
+  const resourceFieldClass = `${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`;
 
   return (
     <div className="space-y-8">
@@ -491,209 +499,195 @@ export default function ResourcesPage() {
       
       {/* Add Resource Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-800">
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Add New Resource</h3>
-              <button 
-                onClick={closeAddModal}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Resource Code *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.code || ""}
-                    onChange={(e) => setFormData({...formData, code: e.target.value})}
-                    placeholder="e.g., R-101, LAB-01"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Resource Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name || ""}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="e.g., Classroom 1, Science Lab"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Type *
-                  </label>
-                  <select
-                    value={formData.type || "Classroom"}
-                    onChange={(e) => setFormData({...formData, type: e.target.value as ResourceType})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="Classroom">Classroom</option>
-                    <option value="Lab">Lab</option>
-                    <option value="Facility">Facility</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Capacity (seats) *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.capacity || 30}
-                    onChange={(e) => setFormData({...formData, capacity: parseInt(e.target.value)})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="flex items-center gap-3 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={formData.available ?? true}
-                    onChange={(e) => setFormData({...formData, available: e.target.checked})}
-                    className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                  />
-                  Mark as available
-                </label>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3 justify-end">
-              <button
-                onClick={closeAddModal}
-                className="px-6 py-3 border-2 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddResource}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
-              >
-                <Save className="w-5 h-5" />
-                Add Resource
-              </button>
-            </div>
-          </div>
-        </div>
+        <ResourceFormModal
+          mode="add"
+          formData={formData}
+          setFormData={setFormData}
+          fieldClassName={resourceFieldClass}
+          onClose={closeAddModal}
+          onSubmit={handleAddResource}
+        />
       )}
 
       {/* Edit Resource Modal */}
       {showEditModal && selectedResource && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-800">
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Edit Resource</h3>
-              <button 
-                onClick={closeEditModal}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        <ResourceFormModal
+          mode="edit"
+          formData={formData}
+          setFormData={setFormData}
+          fieldClassName={resourceFieldClass}
+          resourceCode={selectedResource.code}
+          onClose={closeEditModal}
+          onSubmit={handleEditResource}
+        />
+      )}
+    </div>
+  );
+}
+
+function ResourceFormModal({
+  mode,
+  formData,
+  setFormData,
+  fieldClassName,
+  resourceCode,
+  onClose,
+  onSubmit,
+}: {
+  mode: "add" | "edit";
+  formData: Partial<Resource>;
+  setFormData: Dispatch<SetStateAction<Partial<Resource>>>;
+  fieldClassName: string;
+  resourceCode?: string;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const isEdit = mode === "edit";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900">
+        <div className="h-1.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600" />
+
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-700">
+          <div className="flex items-start gap-4">
+            <div className="rounded-xl bg-blue-100 p-3 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+              <Building2 className="h-6 w-6" />
             </div>
-
-            <div className="p-6 space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Resource Code *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.code || ""}
-                    onChange={(e) => setFormData({...formData, code: e.target.value})}
-                    placeholder="e.g., R-101, LAB-01"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Resource Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name || ""}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="e.g., Classroom 1, Science Lab"
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Type *
-                  </label>
-                  <select
-                    value={formData.type || "Classroom"}
-                    onChange={(e) => setFormData({...formData, type: e.target.value as ResourceType})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="Classroom">Classroom</option>
-                    <option value="Lab">Lab</option>
-                    <option value="Facility">Facility</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                    Capacity (seats) *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.capacity || 30}
-                    onChange={(e) => setFormData({...formData, capacity: parseInt(e.target.value)})}
-                    className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="flex items-center gap-3 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={formData.available ?? true}
-                    onChange={(e) => setFormData({...formData, available: e.target.checked})}
-                    className="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                  />
-                  Mark as available
-                </label>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3 justify-end">
-              <button
-                onClick={closeEditModal}
-                className="px-6 py-3 border-2 border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-xl font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleEditResource}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors flex items-center gap-2"
-              >
-                <Save className="w-5 h-5" />
-                Save Changes
-              </button>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                Resources
+              </p>
+              <h3 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+                {isEdit ? "Edit Resource" : "Add New Resource"}
+              </h3>
+              <p className="mt-1 max-w-md text-sm text-slate-600 dark:text-slate-400">
+                {isEdit
+                  ? "Update room details, capacity, and availability for scheduling."
+                  : "Register a classroom, lab, or facility for timetable and room allocation."}
+              </p>
+              {isEdit && resourceCode && (
+                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  Code: {resourceCode}
+                </span>
+              )}
             </div>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 dark:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            aria-label="Close form"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
-      )}
+
+        <div className="flex-1 overflow-y-auto bg-slate-50/70 p-6 dark:bg-slate-950/40">
+          <RecordFormSection
+            title="Resource Details"
+            description="Identification, type, and seating capacity for this space."
+            icon={Building2}
+          >
+            <div>
+              <label className={recordFormFieldLabel}>Resource Code *</label>
+              <input
+                type="text"
+                value={formData.code || ""}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                placeholder="e.g. R-101, LAB-01"
+                className={fieldClassName}
+              />
+            </div>
+
+            <div>
+              <label className={recordFormFieldLabel}>Resource Name *</label>
+              <input
+                type="text"
+                value={formData.name || ""}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g. Classroom 1, IT Lab"
+                className={fieldClassName}
+              />
+            </div>
+
+            <div>
+              <label className={recordFormFieldLabel}>Type *</label>
+              <select
+                value={formData.type || "Classroom"}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as ResourceType })}
+                className={fieldClassName}
+              >
+                <option value="Classroom">Classroom</option>
+                <option value="Lab">Lab</option>
+                <option value="Facility">Facility</option>
+              </select>
+            </div>
+
+            <div>
+              <label className={recordFormFieldLabel}>Capacity (seats) *</label>
+              <div className="relative">
+                <Users className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={formData.capacity ?? 30}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      capacity: Math.max(1, Number.parseInt(e.target.value, 10) || 1),
+                    })
+                  }
+                  className={`${fieldClassName} pl-9`}
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40 dark:border-slate-600 dark:bg-slate-900/40 dark:hover:border-blue-800 dark:hover:bg-blue-950/20 ${
+                  formData.available ?? true ? "ring-1 ring-blue-500/20" : ""
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={formData.available ?? true}
+                  onChange={(e) => setFormData({ ...formData, available: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500/30"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-slate-900 dark:text-slate-50">
+                    Available for scheduling
+                  </span>
+                  <span className="mt-0.5 block text-sm text-slate-500 dark:text-slate-400">
+                    Uncheck if the room is under maintenance or temporarily out of use.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </RecordFormSection>
+
+          <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">Fields marked * are required.</p>
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-end dark:border-slate-700 dark:bg-slate-900">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/30"
+          >
+            {isEdit ? "Save Changes" : "Add Resource"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

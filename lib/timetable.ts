@@ -2,6 +2,34 @@ import { getScopedItem, setScopedItem } from "@/lib/school-context";
 import { getActiveSubjectNames } from "@/lib/school-subjects";
 
 export const TIMETABLE_STORAGE_KEY = "weekly_timetable";
+export const TIMETABLE_PERIOD_SETTINGS_KEY = "timetable_period_settings";
+export const TIMETABLE_BELL_TIMES_KEY = "timetable_bell_times";
+export const TIMETABLE_CLASS_PERIOD_SETTINGS_KEY = "timetable_class_period_settings";
+
+export type PeriodSettings = {
+  startTime: string;
+  endTime: string;
+  kind?: "lesson" | "break";
+  breakLabel?: string;
+};
+
+export type BellTimeSettings = {
+  startTime: string;
+  endTime: string;
+};
+
+export type ClassPeriodSlotSettings = {
+  kind?: "lesson" | "break";
+  breakLabel?: string;
+  startTime?: string;
+  endTime?: string;
+};
+
+export type ClassPeriodSettings = Record<string, ClassPeriodSlotSettings>;
+export type ClassPeriodSettingsByClass = Record<string, ClassPeriodSettings>;
+
+/** @deprecated Use PeriodSettings */
+export type PeriodTimeOverride = PeriodSettings;
 
 export const TIMETABLE_DAYS = [
   "Monday",
@@ -18,16 +46,308 @@ export type TimetablePeriod = {
   label: string;
   startTime: string;
   endTime: string;
+  kind: "lesson" | "break";
+  breakLabel?: string;
 };
 
 export const TIMETABLE_PERIODS: TimetablePeriod[] = [
-  { id: "p1", label: "Period 1", startTime: "08:00", endTime: "08:45" },
-  { id: "p2", label: "Period 2", startTime: "08:45", endTime: "09:30" },
-  { id: "p3", label: "Period 3", startTime: "09:45", endTime: "10:30" },
-  { id: "p4", label: "Period 4", startTime: "10:30", endTime: "11:15" },
-  { id: "p5", label: "Period 5", startTime: "11:30", endTime: "12:15" },
-  { id: "p6", label: "Period 6", startTime: "12:15", endTime: "13:00" },
+  { id: "p1", label: "Period 1", startTime: "08:00", endTime: "08:45", kind: "lesson" },
+  { id: "p2", label: "Period 2", startTime: "08:45", endTime: "09:30", kind: "lesson" },
+  { id: "p3", label: "Period 3", startTime: "09:45", endTime: "10:30", kind: "lesson" },
+  { id: "p4", label: "Period 4", startTime: "10:30", endTime: "11:15", kind: "lesson" },
+  { id: "p5", label: "Period 5", startTime: "11:30", endTime: "12:15", kind: "lesson" },
+  { id: "p6", label: "Period 6", startTime: "12:15", endTime: "13:00", kind: "lesson" },
 ];
+
+const PERIOD_DURATION_MINUTES = 45;
+const PERIOD_BREAK_MINUTES = 15;
+
+function parseTimeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function formatMinutesToTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
+
+/** Build enough daily period rows for a class (extends beyond the default 6 when needed). */
+export function buildTimetablePeriods(
+  minCount: number,
+  bellTimes: Record<string, BellTimeSettings> = {},
+  classSlots: ClassPeriodSettings = {},
+): TimetablePeriod[] {
+  const count = Math.max(minCount, TIMETABLE_PERIODS.length, 1);
+  let periods: Array<{ id: string; label: string; startTime: string; endTime: string }>;
+
+  if (count <= TIMETABLE_PERIODS.length) {
+    periods = TIMETABLE_PERIODS.slice(0, count);
+  } else {
+    periods = [...TIMETABLE_PERIODS];
+    let cursor = parseTimeToMinutes(periods[periods.length - 1].endTime);
+
+    for (let index = periods.length; index < count; index += 1) {
+      cursor += PERIOD_BREAK_MINUTES;
+      const startTime = formatMinutesToTime(cursor);
+      cursor += PERIOD_DURATION_MINUTES;
+      const endTime = formatMinutesToTime(cursor);
+      periods.push({
+        id: `p${index + 1}`,
+        label: `Period ${index + 1}`,
+        startTime,
+        endTime,
+      });
+    }
+  }
+
+  return periods.map((period) => {
+    const times = bellTimes[period.id] ?? {
+      startTime: period.startTime,
+      endTime: period.endTime,
+    };
+    const slot = classSlots[period.id];
+    return toTimetablePeriod(period.id, period.label, {
+      startTime: times.startTime,
+      endTime: times.endTime,
+      kind: slot?.kind ?? "lesson",
+      breakLabel: slot?.breakLabel,
+    });
+  });
+}
+
+function resolvePeriodSettings(
+  period: { startTime: string; endTime: string },
+  stored?: PeriodSettings,
+): PeriodSettings {
+  return {
+    startTime: stored?.startTime ?? period.startTime,
+    endTime: stored?.endTime ?? period.endTime,
+    kind: stored?.kind ?? "lesson",
+    breakLabel: stored?.breakLabel,
+  };
+}
+
+function toTimetablePeriod(
+  id: string,
+  baseLabel: string,
+  settings: PeriodSettings,
+): TimetablePeriod {
+  const isBreak = settings.kind === "break";
+  const breakLabel = settings.breakLabel?.trim();
+
+  return {
+    id,
+    label: isBreak ? breakLabel || "Break" : baseLabel,
+    startTime: settings.startTime,
+    endTime: settings.endTime,
+    kind: isBreak ? "break" : "lesson",
+    breakLabel: breakLabel || undefined,
+  };
+}
+
+export function isInsertedBreakPeriodId(periodId: string): boolean {
+  return periodId.startsWith("brk-");
+}
+
+export function createInsertedBreakPeriod(
+  classId: string,
+  classSlots: ClassPeriodSettings,
+  anchorPeriod?: TimetablePeriod,
+): { id: string; settings: ClassPeriodSlotSettings } {
+  const id = `brk-${classId}-${Date.now()}`;
+  const startMinutes = anchorPeriod
+    ? parseTimeToMinutes(anchorPeriod.endTime) + PERIOD_BREAK_MINUTES
+    : parseTimeToMinutes(TIMETABLE_PERIODS[TIMETABLE_PERIODS.length - 1].endTime) + PERIOD_BREAK_MINUTES;
+  const endMinutes = startMinutes + 30;
+
+  const existingBreakCount = Object.keys(classSlots).filter((key) => isInsertedBreakPeriodId(key)).length;
+
+  return {
+    id,
+    settings: {
+      startTime: formatMinutesToTime(startMinutes),
+      endTime: formatMinutesToTime(endMinutes),
+      kind: "break",
+      breakLabel: existingBreakCount === 0 ? "Short Break" : "Lunch Break",
+    },
+  };
+}
+
+export function getPeriodNumber(periodId: string): number {
+  const match = periodId.match(/^p(\d+)$/);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
+export function isValidTimeValue(time: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+}
+
+export function validatePeriodTimes(
+  startTime: string,
+  endTime: string,
+): { ok: true } | { error: string } {
+  if (!isValidTimeValue(startTime) || !isValidTimeValue(endTime)) {
+    return { error: "Use a valid time in HH:MM format." };
+  }
+
+  if (parseTimeToMinutes(startTime) >= parseTimeToMinutes(endTime)) {
+    return { error: "End time must be after start time." };
+  }
+
+  return { ok: true };
+}
+
+function migrateLegacyPeriodSettings(schoolId: string): {
+  bellTimes: Record<string, BellTimeSettings>;
+  classPeriodSettings: ClassPeriodSettingsByClass;
+} {
+  const stored = getScopedItem(schoolId, TIMETABLE_PERIOD_SETTINGS_KEY);
+  if (!stored) {
+    return { bellTimes: {}, classPeriodSettings: {} };
+  }
+
+  try {
+    const legacy = JSON.parse(stored) as Record<string, PeriodSettings>;
+    const bellTimes: Record<string, BellTimeSettings> = {};
+
+    for (const [periodId, settings] of Object.entries(legacy)) {
+      if (!isInsertedBreakPeriodId(periodId)) {
+        bellTimes[periodId] = {
+          startTime: settings.startTime,
+          endTime: settings.endTime,
+        };
+      }
+    }
+
+    return { bellTimes, classPeriodSettings: {} };
+  } catch {
+    return { bellTimes: {}, classPeriodSettings: {} };
+  }
+}
+
+export function loadBellTimes(schoolId: string): Record<string, BellTimeSettings> {
+  const stored = getScopedItem(schoolId, TIMETABLE_BELL_TIMES_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored) as Record<string, BellTimeSettings>;
+    } catch {
+      return {};
+    }
+  }
+
+  const migrated = migrateLegacyPeriodSettings(schoolId);
+  if (Object.keys(migrated.bellTimes).length > 0) {
+    saveBellTimes(schoolId, migrated.bellTimes);
+  }
+  return migrated.bellTimes;
+}
+
+export function saveBellTimes(
+  schoolId: string,
+  bellTimes: Record<string, BellTimeSettings>,
+): void {
+  setScopedItem(schoolId, TIMETABLE_BELL_TIMES_KEY, JSON.stringify(bellTimes));
+}
+
+export function loadClassPeriodSettings(schoolId: string): ClassPeriodSettingsByClass {
+  const stored = getScopedItem(schoolId, TIMETABLE_CLASS_PERIOD_SETTINGS_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored) as ClassPeriodSettingsByClass;
+    } catch {
+      return {};
+    }
+  }
+
+  return migrateLegacyPeriodSettings(schoolId).classPeriodSettings;
+}
+
+export function saveClassPeriodSettings(
+  schoolId: string,
+  settings: ClassPeriodSettingsByClass,
+): void {
+  setScopedItem(schoolId, TIMETABLE_CLASS_PERIOD_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+export function loadPeriodOverrides(schoolId: string): Record<string, PeriodSettings> {
+  const stored = getScopedItem(schoolId, TIMETABLE_PERIOD_SETTINGS_KEY);
+  if (!stored) return {};
+
+  try {
+    return JSON.parse(stored) as Record<string, PeriodSettings>;
+  } catch {
+    return {};
+  }
+}
+
+export const loadPeriodSettings = loadPeriodOverrides;
+
+export function savePeriodOverrides(
+  schoolId: string,
+  settings: Record<string, PeriodSettings>,
+): void {
+  setScopedItem(schoolId, TIMETABLE_PERIOD_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+export const savePeriodSettings = savePeriodOverrides;
+
+export function getTimetablePeriodsForClass(
+  schoolId: string,
+  classId: string,
+  input: {
+    subjectCount: number;
+    scheduledPeriodNumbers?: number[];
+  },
+  options?: {
+    bellTimes?: Record<string, BellTimeSettings>;
+    classSlotSettings?: ClassPeriodSettings;
+  },
+): TimetablePeriod[] {
+  const resolvedBellTimes = options?.bellTimes ?? loadBellTimes(schoolId);
+  const resolvedClassSlots =
+    options?.classSlotSettings ?? loadClassPeriodSettings(schoolId)[classId] ?? {};
+  const maxScheduled =
+    input.scheduledPeriodNumbers?.reduce((max, value) => Math.max(max, value), 0) ?? 0;
+  const lessonRows = buildTimetablePeriods(
+    Math.max(input.subjectCount, maxScheduled),
+    resolvedBellTimes,
+    resolvedClassSlots,
+  );
+
+  const insertedBreakRows = Object.entries(resolvedClassSlots)
+    .filter(([periodId]) => isInsertedBreakPeriodId(periodId))
+    .map(([periodId, slotSettings]) =>
+      toTimetablePeriod(periodId, "Break", {
+        startTime: slotSettings.startTime ?? "12:00",
+        endTime: slotSettings.endTime ?? "12:30",
+        kind: "break",
+        breakLabel: slotSettings.breakLabel,
+      }),
+    );
+
+  return [...lessonRows, ...insertedBreakRows].sort((a, b) =>
+    a.startTime.localeCompare(b.startTime),
+  );
+}
+
+export function syncEntriesWithPeriodTimes(
+  entries: TimetableEntry[],
+  periods: TimetablePeriod[],
+): TimetableEntry[] {
+  const periodById = new Map(periods.map((period) => [period.id, period]));
+
+  return entries.map((entry) => {
+    const period = periodById.get(entry.periodId);
+    if (!period) return entry;
+    return {
+      ...entry,
+      startTime: period.startTime,
+      endTime: period.endTime,
+    };
+  });
+}
 
 export type TimetableEntry = {
   id: string;
@@ -159,8 +479,31 @@ export function formatTimeRange(startTime: string, endTime: string): string {
   return `${startTime}-${endTime}`;
 }
 
-export function getPeriodById(periodId: string): TimetablePeriod | undefined {
-  return TIMETABLE_PERIODS.find((period) => period.id === periodId);
+export function getPeriodById(
+  periodId: string,
+  schoolId?: string,
+  options?: {
+    bellTimes?: Record<string, BellTimeSettings>;
+    classSlotSettings?: ClassPeriodSettings;
+  },
+): TimetablePeriod | undefined {
+  if (isInsertedBreakPeriodId(periodId)) {
+    const slot = options?.classSlotSettings?.[periodId];
+    if (!slot) return undefined;
+    return toTimetablePeriod(periodId, "Break", {
+      startTime: slot.startTime ?? "12:00",
+      endTime: slot.endTime ?? "12:30",
+      kind: "break",
+      breakLabel: slot.breakLabel,
+    });
+  }
+
+  const periodNumber = getPeriodNumber(periodId);
+  if (periodNumber <= 0) return undefined;
+
+  const resolvedBellTimes = options?.bellTimes ?? (schoolId ? loadBellTimes(schoolId) : {});
+  const resolvedClassSlots = options?.classSlotSettings ?? {};
+  return buildTimetablePeriods(periodNumber, resolvedBellTimes, resolvedClassSlots)[periodNumber - 1];
 }
 
 export function loadTimetableEntries(schoolId: string): TimetableEntry[] {

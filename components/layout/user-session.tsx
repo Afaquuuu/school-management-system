@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { User, LogOut, ChevronDown } from "lucide-react";
-import { clearUserSession, getUserSession, redirectToLogin } from "@/lib/teacher-check-in";
+import { clearUserSession, getUserSession, redirectToLogin, type UserSession } from "@/lib/teacher-check-in";
 
 export function UserSession() {
-  const [userSession, setUserSession] = useState(() =>
+  const [userSession, setUserSession] = useState<UserSession | null>(() =>
     typeof window !== "undefined" ? getUserSession() : null,
   );
   const [showDropdown, setShowDropdown] = useState(false);
