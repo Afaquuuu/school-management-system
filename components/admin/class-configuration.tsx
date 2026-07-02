@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
 import { getActiveSubjectNames } from "@/lib/school-subjects";
+import { ensureSchoolClassesFromStudents } from "@/lib/school-classes-sync";
 
 type AssignmentRow = {
   subject: string;
@@ -132,6 +133,8 @@ export function ClassConfigurationPage({ embedded = false }: { embedded?: boolea
 
   useEffect(() => {
     if (!currentSchool) return;
+
+    ensureSchoolClassesFromStudents(currentSchool.id);
 
     let assignments: Record<string, AssignmentRow[]> = {};
     const storedAssignments = getScopedItem(currentSchool.id, ASSIGNMENTS_KEY);

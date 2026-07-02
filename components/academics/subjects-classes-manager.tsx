@@ -8,6 +8,7 @@ import {
   loadClassAssignments,
   syncClassesInCharge,
 } from "@/lib/timetable";
+import { ensureSchoolClassesFromStudents } from "@/lib/school-classes-sync";
 import { getScopedItem, getSchoolClasses, useSchool } from "@/lib/school-context";
 
 type ClassOption = {
@@ -32,6 +33,8 @@ export function SubjectsClassesManager({
 
   useEffect(() => {
     if (!currentSchool) return;
+
+    ensureSchoolClassesFromStudents(currentSchool.id);
 
     const assignments = loadClassAssignments(currentSchool.id);
     setAssignmentsByClass(assignments);

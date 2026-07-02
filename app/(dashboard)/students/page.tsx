@@ -25,8 +25,9 @@ import {
   AlertCircle,
   UserCheck,
 } from "lucide-react";
-import { formatStudentClassLabel, getUniqueClassLabels, getUniqueSchoolClassesByName } from "@/lib/class-labels";
+import { formatStudentClassLabel, getUniqueClassLabels, getUniqueSchoolClassesByName, findStudentWithRollNumberInClassSection, formatRollNumberConflictMessage } from "@/lib/class-labels";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
+import { ensureSchoolClassesFromStudents } from "@/lib/school-classes-sync";
 import {
   formatImportSummary,
   getCsvValue,
@@ -110,16 +111,17 @@ export default function StudentsPage() {
     }
   }, [currentSchool]);
   
-  // Load classes on mount and when school changes
+  // Load classes on mount and auto-create any missing class/section pairs from enrolled students
   useEffect(() => {
-    if (currentSchool) {
-      const classes = getUniqueSchoolClassesByName(getSchoolClasses(currentSchool.id));
-      console.log('Loaded classes:', classes);
-      console.log('Unique class names:', getUniqueClassNames(classes));
-      console.log('Unique sections:', getUniqueSections(classes));
-      setAvailableClasses(classes);
+    if (!currentSchool) return;
+
+    if (students.length > 0) {
+      ensureSchoolClassesFromStudents(currentSchool.id);
     }
-  }, [currentSchool]);
+
+    const classes = getUniqueSchoolClassesByName(getSchoolClasses(currentSchool.id));
+    setAvailableClasses(classes);
+  }, [currentSchool, students]);
   
   // Get unique class names and sections
   const uniqueClassNames = getUniqueClassNames(availableClasses);
@@ -140,6 +142,12 @@ export default function StudentsPage() {
   const closeAddForm = () => {
     setFormData({});
     router.push("/students");
+  };
+
+  const closeEditForm = () => {
+    setShowEditStudent(false);
+    setSelectedStudent(null);
+    setFormData({});
   };
 
   const openAddForm = () => {
@@ -264,6 +272,21 @@ export default function StudentsPage() {
         continue;
       }
 
+      const className = getCsvValue(record, "Class");
+      const section = getCsvValue(record, "Section");
+      const rollNumber = getCsvValue(record, "Roll Number", "RollNumber");
+      const rollConflict = findStudentWithRollNumberInClassSection(
+        [...students, ...imported],
+        { class: className, section, rollNumber },
+      );
+      if (rollConflict) {
+        skippedCount += 1;
+        errors.push(
+          `Row ${rowNumber}: roll number ${rollNumber} is already used in ${formatStudentClassLabel(className, section)}.`,
+        );
+        continue;
+      }
+
       nextStudentNumber += 1;
       const newStudent: Student = {
         id: `${Date.now()}-${nextStudentNumber}`,
@@ -283,9 +306,9 @@ export default function StudentsPage() {
         guardianName,
         guardianPhone,
         guardianEmail,
-        class: getCsvValue(record, "Class"),
-        section: getCsvValue(record, "Section"),
-        rollNumber: getCsvValue(record, "Roll Number", "RollNumber"),
+        class: className,
+        section,
+        rollNumber,
         admissionDate: getCsvValue(record, "Admission Date", "AdmissionDate") || getTodayIsoDate(),
         status: parseStudentStatus(getCsvValue(record, "Status") || "active"),
         bloodGroup: "",
@@ -298,6 +321,27 @@ export default function StudentsPage() {
 
     if (imported.length > 0) {
       updateStudents([...students, ...imported]);
+
+      let classesCreated: string[] = [];
+      if (currentSchool) {
+        const syncResult = ensureSchoolClassesFromStudents(currentSchool.id);
+        setAvailableClasses(
+          getUniqueSchoolClassesByName(getSchoolClasses(currentSchool.id)),
+        );
+        classesCreated = syncResult.created.map((cls) => cls.name);
+      }
+
+      let summary = formatImportSummary(
+        { importedCount: imported.length, skippedCount, errors },
+        imported.length === 1 ? "student" : "students",
+      );
+      if (classesCreated.length > 0) {
+        summary += `\n\nCreated ${classesCreated.length} class${
+          classesCreated.length === 1 ? "" : "es"
+        }: ${classesCreated.join(", ")}.`;
+      }
+      alert(summary);
+      return;
     }
 
     alert(
@@ -353,6 +397,23 @@ export default function StudentsPage() {
       return;
     }
 
+    const rollConflict = findStudentWithRollNumberInClassSection(students, {
+      class: formData.class || "",
+      section: formData.section || "",
+      rollNumber: formData.rollNumber || "",
+    });
+    if (rollConflict) {
+      alert(
+        formatRollNumberConflictMessage(
+          formData.rollNumber || "",
+          formData.class || "",
+          formData.section || "",
+          rollConflict,
+        ),
+      );
+      return;
+    }
+
     const newStudent: Student = {
       id: Date.now().toString(),
       studentId: `STU${String(students.length + 1).padStart(3, '0')}`,
@@ -376,6 +437,12 @@ export default function StudentsPage() {
 
     let successMessage = "Student added successfully!";
     const syncResult = updateStudents([...students, newStudent]);
+    if (currentSchool && newStudent.class && newStudent.section) {
+      ensureSchoolClassesFromStudents(currentSchool.id);
+      setAvailableClasses(
+        getUniqueSchoolClassesByName(getSchoolClasses(currentSchool.id)),
+      );
+    }
     const parentUser = syncResult.newlyIssued.find(
       (user) =>
         user.role === "Parent" &&
@@ -394,12 +461,54 @@ export default function StudentsPage() {
   };
 
   const handleEditStudent = () => {
-    if (!selectedStudent || !formData.firstName || !formData.lastName) {
-      alert("Please fill in all required fields");
+    if (
+      !selectedStudent ||
+      !formData.firstName ||
+      !formData.lastName ||
+      !formData.email ||
+      !formData.guardianName?.trim() ||
+      !formData.guardianPhone?.trim() ||
+      !formData.guardianEmail?.trim()
+    ) {
+      alert("Please fill in all required fields, including guardian name, phone, and email.");
       return;
     }
 
-    const updatedStudent = { ...selectedStudent, ...formData } as Student;
+    if (!isValidLoginEmail(formData.email)) {
+      alert("Please enter a valid student email address.");
+      return;
+    }
+
+    if (!isValidLoginEmail(formData.guardianEmail)) {
+      alert("Please enter a valid guardian email address.");
+      return;
+    }
+
+    const updatedStudent = {
+      ...selectedStudent,
+      ...formData,
+      guardianName: formData.guardianName.trim(),
+      guardianPhone: formData.guardianPhone.trim(),
+      guardianEmail: formData.guardianEmail.trim().toLowerCase(),
+    } as Student;
+    const rollConflict = findStudentWithRollNumberInClassSection(students, {
+      class: updatedStudent.class,
+      section: updatedStudent.section,
+      rollNumber: updatedStudent.rollNumber,
+      excludeId: selectedStudent.id,
+    });
+    if (rollConflict) {
+      alert(
+        formatRollNumberConflictMessage(
+          updatedStudent.rollNumber,
+          updatedStudent.class,
+          updatedStudent.section,
+          rollConflict,
+        ),
+      );
+      return;
+    }
+
     updateStudents(students.map(s => 
       s.id === selectedStudent.id ? updatedStudent : s
     ));
@@ -429,9 +538,7 @@ export default function StudentsPage() {
       }
     }
 
-    setFormData({});
-    setSelectedStudent(null);
-    setShowEditStudent(false);
+    closeEditForm();
     alert("Student updated successfully!");
   };
 
@@ -630,7 +737,7 @@ export default function StudentsPage() {
                   type="text"
                   value={formData.rollNumber || ""}
                   onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
-                  placeholder="Optional roll number"
+                  placeholder="Unique within class and section"
                   className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
                 />
               </div>
@@ -935,65 +1042,223 @@ export default function StudentsPage() {
 
         {/* Edit Student Modal */}
         {showEditStudent && selectedStudent && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Edit Student</h3>
-                <button onClick={() => { setShowEditStudent(false); setSelectedStudent(null); setFormData({}); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
-                  <X className="w-5 h-5" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+            <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900">
+              <div className="h-1.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600" />
+
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-700">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-xl bg-blue-100 p-3 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                    <Edit className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                      Students
+                    </p>
+                    <h3 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+                      Edit Student
+                    </h3>
+                    <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+                      Update profile, class placement, and guardian contact details.
+                    </p>
+                    <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      <Award className="h-3.5 w-3.5" />
+                      ID: {selectedStudent.studentId}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeEditForm}
+                  className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 dark:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  aria-label="Close edit form"
+                >
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="p-6 overflow-y-auto flex-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+              <div className="flex-1 space-y-5 overflow-y-auto bg-slate-50/70 p-6 dark:bg-slate-950/40">
+                <RecordFormSection
+                  title="Personal Information"
+                  description="Basic identity and contact details for the student."
+                  icon={User}
+                >
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">First Name *</label>
+                    <label className={recordFormFieldLabel}>First Name *</label>
                     <input
                       type="text"
                       value={formData.firstName || ""}
-                      onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                      placeholder="Enter first name"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Last Name *</label>
+                    <label className={recordFormFieldLabel}>Last Name *</label>
                     <input
                       type="text"
                       value={formData.lastName || ""}
-                      onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                      placeholder="Enter last name"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Class</label>
+                    <label className={recordFormFieldLabel}>Date of Birth</label>
+                    <DateInput
+                      value={formData.dateOfBirth || ""}
+                      onChange={(dateOfBirth) => setFormData({ ...formData, dateOfBirth })}
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={recordFormFieldLabel}>Gender</label>
+                    <select
+                      value={formData.gender || "male"}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value as Gender })}
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={recordFormFieldLabel}>Blood Group</label>
+                    <select
+                      value={formData.bloodGroup || ""}
+                      onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    >
+                      <option value="">Select blood group</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={recordFormFieldLabel}>Email *</label>
+                    <input
+                      type="email"
+                      value={formData.email || ""}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="student@school.edu"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={recordFormFieldLabel}>Phone</label>
+                    <input
+                      type="tel"
+                      value={formData.phone || ""}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="+233 XX XXX XXXX"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className={recordFormFieldLabel}>Address</label>
+                    <textarea
+                      rows={2}
+                      value={formData.address || ""}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="Residential address"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+                </RecordFormSection>
+
+                <RecordFormSection
+                  title="Academic Information"
+                  description="Class placement, roll number, and enrollment status."
+                  icon={BookOpen}
+                >
+                  {availableClasses.length === 0 && (
+                    <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">No classes available</p>
+                          <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                            Create classes in Admin → Academics Config before updating class assignments.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className={recordFormFieldLabel}>Class *</label>
                     <select
                       value={formData.class || ""}
-                      onChange={(e) => setFormData({...formData, class: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onChange={(e) => setFormData({ ...formData, class: e.target.value, section: "" })}
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                      disabled={availableClasses.length === 0}
                     >
-                      <option value="Grade 7">Grade 7</option>
-                      <option value="Grade 8">Grade 8</option>
-                      <option value="Grade 9">Grade 9</option>
-                      <option value="Grade 10">Grade 10</option>
+                      <option value="">Select class</option>
+                      {uniqueClassNames.map((className) => (
+                        <option key={className} value={className}>
+                          {className}
+                        </option>
+                      ))}
                     </select>
                   </div>
+
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Section</label>
+                    <label className={recordFormFieldLabel}>Section *</label>
                     <select
                       value={formData.section || ""}
-                      onChange={(e) => setFormData({...formData, section: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                      disabled={!formData.class || availableClasses.length === 0}
                     >
-                      <option value="A">Section A</option>
-                      <option value="B">Section B</option>
-                      <option value="C">Section C</option>
+                      <option value="">Select section</option>
+                      {availableSectionsForClass.map((section) => (
+                        <option key={section} value={section}>
+                          Section {section}
+                        </option>
+                      ))}
                     </select>
                   </div>
+
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Status</label>
+                    <label className={recordFormFieldLabel}>Roll Number</label>
+                    <input
+                      type="text"
+                      value={formData.rollNumber || ""}
+                      onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
+                      placeholder="Unique within class and section"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={recordFormFieldLabel}>Admission Date</label>
+                    <DateInput
+                      value={formData.admissionDate || ""}
+                      onChange={(admissionDate) => setFormData({ ...formData, admissionDate })}
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={recordFormFieldLabel}>Status</label>
                     <select
                       value={formData.status || "active"}
-                      onChange={(e) => setFormData({...formData, status: e.target.value as StudentStatus})}
-                      className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value as StudentStatus })}
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
                     >
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
@@ -1001,20 +1266,64 @@ export default function StudentsPage() {
                       <option value="transferred">Transferred</option>
                     </select>
                   </div>
-                </div>
-              </div>
-              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
-                <button 
-                  onClick={handleEditStudent}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-blue-500/30"
+                </RecordFormSection>
+
+                <RecordFormSection
+                  title="Guardian Information"
+                  description="Required — parent login is linked to the guardian email."
+                  icon={Users}
                 >
-                  Update Student
-                </button>
-                <button 
-                  onClick={() => { setShowEditStudent(false); setSelectedStudent(null); setFormData({}); }}
-                  className="px-6 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold"
+                  <div>
+                    <label className={recordFormFieldLabel}>Guardian Name *</label>
+                    <input
+                      type="text"
+                      value={formData.guardianName || ""}
+                      onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
+                      placeholder="Full name"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={recordFormFieldLabel}>Guardian Phone *</label>
+                    <input
+                      type="tel"
+                      value={formData.guardianPhone || ""}
+                      onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
+                      placeholder="+233 XX XXX XXXX"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className={recordFormFieldLabel}>Guardian Email *</label>
+                    <input
+                      type="email"
+                      value={formData.guardianEmail || ""}
+                      onChange={(e) => setFormData({ ...formData, guardianEmail: e.target.value })}
+                      placeholder="guardian@email.com"
+                      className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                    />
+                  </div>
+                </RecordFormSection>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400">Fields marked * are required.</p>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-end dark:border-slate-700 dark:bg-slate-900">
+                <button
+                  type="button"
+                  onClick={closeEditForm}
+                  className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEditStudent}
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/30"
+                >
+                  Update Student
                 </button>
               </div>
             </div>

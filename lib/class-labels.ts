@@ -74,6 +74,50 @@ export function studentMatchesClassSection(
   );
 }
 
+/** Normalize roll numbers so values like "01" and "1" are treated as duplicates. */
+export function normalizeRollNumber(rollNumber: string): string {
+  const trimmed = normalizeClassLabel(rollNumber);
+  if (!trimmed) return "";
+  if (/^\d+$/.test(trimmed)) {
+    return String(Number.parseInt(trimmed, 10));
+  }
+  return trimmed.toLowerCase();
+}
+
+export function findStudentWithRollNumberInClassSection<
+  T extends {
+    id?: string;
+    class: string;
+    section: string;
+    rollNumber: string;
+    firstName?: string;
+    lastName?: string;
+  },
+>(
+  students: T[],
+  input: { class: string; section: string; rollNumber: string; excludeId?: string },
+): T | undefined {
+  const normalizedRoll = normalizeRollNumber(input.rollNumber);
+  if (!normalizedRoll || !input.class.trim()) return undefined;
+
+  return students.find((student) => {
+    if (input.excludeId && student.id === input.excludeId) return false;
+    if (normalizeRollNumber(student.rollNumber) !== normalizedRoll) return false;
+    return studentMatchesClassSection(student, input.class, input.section);
+  });
+}
+
+export function formatRollNumberConflictMessage(
+  rollNumber: string,
+  className: string,
+  section: string,
+  existingStudent: { firstName?: string; lastName?: string },
+): string {
+  const name = `${existingStudent.firstName ?? ""} ${existingStudent.lastName ?? ""}`.trim();
+  const classLabel = formatStudentClassLabel(className, section);
+  return `Roll number ${rollNumber} is already assigned to ${name || "another student"} in ${classLabel}. Each student in the same class and section must have a unique roll number.`;
+}
+
 /** Return unique class labels, preserving the first spelling of each normalized name. */
 export function getUniqueClassLabels(labels: string[]): string[] {
   const byNormalized = new Map<string, string>();
