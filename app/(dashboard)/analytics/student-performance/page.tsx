@@ -897,31 +897,6 @@ export default function StudentPerformanceAnalyticsPage() {
 
         {(students.length > 0 || cycles.length > 0 || isPersonalView) && renderFilters()}
 
-        {!isPersonalView && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
-          <details className="cursor-pointer">
-            <summary className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-2">
-              Debug Info (Click to expand)
-            </summary>
-            <div className="space-y-2 text-xs font-mono text-amber-900 dark:text-amber-100">
-              <p>• Students loaded: {students.length}</p>
-              <p>• Cycles loaded: {cycles.length}</p>
-              <p>• Marks loaded: {marks.length}</p>
-              <p>• Schedules loaded: {schedules.length}</p>
-              <p>• Selected Student ID: {selectedStudentId || 'none'}</p>
-              <p>• Selected Cycle ID: {selectedCycleId || 'none'}</p>
-              {selectedStudentId && selectedCycleId && (
-                <>
-                  <p>• Marks for this student in this cycle: {marks.filter(m => m.studentId === selectedStudentId && m.cycleId === selectedCycleId).length}</p>
-                  <p>• All marks for this student: {marks.filter(m => m.studentId === selectedStudentId).length}</p>
-                  <p>• All marks for this cycle: {marks.filter(m => m.cycleId === selectedCycleId).length}</p>
-                </>
-              )}
-            </div>
-          </details>
-        </div>
-        )}
-        
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
           <BookOpen className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-2">No Performance Data Available</h3>

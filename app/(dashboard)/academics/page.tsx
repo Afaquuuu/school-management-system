@@ -119,6 +119,8 @@ export default function AcademicsPage() {
         : sectionConfig.overview;
   const Icon = section.icon;
   const isStudentView = userRole === "student";
+  const isTeacherView = userRole === "teacher";
+  const teacherName = isTeacherView ? getUserSession()?.name ?? "" : "";
 
   if (view === "timetable") {
     return (
@@ -140,15 +142,19 @@ export default function AcademicsPage() {
     return (
       <div className="space-y-6">
         <SectionPage
-          title={isStudentView ? "My Subjects" : section.title}
+          title={isStudentView || isTeacherView ? "My Subjects" : section.title}
           description={
             isStudentView
               ? "Subjects and teachers assigned to your class"
-              : "View subject and teacher assignments by class"
+              : isTeacherView
+                ? "Subjects and classes assigned to you"
+                : "View subject and teacher assignments by class"
           }
         />
         <SubjectsClassesManager
           lockToClassId={isStudentView ? studentClassId : ""}
+          isAdminView={userRole === "admin"}
+          filterToTeacherName={teacherName}
         />
       </div>
     );

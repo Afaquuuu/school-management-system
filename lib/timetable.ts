@@ -457,8 +457,47 @@ export function loadActiveTeacherNames(schoolId: string): string[] {
   }
 }
 
-function normalizeTeacherName(name: string): string {
+export function normalizeTeacherName(name: string): string {
   return name.trim().toLowerCase();
+}
+
+export function isSameTeacherName(left: string, right: string): boolean {
+  return normalizeTeacherName(left) === normalizeTeacherName(right);
+}
+
+export function filterAssignmentsForTeacher<T extends { teacher: string }>(
+  assignments: T[],
+  teacherName: string,
+): T[] {
+  if (!teacherName.trim()) return [];
+  return assignments.filter((row) => isSameTeacherName(row.teacher, teacherName));
+}
+
+export function getClassIdsForTeacher(
+  assignmentsByClass: Record<string, ClassAssignment[]>,
+  teacherName: string,
+): string[] {
+  return Object.entries(assignmentsByClass)
+    .filter(([, assignments]) => filterAssignmentsForTeacher(assignments, teacherName).length > 0)
+    .map(([classId]) => classId);
+}
+
+export function isTeacherInChargeOfClass(
+  classId: string,
+  assignmentsByClass: Record<string, ClassAssignment[]>,
+  teacherName: string,
+): boolean {
+  const inChargeTeacher = getClassInChargeTeacher(classId, assignmentsByClass);
+  return inChargeTeacher !== null && isSameTeacherName(inChargeTeacher, teacherName);
+}
+
+export function getClassesWhereTeacherIsInCharge<T extends { id: string; name: string }>(
+  classes: T[],
+  assignmentsByClass: Record<string, ClassAssignment[]>,
+  teacherName: string,
+): T[] {
+  if (!teacherName.trim()) return [];
+  return classes.filter((cls) => isTeacherInChargeOfClass(cls.id, assignmentsByClass, teacherName));
 }
 
 export function findClassWhereTeacherIsInCharge(

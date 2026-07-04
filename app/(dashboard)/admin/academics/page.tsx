@@ -1,12 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Layers } from "lucide-react";
+import { AlertCircle, BookOpen, Layers } from "lucide-react";
 import { ClassConfigurationPage } from "@/components/admin/class-configuration";
 import { SubjectsManager } from "@/components/admin/subjects-manager";
+import { getUserSession } from "@/lib/teacher-check-in";
 
 export default function AcademicsPage() {
   const [tab, setTab] = useState<"subjects" | "classes">("classes");
+  const session = getUserSession();
+  const isAdmin = session?.role === "admin";
+
+  if (!isAdmin) {
+    return (
+      <div className="surface-card p-8 text-center">
+        <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
+        <h1 className="page-title">Admin Access Required</h1>
+        <p className="page-subtitle mt-2">
+          Only administrators can configure subjects, classes, and teacher assignments.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
