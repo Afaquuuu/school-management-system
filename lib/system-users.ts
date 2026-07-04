@@ -1,7 +1,13 @@
 import { getScopedItem, setScopedItem } from "@/lib/school-context";
 import { formatLinkedChildLabel } from "@/lib/parent-student-links";
 
-export type SystemUserRole = "Student" | "Teacher" | "Parent" | "Admin";
+export type SystemUserRole =
+  | "Student"
+  | "Teacher"
+  | "Parent"
+  | "Admin"
+  | "Accountant"
+  | "Librarian";
 export type SystemUserStatus = "Active" | "Inactive" | "On Leave" | "Suspended";
 
 export type SystemUser = {
@@ -73,8 +79,18 @@ type StaffRecord = {
 };
 
 function mapStaffRoleToSystemRole(staffRole: string): SystemUserRole {
-  if (staffRole === "admin") return "Admin";
-  return "Teacher";
+  switch (staffRole) {
+    case "admin":
+      return "Admin";
+    case "accountant":
+      return "Accountant";
+    case "librarian":
+      return "Librarian";
+    case "teacher":
+    case "support":
+    default:
+      return "Teacher";
+  }
 }
 
 function mapStaffStatusToSystemStatus(staffStatus?: string): SystemUserStatus {
@@ -361,12 +377,41 @@ export function getClassDepartmentLabel(role: SystemUserRole): string {
       return "Department (e.g. Mathematics)";
     case "Parent":
       return "Linked Student / Child";
+    case "Accountant":
+      return "Department (e.g. Accounts Office)";
+    case "Librarian":
+      return "Department (e.g. Library)";
     default:
       return "Department";
   }
 }
 
-export const credentialRoles: SystemUserRole[] = ["Teacher", "Student", "Parent"];
+export const credentialRoles: SystemUserRole[] = [
+  "Teacher",
+  "Student",
+  "Parent",
+  "Accountant",
+  "Librarian",
+];
+
+export const userRoleFilterOptions = [
+  { value: "all", label: "All Roles" },
+  { value: "teacher", label: "Teachers" },
+  { value: "student", label: "Students" },
+  { value: "parent", label: "Parents" },
+  { value: "accountant", label: "Accountants" },
+  { value: "librarian", label: "Librarians" },
+  { value: "admin", label: "Admins" },
+] as const;
+
+export const assignableSystemRoles: SystemUserRole[] = [
+  "Teacher",
+  "Student",
+  "Parent",
+  "Admin",
+  "Accountant",
+  "Librarian",
+];
 
 export function formatCredentialsText(user: SystemUser, schoolName?: string): string {
   return [

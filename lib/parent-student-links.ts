@@ -166,6 +166,84 @@ export function getLinkedStudentsForParentEmail(
   );
 }
 
+export type LinkedStudentIdentity = {
+  id: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  class: string;
+  section: string;
+};
+
+export function toLinkedStudentIdentity(
+  student: SchoolStudentRecord,
+  fallbackEmail?: string,
+): LinkedStudentIdentity {
+  return {
+    id: student.id,
+    studentId: student.studentId,
+    firstName: student.firstName,
+    lastName: student.lastName,
+    email: student.guardianEmail || fallbackEmail,
+    class: student.class,
+    section: student.section,
+  };
+}
+
+/** Resolve the student record a parent or student personal view should be scoped to. */
+export function resolvePersonalViewStudent(
+  schoolId: string,
+  session: { email: string; id?: string; name?: string; classDepartment?: string } | null,
+  role: string | null,
+  preferredStudentId?: string,
+): LinkedStudentIdentity | null {
+  if (!session) return null;
+
+  if (role === "parent") {
+    const linkedChildren = getLinkedStudentsForParentEmail(schoolId, session.email);
+    if (linkedChildren.length === 0) return null;
+
+    const selected =
+      linkedChildren.find((child) => child.id === preferredStudentId) ?? linkedChildren[0];
+    return toLinkedStudentIdentity(selected, session.email);
+  }
+
+  if (role === "student") {
+    const sessionName = session.name?.trim() ?? "";
+    const students = loadSchoolStudentRecords(schoolId);
+    const matched = students.find(
+      (student) =>
+        student.guardianEmail?.toLowerCase() === session.email.toLowerCase() ||
+        student.id === session.id ||
+        (sessionName &&
+          `${student.firstName} ${student.lastName}`.toLowerCase() === sessionName.toLowerCase()) ||
+        (sessionName && student.firstName.toLowerCase() === sessionName.toLowerCase()),
+    );
+    if (matched) {
+      return toLinkedStudentIdentity(matched, session.email);
+    }
+
+    if (session.classDepartment) {
+      const classMatch = session.classDepartment.match(/^(Grade \d+)\s*([A-Z])$/i);
+      if (classMatch) {
+        const nameParts = sessionName.split(/\s+/).filter(Boolean);
+        return {
+          id: session.id ?? session.email,
+          studentId: session.id ?? session.email,
+          firstName: nameParts[0] || sessionName || "Student",
+          lastName: nameParts.slice(1).join(" ") || "",
+          email: session.email,
+          class: classMatch[1],
+          section: classMatch[2].toUpperCase(),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 /** Write guardian details on selected students so parent accounts stay in sync. */
 export function linkStudentsToParentAccount(
   schoolId: string,

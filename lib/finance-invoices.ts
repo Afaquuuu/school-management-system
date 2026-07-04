@@ -9,6 +9,11 @@ export type InvoiceStatus =
   | "overdue"
   | "void";
 
+export type InvoiceLineItem = {
+  description: string;
+  amount: number;
+};
+
 export type FinanceInvoice = {
   id: string;
   invoiceNo: string;
@@ -20,6 +25,8 @@ export type FinanceInvoice = {
   status: InvoiceStatus;
   issuedAt: string;
   dueAt: string;
+  lineItems?: InvoiceLineItem[];
+  notes?: string;
 };
 
 export type FinanceReportFilters = {
@@ -184,6 +191,26 @@ export function getFinanceDefaultDateRange() {
   };
 }
 
+export function filterInvoicesForLinkedStudents(
+  invoices: FinanceInvoice[],
+  linkedStudents: Array<{ id: string; firstName: string; lastName: string }>,
+): FinanceInvoice[] {
+  if (linkedStudents.length === 0) return [];
+
+  const linkedIds = new Set(linkedStudents.map((student) => student.id));
+  const linkedNames = new Set(
+    linkedStudents.map((student) =>
+      `${student.firstName} ${student.lastName}`.trim().toLowerCase(),
+    ),
+  );
+
+  return invoices.filter(
+    (invoice) =>
+      (invoice.studentId && linkedIds.has(invoice.studentId)) ||
+      linkedNames.has(invoice.studentName.trim().toLowerCase()),
+  );
+}
+
 export function getFinanceClassOptions(schoolId: string, invoices: FinanceInvoice[]): string[] {
   const labels = new Set<string>();
 
@@ -196,4 +223,17 @@ export function getFinanceClassOptions(schoolId: string, invoices: FinanceInvoic
   }
 
   return [...labels].sort((a, b) => a.localeCompare(b));
+}
+
+export function getInvoiceLineItems(invoice: FinanceInvoice): InvoiceLineItem[] {
+  if (invoice.lineItems && invoice.lineItems.length > 0) {
+    return invoice.lineItems;
+  }
+
+  return [
+    {
+      description: "Tuition & School Fees",
+      amount: invoice.totalAmount,
+    },
+  ];
 }

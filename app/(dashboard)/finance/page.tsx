@@ -10,12 +10,18 @@ import {
 import { CreateInvoiceModal, type InvoiceFormData } from "./components/create-invoice-modal";
 import { RecordPaymentModal, type PaymentFormData } from "./components/record-payment-modal";
 import { InvoiceDetailModal } from "./components/invoice-detail-modal";
+import { ParentInvoicesView } from "./components/parent-invoices-view";
 import { formatDate, getTodayIsoDate } from "@/lib/date-format";
 import { exportTableData, exportKeyValueCsv, slugifyFileName } from "@/lib/export-data";
 import { formatStudentClassLabel } from "@/lib/class-labels";
+import type { UserRole } from "@/lib/auth";
+import { isUserRole } from "@/lib/auth";
 import { getScopedItem, useSchool } from "@/lib/school-context";
+import { getLinkedStudentsForParentEmail } from "@/lib/parent-student-links";
+import { getUserSession } from "@/lib/teacher-check-in";
 import {
   buildStudentPaymentReport,
+  filterInvoicesForLinkedStudents,
   filterInvoicesForReport,
   getFinanceClassOptions,
   getFinanceDefaultDateRange,
@@ -77,6 +83,27 @@ export default function FinancePage() {
   const [reportFilters, setReportFilters] = useState(getFinanceDefaultDateRange());
   const [reportClassFilter, setReportClassFilter] = useState("all");
   const [selectedInvoiceForView, setSelectedInvoiceForView] = useState<Invoice | null>(null);
+  const [userRole, setUserRole] = useState<UserRole>(() => {
+    if (typeof window === "undefined") return "admin";
+    const role = localStorage.getItem("user_role");
+    return isUserRole(role) ? role : "admin";
+  });
+
+  const isParentView = userRole === "parent";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const role = localStorage.getItem("user_role");
+    if (isUserRole(role)) {
+      setUserRole(role);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isParentView && selectedTab !== "invoices") {
+      setSelectedTab("invoices");
+    }
+  }, [isParentView, selectedTab]);
 
   useEffect(() => {
     if (!currentSchool) return;
@@ -86,15 +113,17 @@ export default function FinancePage() {
     setInvoices(
       stored.length > 0
         ? withResolvedStatuses(stored, today)
-        : withResolvedStatuses(sampleInvoices, today),
+        : isParentView
+          ? []
+          : withResolvedStatuses(sampleInvoices, today),
     );
     setInvoicesLoaded(true);
-  }, [currentSchool]);
+  }, [currentSchool, isParentView]);
 
   useEffect(() => {
-    if (!currentSchool || !invoicesLoaded) return;
+    if (!currentSchool || !invoicesLoaded || isParentView) return;
     saveFinanceInvoices(currentSchool.id, invoices);
-  }, [invoices, currentSchool, invoicesLoaded]);
+  }, [invoices, currentSchool, invoicesLoaded, isParentView]);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -122,8 +151,20 @@ export default function FinancePage() {
     [currentSchool, invoices],
   );
 
+  const parentLinkedStudents = useMemo(() => {
+    if (!isParentView || !currentSchool) return [];
+    const session = getUserSession();
+    if (!session?.email) return [];
+    return getLinkedStudentsForParentEmail(currentSchool.id, session.email);
+  }, [isParentView, currentSchool, invoicesLoaded]);
+
+  const visibleInvoices = useMemo(() => {
+    if (!isParentView) return invoices;
+    return filterInvoicesForLinkedStudents(invoices, parentLinkedStudents);
+  }, [invoices, isParentView, parentLinkedStudents]);
+
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((invoice) => {
+    return visibleInvoices.filter((invoice) => {
       const matchesSearch = 
         invoice.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         invoice.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -133,18 +174,30 @@ export default function FinancePage() {
       
       return matchesSearch && matchesStatus;
     });
-  }, [invoices, searchTerm, statusFilter]);
+  }, [visibleInvoices, searchTerm, statusFilter]);
 
   const financialStats = useMemo(() => {
-    const totalRevenue = invoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
-    const totalOutstanding = invoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.paidAmount), 0);
-    const overdueAmount = invoices
-      .filter(inv => inv.status === "overdue")
-      .reduce((sum, inv) => sum + (inv.totalAmount - inv.paidAmount), 0);
-    const paidInvoices = invoices.filter(inv => inv.status === "paid").length;
-    
-    return { totalRevenue, totalOutstanding, overdueAmount, paidInvoices };
-  }, [invoices]);
+    const totalRevenue = visibleInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+    const totalOutstanding = visibleInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.paidAmount), 0);
+    const overdueInvoices = visibleInvoices.filter((inv) => inv.status === "overdue");
+    const overdueAmount = overdueInvoices.reduce(
+      (sum, inv) => sum + (inv.totalAmount - inv.paidAmount),
+      0,
+    );
+    const paidInvoices = visibleInvoices.filter((inv) => inv.status === "paid").length;
+    const pendingCount = visibleInvoices.filter(
+      (inv) => inv.totalAmount - inv.paidAmount > 0,
+    ).length;
+
+    return {
+      totalRevenue,
+      totalOutstanding,
+      overdueAmount,
+      paidInvoices,
+      pendingCount,
+      overdueCount: overdueInvoices.length,
+    };
+  }, [visibleInvoices]);
 
   const handleCreateInvoice = async (data: InvoiceFormData) => {
     const studentLookup = new Map<string, { name: string; className: string }>();
@@ -188,6 +241,11 @@ export default function FinancePage() {
         status: "issued" as InvoiceStatus,
         issuedAt: getTodayIsoDate(),
         dueAt: data.dueDate,
+        lineItems: data.items.map((item) => ({
+          description: item.description,
+          amount: item.amount,
+        })),
+        notes: data.notes.trim() || undefined,
       };
     });
 
@@ -395,15 +453,21 @@ export default function FinancePage() {
             Finance
           </p>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
-            {isSectionView ? sectionTitles[selectedTab] : "Finance Management"}
+            {isParentView
+              ? "My Invoices"
+              : isSectionView
+                ? sectionTitles[selectedTab]
+                : "Finance Management"}
           </h1>
           <p className="mt-1 text-slate-600 dark:text-slate-400">
-            {isSectionView
-              ? sectionDescriptions[selectedTab]
-              : "Manage invoices, payments, and financial records"}
+            {isParentView
+              ? "Official fee invoices and payment status for your children"
+              : isSectionView
+                ? sectionDescriptions[selectedTab]
+                : "Manage invoices, payments, and financial records"}
           </p>
         </div>
-        {selectedTab === "invoices" && (
+        {!isParentView && selectedTab === "invoices" && (
         <div className="flex gap-2">
           <button 
             onClick={() => setShowCreateInvoice(true)}
@@ -414,7 +478,7 @@ export default function FinancePage() {
           </button>
         </div>
         )}
-        {selectedTab === "payments" && (
+        {!isParentView && selectedTab === "payments" && (
         <div className="flex gap-2">
           <button 
             onClick={() => setShowRecordPayment(true)}
@@ -428,7 +492,7 @@ export default function FinancePage() {
       </div>
 
       {/* Financial Stats */}
-      {(!isSectionView || selectedTab === "invoices") && (
+      {!isParentView && (!isSectionView || selectedTab === "invoices") && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="flex items-center justify-between mb-2">
@@ -445,7 +509,10 @@ export default function FinancePage() {
             <Clock className="w-5 h-5 text-yellow-600" />
           </div>
           <p className="text-3xl font-bold text-slate-900 dark:text-slate-50">₵{financialStats.totalOutstanding.toLocaleString()}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{invoices.length - financialStats.paidInvoices} pending invoices</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {visibleInvoices.length - financialStats.paidInvoices} pending invoice
+            {visibleInvoices.length - financialStats.paidInvoices === 1 ? "" : "s"}
+          </p>
         </div>
 
         <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -463,7 +530,14 @@ export default function FinancePage() {
             <TrendingUp className="w-5 h-5 text-blue-600" />
           </div>
           <p className="text-3xl font-bold text-slate-900 dark:text-slate-50">
-            {Math.round((financialStats.totalRevenue / (financialStats.totalRevenue + financialStats.totalOutstanding)) * 100)}%
+            {financialStats.totalRevenue + financialStats.totalOutstanding > 0
+              ? Math.round(
+                  (financialStats.totalRevenue /
+                    (financialStats.totalRevenue + financialStats.totalOutstanding)) *
+                    100,
+                )
+              : 0}
+            %
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">This academic year</p>
         </div>
@@ -471,7 +545,7 @@ export default function FinancePage() {
       )}
 
       {/* Tabs */}
-      {!isSectionView && (
+      {!isSectionView && !isParentView && (
       <div className="flex gap-4 border-b border-slate-200 dark:border-slate-700">
         {(["invoices", "payments", "reports"] as const).map((tab) => (
           <button
@@ -490,7 +564,28 @@ export default function FinancePage() {
       )}
 
       {/* Invoices Tab */}
-      {selectedTab === "invoices" && (
+      {selectedTab === "invoices" && isParentView && (
+        <ParentInvoicesView
+          schoolName={currentSchool?.name ?? "School"}
+          linkedStudents={parentLinkedStudents}
+          invoices={visibleInvoices}
+          filteredInvoices={filteredInvoices}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          onViewInvoice={setSelectedInvoiceForView}
+          stats={{
+            totalPaid: financialStats.totalRevenue,
+            balanceDue: financialStats.totalOutstanding,
+            overdueAmount: financialStats.overdueAmount,
+            pendingCount: financialStats.pendingCount,
+            overdueCount: financialStats.overdueCount,
+          }}
+        />
+      )}
+
+      {selectedTab === "invoices" && !isParentView && (
         <div className="space-y-4">
           {/* Search and Filters */}
           <div className="flex flex-col md:flex-row gap-4">
@@ -527,6 +622,11 @@ export default function FinancePage() {
 
           {/* Invoices Table */}
           <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            {filteredInvoices.length === 0 ? (
+              <div className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                No invoices match your search filters.
+              </div>
+            ) : (
             <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
                 <tr>
@@ -571,12 +671,13 @@ export default function FinancePage() {
                 })}
               </tbody>
             </table>
+            )}
           </div>
         </div>
       )}
 
       {/* Payments Tab */}
-      {selectedTab === "payments" && (
+      {!isParentView && selectedTab === "payments" && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-8 text-center">
           <CreditCard className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
           <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">Payment History</h3>
@@ -590,7 +691,7 @@ export default function FinancePage() {
       )}
 
       {/* Reports Tab */}
-      {selectedTab === "reports" && (
+      {!isParentView && selectedTab === "reports" && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-4">

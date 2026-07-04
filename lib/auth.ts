@@ -1,6 +1,13 @@
-export type UserRole = "admin" | "teacher" | "student" | "parent";
+export type UserRole = "admin" | "teacher" | "student" | "parent" | "accountant" | "librarian";
 
-const roleSet = new Set<UserRole>(["admin", "teacher", "student", "parent"]);
+const roleSet = new Set<UserRole>([
+  "admin",
+  "teacher",
+  "student",
+  "parent",
+  "accountant",
+  "librarian",
+]);
 
 type SessionClaims = {
   role?: unknown;

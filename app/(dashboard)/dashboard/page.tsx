@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
@@ -23,8 +24,11 @@ import {
   Users,
   Users2,
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
 import { useSchool, getScopedItem } from "@/lib/school-context";
 import type { UserRole } from "@/lib/auth";
+import { isUserRole } from "@/lib/auth";
 import { getUserSession, type UserSession } from "@/lib/teacher-check-in";
 import {
   formatLinkedChildLabel,
@@ -96,7 +100,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const role = localStorage.getItem("user_role");
-      if (role === "admin" || role === "teacher" || role === "student" || role === "parent") {
+      if (isUserRole(role)) {
         setUserRole(role);
       }
       setUserSession(getUserSession());
@@ -279,22 +283,18 @@ export default function DashboardPage() {
   }, [attendanceRecords, isParentView, linkedChildren]);
 
   const parentRecentActivity = useMemo(() => {
-    if (!isParentView || linkedChildren.length === 0) return [];
+    if (!isParentView || !focusStudent) return [];
 
-    const childIds = new Set(linkedChildren.map((child) => child.id));
     return attendanceRecords
-      .filter((record) => childIds.has(record.studentId))
+      .filter((record) => record.studentId === focusStudent.id)
       .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
       .slice(0, 8)
-      .map((record) => {
-        const child = linkedChildren.find((student) => student.id === record.studentId);
-        return {
-          ...record,
-          studentName: child ? `${child.firstName} ${child.lastName}` : "Unknown",
-          className: child ? `${child.class} ${child.section}` : "Unknown",
-        };
-      });
-  }, [attendanceRecords, isParentView, linkedChildren]);
+      .map((record) => ({
+        ...record,
+        studentName: `${focusStudent.firstName} ${focusStudent.lastName}`.trim(),
+        className: `${focusStudent.class} ${focusStudent.section}`,
+      }));
+  }, [attendanceRecords, isParentView, focusStudent]);
 
   const isPersonalView = isStudentView || isParentView;
   const overviewTitle = isStudentView
@@ -398,6 +398,27 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
         {/* Header */}
+        {dashboardView === "overview" && isParentView ? (
+          <PageHeader
+            variant="hero"
+            badge="Parent Portal"
+            title={
+              userSession?.name
+                ? `Welcome, ${userSession.name.split(" ")[0]}`
+                : "Parent Dashboard"
+            }
+            description={overviewDescription}
+            meta={formatDateLong(currentTime)}
+            actions={
+              <div className="rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/20 backdrop-blur-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">
+                  Current Time
+                </p>
+                <p className="text-xl font-bold text-white">{formatTime(currentTime)}</p>
+              </div>
+            }
+          />
+        ) : (
         <div className="surface-card flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="section-label mb-1">Dashboard</p>
@@ -422,6 +443,7 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+        )}
 
         {dashboardView === "overview" && isPersonalView && (
           <>
@@ -446,19 +468,17 @@ export default function DashboardPage() {
               <>
                 {isParentView && linkedChildren.length > 1 ? (
                   <div className="surface-card p-4">
-                    <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-                      Select Child
-                    </p>
+                    <p className="mb-3 stat-label">Select Child</p>
                     <div className="flex flex-wrap gap-2">
                       {linkedChildren.map((child) => (
                         <button
                           key={child.id}
                           type="button"
                           onClick={() => setSelectedChildId(child.id)}
-                          className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                          className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all ${
                             selectedChildId === child.id
-                              ? "border-purple-300 bg-purple-50 text-purple-800"
-                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              ? "border-violet-300 bg-violet-600 text-white shadow-sm"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-violet-200 hover:bg-violet-50"
                           }`}
                         >
                           {formatLinkedChildLabel(child as SchoolStudentRecord)}
@@ -469,65 +489,116 @@ export default function DashboardPage() {
                 ) : null}
 
                 {isParentView ? (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <div className="surface-card p-6">
-                      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                        My Children
-                      </p>
-                      <p className="mt-2 text-3xl font-bold text-slate-900">
-                        {parentSummary.childCount}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-500">Linked student account(s)</p>
+                  <>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                      {linkedChildren.length > 1 ? (
+                        <StatCard
+                          label="Linked Children"
+                          value={linkedChildren.length}
+                          hint="Select a child above to view their details"
+                          icon={Users}
+                          tone="brand"
+                        />
+                      ) : (
+                        <StatCard
+                          label="Student"
+                          value={focusStudent.firstName}
+                          hint={`${focusStudent.class} ${focusStudent.section}`}
+                          icon={GraduationCap}
+                          tone="brand"
+                        />
+                      )}
+                      <StatCard
+                        label="Today's Status"
+                        value={studentMetrics.todayStatus ?? "Not marked"}
+                        hint={`${focusStudent.firstName}'s attendance today`}
+                        icon={CalendarCheck}
+                        tone="info"
+                      />
+                      <StatCard
+                        label="Attendance Rate"
+                        value={`${studentMetrics.attendanceRate}%`}
+                        hint={`${focusStudent.firstName}'s overall attendance`}
+                        icon={TrendingUp}
+                        tone="success"
+                      />
+                      <StatCard
+                        label="Absent Days"
+                        value={studentMetrics.absentDays}
+                        hint={`Recorded for ${focusStudent.firstName}`}
+                        icon={AlertCircle}
+                        tone={studentMetrics.absentDays > 0 ? "danger" : "success"}
+                      />
                     </div>
-                    <div className="surface-card p-6">
-                      <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                        Child&apos;s Status Today
-                      </p>
-                      <p className="mt-2 text-3xl font-bold capitalize text-slate-900">
-                        {studentMetrics.todayStatus ?? "Not marked"}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-500">
-                        {focusStudent.firstName}&apos;s attendance today
-                      </p>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      {[
+                        {
+                          title: "Child's Attendance",
+                          href: "/attendance?view=records",
+                          icon: CalendarCheck,
+                          color: "bg-emerald-100 text-emerald-600",
+                        },
+                        {
+                          title: "My Invoices",
+                          href: "/finance?tab=invoices",
+                          icon: Receipt,
+                          color: "bg-blue-100 text-blue-600",
+                        },
+                        {
+                          title: "Messages",
+                          href: "/communication?tab=messages",
+                          icon: Activity,
+                          color: "bg-violet-100 text-violet-600",
+                        },
+                        {
+                          title: "Performance",
+                          href: "/analytics/student-performance",
+                          icon: BarChart3,
+                          color: "bg-amber-100 text-amber-600",
+                        },
+                      ].map((link) => {
+                        const Icon = link.icon;
+                        return (
+                          <Link
+                            key={link.title}
+                            href={link.href}
+                            className="quick-link-card group"
+                          >
+                            <div className={`rounded-xl p-2.5 ${link.color}`}>
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-slate-900 group-hover:text-blue-700">
+                                {link.title}
+                              </p>
+                              <p className="text-xs text-slate-500">Open section</p>
+                            </div>
+                            <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-600" />
+                          </Link>
+                        );
+                      })}
                     </div>
-                    <div className="surface-card p-6">
-                      <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-                        Average Attendance
-                      </p>
-                      <p className="mt-2 text-3xl font-bold text-emerald-700">
-                        {parentSummary.averageAttendanceRate}%
-                      </p>
-                      <p className="mt-2 text-sm text-slate-500">Across linked children</p>
-                    </div>
-                    <div className="surface-card p-6">
-                      <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
-                        Absent Today
-                      </p>
-                      <p className="mt-2 text-3xl font-bold text-red-700">
-                        {parentSummary.absentToday}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-500">
-                        {parentSummary.absentToday === 0 ? "All present or not marked" : "Needs attention"}
-                      </p>
-                    </div>
-                  </div>
+                  </>
                 ) : null}
 
-                <div className="surface-card p-6">
+                <div className="surface-card overflow-hidden p-0">
+                  <div className={`border-l-4 p-6 ${isParentView ? "border-violet-500" : "border-blue-500"}`}>
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-start gap-4">
-                      <div className={`rounded-xl p-3 ${isParentView ? "bg-purple-50" : "bg-blue-50"}`}>
-                        <GraduationCap className={`h-6 w-6 ${isParentView ? "text-purple-600" : "text-blue-600"}`} />
+                      <div className={`rounded-2xl p-3.5 ${isParentView ? "bg-violet-100" : "bg-blue-100"}`}>
+                        <GraduationCap className={`h-7 w-7 ${isParentView ? "text-violet-600" : "text-blue-600"}`} />
                       </div>
                       <div>
-                        <h2 className="text-2xl font-semibold text-slate-900">
+                        <p className="section-label mb-1">Student Profile</p>
+                        <h2 className="text-2xl font-bold text-slate-900">
                           {focusStudent.firstName} {focusStudent.lastName}
                         </h2>
                         <p className="mt-1 text-sm text-slate-500">
                           Student ID: {focusStudent.studentId}
                           {focusStudent.rollNumber ? ` · Roll ${focusStudent.rollNumber}` : ""}
                         </p>
-                        <p className="mt-1 text-sm text-slate-600">
+                        <p className="mt-1 text-sm font-medium text-slate-700">
                           Class: {focusStudent.class} {focusStudent.section}
                         </p>
                       </div>
@@ -536,92 +607,40 @@ export default function DashboardPage() {
                       {focusStudent.status}
                     </span>
                   </div>
+                  </div>
                 </div>
 
                 {!isParentView ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <div className="surface-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                      Today&apos;s Status
-                    </p>
-                    <p className="mt-2 text-3xl font-bold capitalize text-slate-900">
-                      {studentMetrics.todayStatus ?? "Not marked"}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">Your attendance for today</p>
-                  </div>
-
-                  <div className="surface-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                      My Attendance Rate
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">
-                      {studentMetrics.attendanceRate}%
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">Based on your records</p>
-                  </div>
-
-                  <div className="surface-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-                      Present Days
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-emerald-700">
-                      {studentMetrics.presentDays}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">Including late arrivals</p>
-                  </div>
-
-                  <div className="surface-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
-                      Absent Days
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-red-700">
-                      {studentMetrics.absentDays}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">Recorded absences only</p>
-                  </div>
+                  <StatCard
+                    label="Today's Status"
+                    value={studentMetrics.todayStatus ?? "Not marked"}
+                    hint="Your attendance for today"
+                    icon={CalendarCheck}
+                  />
+                  <StatCard
+                    label="My Attendance Rate"
+                    value={`${studentMetrics.attendanceRate}%`}
+                    hint="Based on your records"
+                    icon={TrendingUp}
+                    tone="info"
+                  />
+                  <StatCard
+                    label="Present Days"
+                    value={studentMetrics.presentDays}
+                    hint="Including late arrivals"
+                    icon={CheckCircle}
+                    tone="success"
+                  />
+                  <StatCard
+                    label="Absent Days"
+                    value={studentMetrics.absentDays}
+                    hint="Recorded absences only"
+                    icon={AlertCircle}
+                    tone="danger"
+                  />
                 </div>
-                ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <div className="surface-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                      Attendance Rate
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">
-                      {studentMetrics.attendanceRate}%
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">
-                      {focusStudent.firstName}&apos;s overall attendance
-                    </p>
-                  </div>
-                  <div className="surface-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
-                      Present Days
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-emerald-700">
-                      {studentMetrics.presentDays}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">Including late arrivals</p>
-                  </div>
-                  <div className="surface-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
-                      Absent Days
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-red-700">
-                      {studentMetrics.absentDays}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">Recorded absences only</p>
-                  </div>
-                  <div className="surface-card p-6">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                      Records Tracked
-                    </p>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">
-                      {studentMetrics.totalRecords}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">Attendance entries on file</p>
-                  </div>
-                </div>
-                )}
+                ) : null}
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div className="surface-card p-6 lg:col-span-2">
@@ -1110,8 +1129,10 @@ export default function DashboardPage() {
           <div className="surface-card p-6">
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-slate-900">Children&apos;s Activity</h2>
-                <p className="mt-1 text-sm text-slate-500">Recent attendance for your linked child(ren)</p>
+                <h2 className="text-xl font-semibold text-slate-900">Recent Activity</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Recent attendance for {focusStudent?.firstName ?? "your child"}
+                </p>
               </div>
               <Activity className="h-5 w-5 text-slate-400" />
             </div>

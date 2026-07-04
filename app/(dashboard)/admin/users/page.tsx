@@ -40,6 +40,8 @@ import {
   saveSystemUsers,
   syncStaffToSystemUsers,
   syncStudentsToSystemUsers,
+  userRoleFilterOptions,
+  assignableSystemRoles,
   type SystemUser,
   type SystemUserRole,
   type SystemUserStatus,
@@ -50,8 +52,27 @@ const rolesConfig = [
   { label: "Student", description: "Receives login to view own grades and attendance", permissions: 5 },
   { label: "Teacher", description: "Receives login for classes, attendance, and check-in", permissions: 12 },
   { label: "Parent", description: "Receives login to view child's progress and reports", permissions: 4 },
+  { label: "Accountant", description: "Receives login for invoices, payments, and finance records", permissions: 10 },
+  { label: "Librarian", description: "Receives login for library and academic resources", permissions: 8 },
   { label: "Admin", description: "Full system control including credential issuance", permissions: 28 },
 ];
+
+function getRoleBadgeClass(role: SystemUserRole): string {
+  switch (role) {
+    case "Student":
+      return "bg-blue-100 text-blue-800";
+    case "Teacher":
+      return "bg-emerald-100 text-emerald-800";
+    case "Parent":
+      return "bg-purple-100 text-purple-800";
+    case "Accountant":
+      return "bg-amber-100 text-amber-800";
+    case "Librarian":
+      return "bg-teal-100 text-teal-800";
+    default:
+      return "bg-red-100 text-red-800";
+  }
+}
 
 export default function UsersPage() {
   const { currentSchool } = useSchool();
@@ -391,7 +412,7 @@ export default function UsersPage() {
             <p className="section-label mb-1">Admin</p>
             <h1 className="page-title">User Management</h1>
             <p className="page-subtitle mt-1">
-              Issue login email and password credentials to teachers, students, and parents.
+              Issue login email and password credentials to teachers, students, parents, accountants, and librarians.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -458,11 +479,11 @@ export default function UsersPage() {
           onChange={(e) => setSelectedRoleFilter(e.target.value)}
           className="input-field md:w-48"
         >
-          <option value="all">All Roles</option>
-          <option value="teacher">Teachers</option>
-          <option value="student">Students</option>
-          <option value="parent">Parents</option>
-          <option value="admin">Admins</option>
+          {userRoleFilterOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
         <button
           onClick={() => openIssueModal("Teacher")}
@@ -499,15 +520,7 @@ export default function UsersPage() {
                   <td className="px-6 py-4 text-slate-600">{user.email}</td>
                   <td className="px-6 py-4">
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        user.role === "Student"
-                          ? "bg-blue-100 text-blue-800"
-                          : user.role === "Teacher"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : user.role === "Parent"
-                              ? "bg-purple-100 text-purple-800"
-                              : "bg-red-100 text-red-800"
-                      }`}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${getRoleBadgeClass(user.role)}`}
                     >
                       {user.role}
                     </span>
@@ -643,10 +656,11 @@ export default function UsersPage() {
                     }}
                     className="input-field"
                   >
-                    <option value="Teacher">Teacher</option>
-                    <option value="Student">Student</option>
-                    <option value="Parent">Parent</option>
-                    <option value="Admin">Admin</option>
+                    {assignableSystemRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -894,10 +908,11 @@ export default function UsersPage() {
                     }}
                     className="input-field"
                   >
-                    <option value="Teacher">Teacher</option>
-                    <option value="Student">Student</option>
-                    <option value="Parent">Parent</option>
-                    <option value="Admin">Admin</option>
+                    {assignableSystemRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>

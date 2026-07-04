@@ -47,8 +47,12 @@ export function UserSession() {
         return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100";
       case "student":
         return "bg-blue-50 text-blue-700 ring-1 ring-blue-100";
-      case "parent":
-        return "bg-violet-50 text-violet-700 ring-1 ring-violet-100";
+    case "parent":
+      return "bg-violet-50 text-violet-700 ring-1 ring-violet-100";
+    case "accountant":
+      return "bg-amber-50 text-amber-700 ring-1 ring-amber-100";
+    case "librarian":
+      return "bg-teal-50 text-teal-700 ring-1 ring-teal-100";
       default:
         return "bg-slate-100 text-slate-700 ring-1 ring-slate-200";
     }

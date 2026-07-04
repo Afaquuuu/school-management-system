@@ -180,9 +180,9 @@ function NavigationGroupSection({
                     href={child.href}
                     onClick={onNavigate}
                     className={cn(
-                      "group flex items-center gap-2 rounded-lg py-2 pl-9 pr-3 text-[13px] font-medium transition-all",
+                      "group flex items-center gap-2 rounded-xl py-2 pl-9 pr-3 text-[13px] font-medium transition-all",
                       isActive
-                        ? "bg-blue-600 text-white shadow-sm"
+                        ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-sm shadow-blue-600/20"
                         : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm",
                     )}
                   >

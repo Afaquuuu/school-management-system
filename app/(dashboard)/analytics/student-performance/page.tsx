@@ -25,6 +25,13 @@ import { exportTableData, slugifyFileName } from "@/lib/export-data";
 import { useSchool, getScopedItem, getSchoolClasses, getUniqueClassNames } from "@/lib/school-context";
 import { getSubjectNameById } from "@/lib/school-subjects";
 import { getUserSession } from "@/lib/teacher-check-in";
+import { isUserRole } from "@/lib/auth";
+import {
+  formatLinkedChildLabel,
+  getLinkedStudentsForParentEmail,
+  resolvePersonalViewStudent,
+  type SchoolStudentRecord,
+} from "@/lib/parent-student-links";
 
 type EnrolledStudent = {
   id: string;
@@ -41,40 +48,8 @@ function findEnrolledStudent(
   session: ReturnType<typeof getUserSession>,
 ): EnrolledStudent | null {
   if (!session) return null;
-
-  const storedStudents = getScopedItem(schoolId, "school_students");
-  if (storedStudents) {
-    try {
-      const allStudents = JSON.parse(storedStudents) as EnrolledStudent[];
-      const matched = allStudents.find(
-        (student) =>
-          student.email?.toLowerCase() === session.email.toLowerCase() ||
-          student.id === session.id ||
-          `${student.firstName} ${student.lastName}`.toLowerCase() === session.name.toLowerCase() ||
-          student.firstName.toLowerCase() === session.name.toLowerCase(),
-      );
-      if (matched) return matched;
-    } catch {
-      // fall through to session classDepartment
-    }
-  }
-
-  if (session.classDepartment) {
-    const classMatch = session.classDepartment.match(/^(Grade \d+)\s*([A-Z])$/i);
-    if (classMatch) {
-      return {
-        id: session.id,
-        studentId: session.id,
-        firstName: session.name.split(" ")[0] || session.name,
-        lastName: session.name.split(" ").slice(1).join(" ") || "",
-        email: session.email,
-        class: classMatch[1],
-        section: classMatch[2].toUpperCase(),
-      };
-    }
-  }
-
-  return null;
+  const role = typeof window !== "undefined" ? localStorage.getItem("user_role") : null;
+  return resolvePersonalViewStudent(schoolId, session, role);
 }
 
 type Subject = {
@@ -208,8 +183,12 @@ export default function StudentPerformanceAnalyticsPage() {
   const [selectedSection, setSelectedSection] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("teacher");
   const [enrolledStudent, setEnrolledStudent] = useState<EnrolledStudent | null>(null);
+  const [linkedChildren, setLinkedChildren] = useState<SchoolStudentRecord[]>([]);
+  const [selectedChildId, setSelectedChildId] = useState("");
 
   const isStudentView = userRole === "student";
+  const isParentView = userRole === "parent";
+  const isPersonalView = isStudentView || isParentView;
   const activeView = performanceView;
   const enrolledClassLabel = enrolledStudent
     ? formatStudentClassLabel(enrolledStudent.class, enrolledStudent.section)
@@ -218,20 +197,38 @@ export default function StudentPerformanceAnalyticsPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const role = localStorage.getItem("user_role");
-    if (role === "admin" || role === "teacher" || role === "student" || role === "parent") {
+    if (isUserRole(role)) {
       setUserRole(role);
     }
-    if (currentSchool) {
-      setEnrolledStudent(findEnrolledStudent(currentSchool.id, getUserSession()));
+    if (!currentSchool) return;
+
+    const session = getUserSession();
+    if (role === "parent" && session?.email) {
+      const linked = getLinkedStudentsForParentEmail(currentSchool.id, session.email);
+      setLinkedChildren(linked);
+      const activeChildId =
+        selectedChildId && linked.some((child) => child.id === selectedChildId)
+          ? selectedChildId
+          : linked[0]?.id ?? "";
+      if (activeChildId !== selectedChildId) {
+        setSelectedChildId(activeChildId);
+      }
+      setEnrolledStudent(
+        resolvePersonalViewStudent(currentSchool.id, session, "parent", activeChildId),
+      );
+      return;
     }
-  }, [currentSchool]);
+
+    setLinkedChildren([]);
+    setEnrolledStudent(resolvePersonalViewStudent(currentSchool.id, session, role));
+  }, [currentSchool, selectedChildId]);
 
   useEffect(() => {
-    if (!isStudentView || !enrolledStudent) return;
+    if (!isPersonalView || !enrolledStudent) return;
     setSelectedClass(enrolledStudent.class);
     setSelectedSection(enrolledStudent.section);
     setSelectedStudentId(enrolledStudent.id);
-  }, [isStudentView, enrolledStudent]);
+  }, [isPersonalView, enrolledStudent]);
 
   // Load manually created classes
   useEffect(() => {
@@ -290,13 +287,18 @@ export default function StudentPerformanceAnalyticsPage() {
 
   // Filter students by class and section
   const filteredStudents = useMemo(() => {
+    if (isParentView) {
+      const linkedIds = new Set(linkedChildren.map((child) => child.id));
+      return students.filter((student) => linkedIds.has(student.id));
+    }
+
     return students.filter((student) => {
       if (selectedClass && !studentMatchesClassSection(student, selectedClass, selectedSection)) {
         return false;
       }
       return true;
     });
-  }, [students, selectedClass, selectedSection]);
+  }, [students, selectedClass, selectedSection, isParentView, linkedChildren]);
 
   const sectionsWithStudents = useMemo(
     () =>
@@ -307,7 +309,7 @@ export default function StudentPerformanceAnalyticsPage() {
   );
 
   useEffect(() => {
-    if (isStudentView || !selectedClass) return;
+    if (isPersonalView || !selectedClass) return;
 
     setSelectedSection((current) => {
       const normalizedCurrent = current ? normalizeSection(current) : "";
@@ -321,10 +323,10 @@ export default function StudentPerformanceAnalyticsPage() {
       return "";
     });
     setSelectedStudentId("");
-  }, [selectedClass, uniqueSections, sectionsWithStudents, isStudentView]);
+  }, [selectedClass, uniqueSections, sectionsWithStudents, isPersonalView]);
 
   useEffect(() => {
-    if (isStudentView) return;
+    if (isPersonalView) return;
 
     if (filteredStudents.length === 0) {
       if (selectedStudentId) setSelectedStudentId("");
@@ -337,14 +339,14 @@ export default function StudentPerformanceAnalyticsPage() {
     if (activeView === "student" || activeView === "trends") {
       setSelectedStudentId(filteredStudents[0].id);
     }
-  }, [filteredStudents, selectedStudentId, isStudentView, activeView]);
+  }, [filteredStudents, selectedStudentId, isPersonalView, activeView]);
 
   // Helper function to calculate grade
   const getGrade = getGradeFromPercentage;
 
-  const scopedClassName = isStudentView ? enrolledStudent?.class ?? "" : selectedClass;
-  const scopedSection = isStudentView ? enrolledStudent?.section ?? "" : selectedSection;
-  const scopedStudentId = isStudentView ? enrolledStudent?.id ?? "" : selectedStudentId;
+  const scopedClassName = isPersonalView ? enrolledStudent?.class ?? "" : selectedClass;
+  const scopedSection = isPersonalView ? enrolledStudent?.section ?? "" : selectedSection;
+  const scopedStudentId = isPersonalView ? enrolledStudent?.id ?? "" : selectedStudentId;
 
   // Calculate student performance data
   const selectedStudent = useMemo((): Student | null => {
@@ -570,14 +572,32 @@ export default function StudentPerformanceAnalyticsPage() {
     trends: "Your performance across exam terms",
   } as const;
 
-  const pageTitle = isStudentView ? studentPageTitles[activeView] : pageTitles[activeView];
+  const parentPageTitles = {
+    student: "Child's Performance",
+    class: "Child's Class Analytics",
+    trends: "Child's Trends & Reports",
+  } as const;
+
+  const parentPageDescriptions = {
+    student: "Your linked child's academic performance and subject breakdown",
+    class: "How your child's class is performing this term",
+    trends: "Your child's performance across exam terms",
+  } as const;
+
+  const pageTitle = isStudentView
+    ? studentPageTitles[activeView]
+    : isParentView
+      ? parentPageTitles[activeView]
+      : pageTitles[activeView];
   const pageDescription = isStudentView
     ? studentPageDescriptions[activeView]
-    : pageDescriptions[activeView];
+    : isParentView
+      ? parentPageDescriptions[activeView]
+      : pageDescriptions[activeView];
 
   const renderFilters = () => (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-      <div className={`grid grid-cols-1 gap-4 ${isStudentView ? "md:grid-cols-2" : "md:grid-cols-4"}`}>
+      <div className={`grid grid-cols-1 gap-4 ${isPersonalView ? "md:grid-cols-2" : "md:grid-cols-4"}`}>
         {activeView !== "trends" && (
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -599,7 +619,7 @@ export default function StudentPerformanceAnalyticsPage() {
         </div>
         )}
 
-        {activeView === "trends" && !isStudentView && (
+        {activeView === "trends" && !isPersonalView && (
         <div className="md:col-span-4">
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Trends are shown across all exam terms where marks have been entered.
@@ -607,14 +627,14 @@ export default function StudentPerformanceAnalyticsPage() {
         </div>
         )}
 
-        {isStudentView ? (
+        {isPersonalView ? (
           <>
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Class
               </label>
               <div className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-50">
-                {enrolledClassLabel || "Your class"}
+                {enrolledClassLabel || (isParentView ? "Linked child's class" : "Your class")}
               </div>
             </div>
             {enrolledStudent && activeView !== "class" && (
@@ -682,7 +702,7 @@ export default function StudentPerformanceAnalyticsPage() {
               </select>
             </div>
 
-            {students.length > 0 && (activeView === "student" || activeView === "trends") && !isStudentView && (
+            {students.length > 0 && (activeView === "student" || activeView === "trends") && !isPersonalView && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                   <Users className="w-4 h-4 inline mr-2" />
@@ -712,9 +732,11 @@ export default function StudentPerformanceAnalyticsPage() {
           </>
         )}
       </div>
-      {isStudentView && !enrolledStudent && (
+      {isPersonalView && !enrolledStudent && (
         <p className="text-sm text-amber-600 dark:text-amber-400 mt-4">
-          We could not match your login to a student record. Please contact your school administrator.
+          {isParentView
+            ? "We could not find a linked child for your account. Please contact the school office."
+            : "We could not match your login to a student record. Please contact your school administrator."}
         </p>
       )}
     </div>
@@ -799,7 +821,7 @@ export default function StudentPerformanceAnalyticsPage() {
   };
 
   const getEmptyStateMessage = () => {
-    if (isStudentView && !enrolledStudent) {
+    if (isPersonalView && !enrolledStudent) {
       return "Your student profile could not be found. Please contact your school administrator.";
     }
     if (students.length === 0) {
@@ -814,34 +836,46 @@ export default function StudentPerformanceAnalyticsPage() {
 
     if (activeView === "class") {
       if (!scopedClassName || !scopedSection) {
-        return isStudentView
-          ? "Your class could not be determined."
+        return isPersonalView
+          ? isParentView
+            ? "Your linked child's class could not be determined."
+            : "Your class could not be determined."
           : "Select a class and section above to view class analytics.";
       }
-      return isStudentView
-        ? "No class marks have been recorded for your class in the selected term yet."
+      return isPersonalView
+        ? isParentView
+          ? "No class marks have been recorded for your child's class in the selected term yet."
+          : "No class marks have been recorded for your class in the selected term yet."
         : "No marks found for the selected class in this cycle.";
     }
 
     if (activeView === "trends") {
       if (!scopedStudentId) {
-        return isStudentView
-          ? "Select a term above to view your trends."
+        return isPersonalView
+          ? isParentView
+            ? "Select a term above to view your child's trends."
+            : "Select a term above to view your trends."
           : "Select a student above to view performance trends.";
       }
-      return isStudentView
-        ? "No marks have been recorded for you yet. Trends will appear once exam marks are entered."
+      return isPersonalView
+        ? isParentView
+          ? "No marks have been recorded for your linked child yet. Trends will appear once exam marks are entered."
+          : "No marks have been recorded for you yet. Trends will appear once exam marks are entered."
         : "No marks found for the selected student across any exam cycle.";
     }
 
     if (selectedStudentId && selectedCycleId) {
-      return isStudentView
-        ? "No marks have been recorded for you in the selected term yet."
+      return isPersonalView
+        ? isParentView
+          ? "No marks have been recorded for your linked child in the selected term yet."
+          : "No marks have been recorded for you in the selected term yet."
         : "No marks found for the selected student in the selected cycle. Please enter marks in Admin → Exams → Marks.";
     }
 
-    return isStudentView
-      ? "Select a term above to view your performance."
+    return isPersonalView
+      ? isParentView
+        ? "Select a term above to view your child's performance."
+        : "Select a term above to view your performance."
       : "Select a student and cycle above to view performance analytics.";
   };
 
@@ -861,9 +895,9 @@ export default function StudentPerformanceAnalyticsPage() {
           </div>
         </div>
 
-        {(students.length > 0 || cycles.length > 0 || isStudentView) && renderFilters()}
+        {(students.length > 0 || cycles.length > 0 || isPersonalView) && renderFilters()}
 
-        {!isStudentView && (
+        {!isPersonalView && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
           <details className="cursor-pointer">
             <summary className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-2">
@@ -924,7 +958,7 @@ export default function StudentPerformanceAnalyticsPage() {
             {pageDescription}
           </p>
         </div>
-        {!isStudentView && (
+        {!isPersonalView && (
         <div className="flex gap-2">
           <button
             type="button"
@@ -937,6 +971,30 @@ export default function StudentPerformanceAnalyticsPage() {
         </div>
         )}
       </div>
+
+      {isParentView && linkedChildren.length > 1 && (
+        <div className="rounded-2xl border border-violet-200 bg-white p-4 dark:border-violet-800 dark:bg-slate-800">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Select Child
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {linkedChildren.map((child) => (
+              <button
+                key={child.id}
+                type="button"
+                onClick={() => setSelectedChildId(child.id)}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${
+                  selectedChildId === child.id
+                    ? "border-violet-300 bg-violet-600 text-white shadow-sm"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-violet-200 hover:bg-violet-50"
+                }`}
+              >
+                {formatLinkedChildLabel(child)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {renderFilters()}
 

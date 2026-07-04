@@ -1,6 +1,11 @@
 import { getScopedItem, setScopedItem } from "@/lib/school-context";
 import { formatStudentClassLabel } from "@/lib/class-labels";
 import { getTodayIsoDate } from "@/lib/date-format";
+import type { UserRole } from "@/lib/auth";
+import {
+  getLinkedStudentsForParentEmail,
+  resolvePersonalViewStudent,
+} from "@/lib/parent-student-links";
 
 export type AlertChannelId = "email" | "sms" | "dashboard" | "push";
 
@@ -59,6 +64,13 @@ export type ActiveAlert = {
   dismissed: boolean;
   channels: AlertChannelId[];
   fingerprint: string;
+  studentId?: string;
+  className?: string;
+};
+
+export type AlertViewerContext = {
+  role: UserRole;
+  email?: string;
 };
 
 const SETTINGS_KEY = "alert_settings";
@@ -271,8 +283,8 @@ export function getAlertTypeDescription(
   }
 }
 
-export function getUnreadAlertCount(schoolId: string): number {
-  return loadActiveAlerts(schoolId).filter((a) => !a.read && !a.dismissed).length;
+export function getUnreadAlertCount(schoolId: string, viewer?: AlertViewerContext): number {
+  return getVisibleAlertsForViewer(schoolId, viewer).filter((a) => !a.read).length;
 }
 
 export function markAlertRead(schoolId: string, alertId: string): void {
@@ -338,7 +350,9 @@ type ExamSchedule = {
 type FinanceInvoice = {
   id: string;
   invoiceNo: string;
+  studentId?: string;
   studentName: string;
+  className?: string;
   status: string;
   dueAt: string;
   totalAmount: number;
@@ -411,6 +425,7 @@ function buildAlert(
   title: string,
   message: string,
   severity: AlertSeverity,
+  scope?: { studentId?: string; className?: string },
 ): ActiveAlert {
   return {
     id: `${type.id}-${fingerprint}`,
@@ -423,6 +438,8 @@ function buildAlert(
     dismissed: false,
     channels: type.channels,
     fingerprint,
+    studentId: scope?.studentId,
+    className: scope?.className,
   };
 }
 
@@ -447,6 +464,7 @@ function evaluateAttendanceAlerts(
         `${student.firstName} ${student.lastName} — ${absences} consecutive absences`,
         `${classLabel} student has been absent for ${absences} consecutive school days. Consider contacting guardians.`,
         absences >= threshold + 2 ? "critical" : "warning",
+        { studentId: student.id, className: classLabel },
       ),
     );
   }
@@ -494,6 +512,10 @@ function evaluatePerformanceAlerts(
         `${student.firstName} ${student.lastName} — grades dropped ${dropPercent.toFixed(1)}%`,
         `Average fell from ${previousAverage.toFixed(1)} (${previousCycle.name}) to ${currentAverage.toFixed(1)} (${currentCycle.name}).`,
         dropPercent >= threshold * 1.5 ? "critical" : "warning",
+        {
+          studentId: student.id,
+          className: formatStudentClassLabel(student.class, student.section),
+        },
       ),
     );
   }
@@ -526,6 +548,7 @@ function evaluateAssignmentAlerts(
           ? `${assignment.className} assignment was due on ${assignment.dueDate}. Follow up with students.`
           : `${assignment.className} assignment is due in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}.`,
         isOverdue ? "critical" : "warning",
+        { className: assignment.className },
       ),
     );
   }
@@ -553,6 +576,7 @@ function evaluateExamAlerts(
         `Upcoming exam for ${schedule.className}`,
         `${schedule.subjectId} exam on ${schedule.examDate} (${daysUntilExam === 0 ? "today" : `in ${daysUntilExam} day${daysUntilExam === 1 ? "" : "s"}`}).`,
         daysUntilExam <= 1 ? "warning" : "info",
+        { className: schedule.className },
       ),
     );
   }
@@ -567,6 +591,7 @@ function evaluateFeeAlerts(
 ): ActiveAlert[] {
   const today = getTodayIsoDate();
   const invoices = loadFinanceInvoices(schoolId);
+  const students = loadStudents(schoolId);
   const alerts: ActiveAlert[] = [];
 
   for (const invoice of invoices) {
@@ -578,6 +603,12 @@ function evaluateFeeAlerts(
 
     if (!isMarkedOverdue && !isOverdueByThreshold) continue;
 
+    const matchedStudent = students.find(
+      (student) =>
+        student.id === invoice.studentId ||
+        `${student.firstName} ${student.lastName}`.trim() === invoice.studentName.trim(),
+    );
+
     alerts.push(
       buildAlert(
         type,
@@ -585,6 +616,14 @@ function evaluateFeeAlerts(
         `Overdue invoice ${invoice.invoiceNo}`,
         `${invoice.studentName} owes ₵${(invoice.totalAmount - invoice.paidAmount).toLocaleString()} (${daysPastDue} days past due).`,
         daysPastDue >= overdueDays * 2 ? "critical" : "warning",
+        {
+          studentId: invoice.studentId ?? matchedStudent?.id,
+          className:
+            invoice.className ??
+            (matchedStudent
+              ? formatStudentClassLabel(matchedStudent.class, matchedStudent.section)
+              : undefined),
+        },
       ),
     );
   }
@@ -681,4 +720,85 @@ export function getVisibleAlerts(schoolId: string): ActiveAlert[] {
   return loadActiveAlerts(schoolId)
     .filter((alert) => !alert.dismissed)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function normalizeClassLabel(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function alertMatchesLinkedClasses(alert: ActiveAlert, linkedClassLabels: Set<string>): boolean {
+  if (!alert.className) return false;
+  return linkedClassLabels.has(normalizeClassLabel(alert.className));
+}
+
+export function filterAlertsForViewer(
+  alerts: ActiveAlert[],
+  schoolId: string,
+  viewer?: AlertViewerContext,
+): ActiveAlert[] {
+  if (!viewer || viewer.role === "admin" || viewer.role === "teacher") {
+    return alerts;
+  }
+
+  if (viewer.role === "parent") {
+    const linkedChildren = getLinkedStudentsForParentEmail(schoolId, viewer.email ?? "");
+    if (linkedChildren.length === 0) return [];
+
+    const linkedIds = new Set(linkedChildren.map((child) => child.id));
+    const linkedClassLabels = new Set(
+      linkedChildren.map((child) =>
+        normalizeClassLabel(formatStudentClassLabel(child.class, child.section)),
+      ),
+    );
+
+    return alerts.filter((alert) => {
+      if (alert.studentId) {
+        return linkedIds.has(alert.studentId);
+      }
+      if (alert.type === "fee") {
+        return linkedChildren.some((child) =>
+          alert.message.includes(`${child.firstName} ${child.lastName}`.trim()),
+        );
+      }
+      if (alert.type === "assignment" || alert.type === "exam") {
+        return alertMatchesLinkedClasses(alert, linkedClassLabels);
+      }
+      return false;
+    });
+  }
+
+  if (viewer.role === "student") {
+    const student = resolvePersonalViewStudent(schoolId, { email: viewer.email ?? "" }, "student");
+    if (!student) return [];
+
+    const studentClass = normalizeClassLabel(
+      formatStudentClassLabel(student.class, student.section),
+    );
+
+    return alerts.filter((alert) => {
+      if (alert.studentId) {
+        return alert.studentId === student.id;
+      }
+      if (alert.type === "assignment" || alert.type === "exam") {
+        return alert.className ? normalizeClassLabel(alert.className) === studentClass : false;
+      }
+      return false;
+    });
+  }
+
+  return alerts;
+}
+
+export function getVisibleAlertsForViewer(
+  schoolId: string,
+  viewer?: AlertViewerContext,
+): ActiveAlert[] {
+  return filterAlertsForViewer(getVisibleAlerts(schoolId), schoolId, viewer);
+}
+
+export function getUnreadAlertCountForViewer(
+  schoolId: string,
+  viewer?: AlertViewerContext,
+): number {
+  return getVisibleAlertsForViewer(schoolId, viewer).filter((alert) => !alert.read).length;
 }

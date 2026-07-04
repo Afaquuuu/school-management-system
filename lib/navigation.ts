@@ -32,7 +32,7 @@ export const navigationGroups: NavigationGroup[] = [
     id: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["admin", "teacher", "student", "parent"],
+    roles: ["admin", "teacher", "student", "parent", "accountant", "librarian"],
     children: [
       { label: "Overview", href: "/dashboard" },
       { label: "Quick Actions", href: "/dashboard?view=actions", roles: ["admin", "teacher"] },
@@ -63,7 +63,7 @@ export const navigationGroups: NavigationGroup[] = [
     id: "attendance",
     label: "Attendance",
     icon: ClipboardCheck,
-    roles: ["admin", "teacher", "student", "parent"],
+    roles: ["admin", "teacher", "student", "parent", "librarian"],
     children: [
       { label: "Mark Attendance", href: "/attendance?view=mark", roles: ["teacher"] },
       { label: "View Attendance", href: "/attendance?view=records", roles: ["admin", "teacher"] },
@@ -76,7 +76,7 @@ export const navigationGroups: NavigationGroup[] = [
     id: "academics",
     label: "Academics",
     icon: BookOpen,
-    roles: ["admin", "teacher", "student"],
+    roles: ["admin", "teacher", "student", "librarian"],
     children: [
       { label: "Overview", href: "/academics" },
       { label: "Timetable", href: "/academics?view=timetable" },
@@ -87,7 +87,7 @@ export const navigationGroups: NavigationGroup[] = [
     id: "performance",
     label: "Performance",
     icon: BarChart3,
-    roles: ["admin", "teacher", "student", "parent"],
+    roles: ["admin", "teacher", "student", "parent", "librarian"],
     children: [
       { label: "Student Performance", href: "/analytics/student-performance" },
       { label: "Class Analytics", href: "/analytics/student-performance?view=class" },
@@ -98,18 +98,19 @@ export const navigationGroups: NavigationGroup[] = [
     id: "finance",
     label: "Finance",
     icon: BadgeDollarSign,
-    roles: ["admin"],
+    roles: ["admin", "parent", "accountant"],
     children: [
-      { label: "Invoices", href: "/finance?tab=invoices" },
-      { label: "Payments", href: "/finance?tab=payments" },
-      { label: "Financial Reports", href: "/finance?tab=reports" },
+      { label: "Invoices", href: "/finance?tab=invoices", roles: ["admin", "accountant"] },
+      { label: "Payments", href: "/finance?tab=payments", roles: ["admin", "accountant"] },
+      { label: "Financial Reports", href: "/finance?tab=reports", roles: ["admin", "accountant"] },
+      { label: "My Invoices", href: "/finance?tab=invoices", roles: ["parent"] },
     ],
   },
   {
     id: "communication",
     label: "Communication",
     icon: Megaphone,
-    roles: ["admin", "teacher", "student", "parent"],
+    roles: ["admin", "teacher", "student", "parent", "librarian"],
     children: [
       { label: "Announcements", href: "/communication?tab=announcements" },
       { label: "Messages", href: "/communication?tab=messages" },
@@ -228,6 +229,30 @@ export function groupContainsActiveRoute(
   return group.children.some((child) =>
     isNavigationHrefActive(pathname, search, child.href, hash),
   );
+}
+
+export function getActivePageContext(
+  role: UserRole,
+  pathname: string,
+  search: string,
+  hash = "",
+) {
+  const groups = getVisibleNavigationGroups(role);
+
+  for (const group of groups) {
+    const child = getActiveNavigationChild(group, pathname, search, hash);
+    if (child) {
+      return {
+        groupLabel: group.label,
+        pageLabel: child.label,
+      };
+    }
+  }
+
+  return {
+    groupLabel: "School OS",
+    pageLabel: "Dashboard",
+  };
 }
 
 /** @deprecated Use navigationGroups instead */

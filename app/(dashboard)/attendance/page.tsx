@@ -9,8 +9,9 @@ import {
 import { getUniqueSchoolClassesByName } from "@/lib/class-labels";
 import { useSchool, getScopedItem, setScopedItem, removeScopedItem, getSchoolClasses, type SchoolClass } from "@/lib/school-context";
 import { getUserSession } from "@/lib/teacher-check-in";
-import { getLinkedStudentsForParentEmail } from "@/lib/parent-student-links";
+import { getLinkedStudentsForParentEmail, resolvePersonalViewStudent, formatLinkedChildLabel, type SchoolStudentRecord as LinkedStudentRecord } from "@/lib/parent-student-links";
 import type { UserRole } from "@/lib/auth";
+import { isUserRole } from "@/lib/auth";
 import { formatDate, formatDateLong, getTodayIsoDate } from "@/lib/date-format";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
 import { DateInput } from "@/components/ui/date-input";
@@ -348,56 +349,7 @@ function findEnrolledStudent(schoolId: string, session: ReturnType<typeof getUse
   if (!session) return null;
 
   const role = typeof window !== "undefined" ? localStorage.getItem("user_role") : null;
-
-  if (role === "parent") {
-    const linkedChildren = getLinkedStudentsForParentEmail(schoolId, session.email);
-    const child = linkedChildren[0];
-    if (child) {
-      return {
-        id: child.id,
-        studentId: child.studentId,
-        firstName: child.firstName,
-        lastName: child.lastName,
-        email: child.guardianEmail || session.email,
-        class: child.class,
-        section: child.section,
-      };
-    }
-  }
-
-  const storedStudents = getScopedItem(schoolId, "school_students");
-  if (storedStudents) {
-    try {
-      const allStudents = JSON.parse(storedStudents) as EnrolledStudent[];
-      const matched = allStudents.find(
-        (student) =>
-          student.email?.toLowerCase() === session.email.toLowerCase() ||
-          student.id === session.id ||
-          `${student.firstName} ${student.lastName}`.toLowerCase() === session.name.toLowerCase() ||
-          student.firstName.toLowerCase() === session.name.toLowerCase(),
-      );
-      if (matched) return matched;
-    } catch {
-      // fall through to session classDepartment
-    }
-  }
-
-  if (session.classDepartment) {
-    const classMatch = session.classDepartment.match(/^(Grade \d+)\s*([A-Z])$/i);
-    if (classMatch) {
-      return {
-        id: session.id,
-        studentId: session.id,
-        firstName: session.name.split(" ")[0] || session.name,
-        lastName: session.name.split(" ").slice(1).join(" ") || "",
-        email: session.email,
-        class: classMatch[1],
-        section: classMatch[2].toUpperCase(),
-      };
-    }
-  }
-
-  return null;
+  return resolvePersonalViewStudent(schoolId, session, role);
 }
 
 export default function AttendancePage() {
@@ -423,11 +375,14 @@ export default function AttendancePage() {
   const [savedAttendanceList, setSavedAttendanceList] = useState<{date: string, class: string, count: number}[]>([]);
   const [userRole, setUserRole] = useState<UserRole>("teacher");
   const [enrolledStudent, setEnrolledStudent] = useState<EnrolledStudent | null>(null);
+  const [linkedChildren, setLinkedChildren] = useState<LinkedStudentRecord[]>([]);
+  const [selectedChildId, setSelectedChildId] = useState("");
   const [readOnlyMode, setReadOnlyMode] = useState(false);
 
   const isStudentView = userRole === "student";
   const isParentView = userRole === "parent";
   const isPersonalAttendanceView = isStudentView || isParentView;
+  const isChildScopedView = isPersonalAttendanceView;
   const isAdminView = userRole === "admin";
   const canMarkAttendance = userRole === "teacher";
   const enrolledClassLabel = enrolledStudent ? getEnrolledClassLabel(enrolledStudent) : "";
@@ -442,13 +397,36 @@ export default function AttendancePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const role = localStorage.getItem("user_role");
-    if (role === "admin" || role === "teacher" || role === "student" || role === "parent") {
+    if (isUserRole(role)) {
       setUserRole(role);
     }
-    if (currentSchool) {
-      setEnrolledStudent(findEnrolledStudent(currentSchool.id, getUserSession()));
+    if (!currentSchool) return;
+
+    const session = getUserSession();
+    if (role === "parent" && session?.email) {
+      const linked = getLinkedStudentsForParentEmail(currentSchool.id, session.email);
+      setLinkedChildren(linked);
+      const activeChildId =
+        selectedChildId && linked.some((child) => child.id === selectedChildId)
+          ? selectedChildId
+          : linked[0]?.id ?? "";
+      if (activeChildId !== selectedChildId) {
+        setSelectedChildId(activeChildId);
+      }
+      setEnrolledStudent(
+        resolvePersonalViewStudent(currentSchool.id, session, "parent", activeChildId),
+      );
+      return;
     }
-  }, [currentSchool]);
+
+    setLinkedChildren([]);
+    setEnrolledStudent(resolvePersonalViewStudent(currentSchool.id, session, role));
+  }, [currentSchool, selectedChildId]);
+
+  useEffect(() => {
+    if (!isParentView || !enrolledStudent || selectedClass) return;
+    setSelectedClass(getEnrolledClassLabel(enrolledStudent));
+  }, [isParentView, enrolledStudent, selectedClass]);
 
   useEffect(() => {
     if ((isPersonalAttendanceView || isAdminView) && attendanceView === "mark") {
@@ -509,7 +487,7 @@ export default function AttendancePage() {
   useEffect(() => {
     if (!currentSchool || !selectedClass) return;
 
-    if (isStudentView) {
+    if (isStudentView || isParentView) {
       loadSavedAttendanceList();
       if (!showAttendanceEntry || !enrolledStudent) return;
     }
@@ -521,7 +499,7 @@ export default function AttendancePage() {
     
     if (savedAttendance) {
       let records = savedAttendance;
-      if (isStudentView && enrolledStudent) {
+      if (isChildScopedView && enrolledStudent) {
         records = records.filter((student) => matchesStudentRow(student, enrolledStudent));
       }
 
@@ -539,7 +517,7 @@ export default function AttendancePage() {
         setNotes(savedNotes);
       }
     } else {
-      if (isStudentView) return;
+      if (isStudentView || isParentView) return;
 
       // Load fresh student list
       const loadedStudents = loadStudentsFromManagement(selectedClass, currentSchool.id);
@@ -568,6 +546,8 @@ export default function AttendancePage() {
     attendanceView,
     readOnlyMode,
     isStudentView,
+    isParentView,
+    isChildScopedView,
     showAttendanceEntry,
     enrolledStudent,
   ]);
@@ -630,23 +610,10 @@ export default function AttendancePage() {
     }
   };
 
-  // Calculate statistics
-  const stats = useMemo(() => {
-    const present = students.filter(s => s.status === "present").length;
-    const absent = students.filter(s => s.status === "absent").length;
-    const late = students.filter(s => s.status === "late").length;
-    const excused = students.filter(s => s.status === "excused").length;
-    const total = students.length;
-    const attendanceRate = total > 0 ? ((present + late + excused) / total * 100).toFixed(1) : "0";
-    
-    return { present, absent, late, excused, total, attendanceRate };
-  }, [students]);
-
-  // Filter students by search
   const filteredStudents = useMemo(() => {
     let list = students;
 
-    if (isStudentView && enrolledStudent) {
+    if (isChildScopedView && enrolledStudent) {
       list = list.filter((student) => matchesStudentRow(student, enrolledStudent));
     }
 
@@ -656,10 +623,24 @@ export default function AttendancePage() {
       s.admissionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.rollNumber.includes(searchTerm)
     );
-  }, [students, searchTerm, isStudentView, enrolledStudent]);
+  }, [students, searchTerm, isChildScopedView, enrolledStudent]);
+
+  const statsStudents = isChildScopedView ? filteredStudents : students;
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const present = statsStudents.filter(s => s.status === "present").length;
+    const absent = statsStudents.filter(s => s.status === "absent").length;
+    const late = statsStudents.filter(s => s.status === "late").length;
+    const excused = statsStudents.filter(s => s.status === "excused").length;
+    const total = statsStudents.length;
+    const attendanceRate = total > 0 ? ((present + late + excused) / total * 100).toFixed(1) : "0";
+    
+    return { present, absent, late, excused, total, attendanceRate };
+  }, [statsStudents]);
 
   const updateStatus = (studentId: string, status: AttendanceStatus) => {
-    if (readOnlyMode || isStudentView || isAdminView) return;
+    if (readOnlyMode || isChildScopedView || isAdminView) return;
     setStudents(prev => prev.map(student => 
       student.id === studentId ? { ...student, status } : student
     ));
@@ -667,7 +648,7 @@ export default function AttendancePage() {
   };
 
   const updateRemarks = (studentId: string, remarks: string) => {
-    if (readOnlyMode || isStudentView || isAdminView) return;
+    if (readOnlyMode || isChildScopedView || isAdminView) return;
     setStudents(prev => prev.map(student => 
       student.id === studentId ? { ...student, remarks } : student
     ));
@@ -675,13 +656,13 @@ export default function AttendancePage() {
   };
 
   const markAllPresent = () => {
-    if (readOnlyMode || isStudentView || isAdminView) return;
+    if (readOnlyMode || isChildScopedView || isAdminView) return;
     setStudents(prev => prev.map(student => ({ ...student, status: "present" as AttendanceStatus })));
     setIsSaved(false);
   };
 
   const handleSave = () => {
-    if (readOnlyMode || isStudentView || isAdminView) return;
+    if (readOnlyMode || isChildScopedView || isAdminView) return;
     if (!currentSchool) {
       alert('No school selected');
       return;
@@ -711,7 +692,7 @@ export default function AttendancePage() {
   };
 
   const handleEditSavedAttendance = (date: string, className: string) => {
-    if (isStudentView || isAdminView || !currentSchool) return;
+    if (isChildScopedView || isAdminView || !currentSchool) return;
     setSelectedDate(date);
     setSelectedClass(className);
     setReadOnlyMode(false);
@@ -731,7 +712,7 @@ export default function AttendancePage() {
 
   const closeAttendanceEntry = () => {
     setShowAttendanceEntry(false);
-    setReadOnlyMode(isStudentView || isAdminView);
+    setReadOnlyMode(isPersonalAttendanceView || isAdminView);
   };
 
   const handleViewSavedAttendanceReadOnly = (date: string, className: string) => {
@@ -897,6 +878,8 @@ export default function AttendancePage() {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
             {isStudentView
               ? "My Attendance"
+              : isParentView
+                ? "Child's Attendance"
               : isAdminView
                 ? "View Attendance"
                 : attendanceView === "records"
@@ -908,19 +891,23 @@ export default function AttendancePage() {
               ? enrolledClassLabel
                 ? `View-only attendance records for ${enrolledClassLabel}`
                 : "View-only attendance for your enrolled class"
+              : isParentView
+                ? enrolledStudent
+                  ? `View-only attendance records for ${enrolledStudent.firstName} ${enrolledStudent.lastName}`
+                  : "View attendance for your linked child"
               : isAdminView
                 ? "Review saved attendance records across classes (view only)"
                 : attendanceView === "records"
                   ? "Browse and manage saved attendance records"
                   : `Mark and track student attendance for ${selectedClass}`}
           </p>
-          {!isStudentView && isLoadedFromStorage && (
+          {!isChildScopedView && isLoadedFromStorage && (
             <p className="mt-1 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
               <CheckCircle className="w-4 h-4" />
               Showing {students.length} student{students.length !== 1 ? 's' : ''} from Student Management
             </p>
           )}
-          {hasSavedAttendance && !isStudentView && (
+          {hasSavedAttendance && !isChildScopedView && (
             <p className="mt-1 text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1">
               <AlertCircle className="w-4 h-4" />
               Viewing saved attendance for {formatDate(selectedDate)}
@@ -960,6 +947,36 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
+
+      {isParentView && linkedChildren.length > 1 && (
+        <div className="rounded-2xl border border-violet-200 bg-white p-4 dark:border-violet-800 dark:bg-slate-800">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Select Child
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {linkedChildren.map((child) => (
+              <button
+                key={child.id}
+                type="button"
+                onClick={() => setSelectedChildId(child.id)}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${
+                  selectedChildId === child.id
+                    ? "border-violet-300 bg-violet-600 text-white shadow-sm"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-violet-200 hover:bg-violet-50"
+                }`}
+              >
+                {formatLinkedChildLabel(child)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isParentView && linkedChildren.length === 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          No children are linked to your parent account yet. Please contact the school office.
+        </div>
+      )}
 
       {/* Date and Class Selection */}
       {attendanceView === "mark" && canMarkAttendance && (
@@ -1028,7 +1045,7 @@ export default function AttendancePage() {
       )}
 
       {/* Statistics Cards */}
-      {isViewingAttendanceEntry && !isStudentView && (
+      {isViewingAttendanceEntry && !isChildScopedView && (
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
           <div className="flex items-center justify-between mb-2">
@@ -1091,10 +1108,10 @@ export default function AttendancePage() {
       {/* Students Table */}
       {isViewingAttendanceEntry && (
         <>
-          {isStudentView && (
+          {isPersonalAttendanceView && (
             <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 p-4">
               <p className="text-sm text-blue-800">
-                Your attendance for <strong>{selectedClass}</strong> on{" "}
+                {isParentView ? "Your child's" : "Your"} attendance for <strong>{selectedClass}</strong> on{" "}
                 <strong>{formatDate(selectedDate)}</strong>. This view is read-only.
               </p>
               <button
@@ -1153,7 +1170,7 @@ export default function AttendancePage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   Overall Rate
                 </th>
-                {!isStudentView && (
+                {!isChildScopedView && (
                 <th className="px-6 py-4 text-right text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   Actions
                 </th>
@@ -1161,10 +1178,12 @@ export default function AttendancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {filteredStudents.length === 0 && isStudentView ? (
+              {filteredStudents.length === 0 && isChildScopedView ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    No attendance record found for you on this date.
+                    {isParentView
+                      ? "No attendance record found for your child on this date."
+                      : "No attendance record found for you on this date."}
                   </td>
                 </tr>
               ) : (
@@ -1187,7 +1206,7 @@ export default function AttendancePage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      {readOnlyMode || isStudentView ? (
+                      {readOnlyMode || isChildScopedView ? (
                         <span
                           className={`inline-flex rounded-lg px-3 py-1.5 text-xs font-semibold text-white ${config.color}`}
                         >
@@ -1217,7 +1236,7 @@ export default function AttendancePage() {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      {readOnlyMode || isStudentView ? (
+                      {readOnlyMode || isChildScopedView ? (
                         <span className="text-sm text-slate-600 dark:text-slate-400">
                           {student.remarks || "—"}
                         </span>
@@ -1249,7 +1268,7 @@ export default function AttendancePage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {!readOnlyMode && !isStudentView && (
+                      {!readOnlyMode && !isChildScopedView && (
                       <button
                         onClick={() => handleViewHistory(student)}
                         className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium text-sm"
@@ -1291,10 +1310,10 @@ export default function AttendancePage() {
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
-              {isStudentView ? "My Attendance Records" : "Saved Attendance Records"}
+              {isChildScopedView ? "My Attendance Records" : "Saved Attendance Records"}
             </h3>
             <div className="flex items-center gap-2">
-              {isStudentView && enrolledClassLabel && (
+              {isChildScopedView && enrolledClassLabel && (
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                   {enrolledClassLabel}
                 </span>
@@ -1309,27 +1328,31 @@ export default function AttendancePage() {
               </button>
             </div>
           </div>
-          {isStudentView && !enrolledStudent && (
+          {isChildScopedView && !enrolledStudent && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              We could not determine your enrolled class. Please contact the school office.
+              {isParentView
+                ? "We could not find a linked child for your account. Please contact the school office."
+                : "We could not determine your enrolled class. Please contact the school office."}
             </div>
           )}
-          {(isStudentView ? studentPersonalAttendanceList : visibleSavedAttendanceList).length === 0 ? (
+          {(isChildScopedView ? studentPersonalAttendanceList : visibleSavedAttendanceList).length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center dark:border-slate-600">
               <Calendar className="mx-auto mb-4 h-12 w-12 text-slate-300 dark:text-slate-600" />
               <p className="text-slate-600 dark:text-slate-400">
-                {isStudentView
-                  ? "No attendance records found for you yet"
-                  : "No saved attendance records yet"}
+                {isParentView
+                  ? "No attendance records found for your linked child yet"
+                  : isStudentView
+                    ? "No attendance records found for you yet"
+                    : "No saved attendance records yet"}
               </p>
             </div>
           ) : (
           <div className="space-y-3">
-            {(isStudentView ? studentPersonalAttendanceList : visibleSavedAttendanceList).map((record, index) => {
-              const studentRecord = isStudentView
+            {(isChildScopedView ? studentPersonalAttendanceList : visibleSavedAttendanceList).map((record, index) => {
+              const studentRecord = isChildScopedView
                 ? (record as StudentAttendanceSummary)
                 : null;
-              const adminRecord = !isStudentView
+              const adminRecord = !isChildScopedView
                 ? (record as { date: string; class: string; count: number })
                 : null;
               const statusBadge = studentRecord
@@ -1355,7 +1378,7 @@ export default function AttendancePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {isStudentView && statusBadge ? (
+                  {isChildScopedView && statusBadge ? (
                     <span
                       className={`rounded-lg px-3 py-1 text-sm font-semibold text-white ${statusBadge.color}`}
                     >
@@ -1366,7 +1389,7 @@ export default function AttendancePage() {
                     {adminRecord?.count} students
                   </span>
                   )}
-                  {isStudentView || isAdminView ? (
+                  {isChildScopedView || isAdminView ? (
                     <button
                       onClick={() => handleViewSavedAttendanceReadOnly(record.date, record.class)}
                       className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"

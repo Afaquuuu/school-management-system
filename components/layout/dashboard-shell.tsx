@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, Suspense, type ReactNode } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Bell,
-  ChevronDown,
+  ChevronRight,
   Menu,
   Search,
   X,
@@ -13,18 +14,60 @@ import {
 
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/auth";
+import { isUserRole } from "@/lib/auth";
 import { useSchool } from "@/lib/school-context";
 import {
-  getUnreadAlertCount,
-  getVisibleAlerts,
+  getUnreadAlertCountForViewer,
+  getVisibleAlertsForViewer,
   markAlertRead,
   markAllAlertsRead,
   refreshSchoolAlerts,
   type ActiveAlert,
 } from "@/lib/school-alerts";
+import { getUserSession } from "@/lib/teacher-check-in";
+import { getActivePageContext } from "@/lib/navigation";
 import { UserSession } from "./user-session";
+import { HeaderProfile } from "./header-profile";
 import { SchoolSwitcher } from "./school-switcher";
 import { SidebarNav } from "./sidebar-nav";
+
+function HeaderContext({
+  userRole,
+}: {
+  userRole: UserRole;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  const [hash, setHash] = useState("");
+
+  useEffect(() => {
+    const updateHash = () => setHash(window.location.hash);
+    updateHash();
+    window.addEventListener("hashchange", updateHash);
+    return () => window.removeEventListener("hashchange", updateHash);
+  }, [pathname]);
+
+  const { groupLabel, pageLabel } = getActivePageContext(
+    userRole,
+    pathname,
+    search,
+    hash,
+  );
+
+  return (
+    <div className="hidden min-w-0 flex-1 md:block">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="font-medium text-slate-500">{groupLabel}</span>
+        <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
+        <span className="truncate font-semibold text-slate-900">{pageLabel}</span>
+      </div>
+      <p className="mt-0.5 truncate text-xs text-slate-400">
+        {pathname.replace(/^\//, "").replace(/\?.*$/, "") || "dashboard"}
+      </p>
+    </div>
+  );
+}
 
 export function DashboardShell({
   children,
@@ -42,7 +85,7 @@ export function DashboardShell({
   useEffect(() => {
     if (typeof window !== "undefined") {
       const role = localStorage.getItem("user_role") as UserRole;
-      if (role) {
+      if (isUserRole(role)) {
         setUserRole(role);
       }
     }
@@ -51,9 +94,11 @@ export function DashboardShell({
   useEffect(() => {
     if (!currentSchool) return;
     refreshSchoolAlerts(currentSchool.id);
-    setAlerts(getVisibleAlerts(currentSchool.id));
-    setUnreadCount(getUnreadAlertCount(currentSchool.id));
-  }, [currentSchool]);
+    const session = getUserSession();
+    const viewer = { role: userRole, email: session?.email };
+    setAlerts(getVisibleAlertsForViewer(currentSchool.id, viewer));
+    setUnreadCount(getUnreadAlertCountForViewer(currentSchool.id, viewer));
+  }, [currentSchool, userRole]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -75,26 +120,32 @@ export function DashboardShell({
       return;
     }
 
+    const session = getUserSession();
+    const viewer = { role: userRole, email: session?.email };
     const nextOpen = !notificationsOpen;
     setNotificationsOpen(nextOpen);
     if (nextOpen) {
-      setAlerts(getVisibleAlerts(currentSchool.id));
-      setUnreadCount(getUnreadAlertCount(currentSchool.id));
+      setAlerts(getVisibleAlertsForViewer(currentSchool.id, viewer));
+      setUnreadCount(getUnreadAlertCountForViewer(currentSchool.id, viewer));
     }
   };
 
   const handleMarkAllRead = () => {
     if (!currentSchool) return;
     markAllAlertsRead(currentSchool.id);
-    setAlerts(getVisibleAlerts(currentSchool.id));
+    const session = getUserSession();
+    const viewer = { role: userRole, email: session?.email };
+    setAlerts(getVisibleAlertsForViewer(currentSchool.id, viewer));
     setUnreadCount(0);
   };
 
   const handleMarkRead = (alertId: string) => {
     if (!currentSchool) return;
     markAlertRead(currentSchool.id, alertId);
-    setAlerts(getVisibleAlerts(currentSchool.id));
-    setUnreadCount(getUnreadAlertCount(currentSchool.id));
+    const session = getUserSession();
+    const viewer = { role: userRole, email: session?.email };
+    setAlerts(getVisibleAlertsForViewer(currentSchool.id, viewer));
+    setUnreadCount(getUnreadAlertCountForViewer(currentSchool.id, viewer));
   };
 
   return (
@@ -108,12 +159,12 @@ export function DashboardShell({
         >
           <div className="flex h-full flex-col px-4 py-5">
             <div className="mb-5 flex items-center gap-3 px-1">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow-sm">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-md shadow-blue-600/20">
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <div>
                 <p className="section-label">School OS</p>
-                <h2 className="text-base font-semibold tracking-tight text-slate-900">
+                <h2 className="text-base font-bold tracking-tight text-slate-900">
                   Management Suite
                 </h2>
               </div>
@@ -137,7 +188,7 @@ export function DashboardShell({
                   {Array.from({ length: 6 }).map((_, index) => (
                     <div
                       key={index}
-                      className="h-11 animate-pulse rounded-lg bg-slate-100"
+                      className="h-11 animate-pulse rounded-xl bg-slate-100"
                     />
                   ))}
                 </div>
@@ -149,14 +200,8 @@ export function DashboardShell({
               />
             </Suspense>
 
-            <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+            <div className="mt-4 border-t border-slate-100 pt-4">
               <UserSession />
-              <div className="rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 p-4 text-white shadow-sm">
-                <p className="section-label text-slate-400">Today</p>
-                <p className="mt-2 text-sm font-medium leading-relaxed">
-                  Attendance, billing, and exams are live.
-                </p>
-              </div>
             </div>
           </div>
         </aside>
@@ -171,18 +216,22 @@ export function DashboardShell({
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
-            <div className="flex items-center gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
+          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur-lg">
+            <div className="flex items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden"
                 onClick={() => setMobileNavOpen((open) => !open)}
                 aria-label="Toggle navigation"
               >
                 <Menu className="h-5 w-5" />
               </button>
 
-              <div className="hidden min-w-0 flex-1 items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-2 md:flex">
+              <Suspense fallback={<div className="hidden flex-1 md:block" />}>
+                <HeaderContext userRole={userRole} />
+              </Suspense>
+
+              <div className="hidden min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2 lg:flex lg:max-w-md">
                 <Search className="h-4 w-4 shrink-0 text-slate-400" />
                 <input
                   className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
@@ -196,7 +245,7 @@ export function DashboardShell({
                   <button
                     type="button"
                     onClick={handleOpenNotifications}
-                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
+                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
                     aria-label="Notifications"
                   >
                     <Bell className="h-4 w-4" />
@@ -206,7 +255,7 @@ export function DashboardShell({
                   </button>
 
                   {notificationsOpen && (
-                    <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                    <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
                       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                         <p className="text-sm font-semibold text-slate-900">Notifications</p>
                         {unreadCount > 0 && (
@@ -259,19 +308,7 @@ export function DashboardShell({
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 shadow-sm transition-colors hover:bg-slate-50"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-blue-600 to-blue-700 text-xs font-semibold text-white">
-                    SM
-                  </div>
-                  <div className="hidden text-left sm:block">
-                    <p className="text-sm font-medium text-slate-900">School Admin</p>
-                    <p className="text-xs capitalize text-slate-500">{userRole}</p>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
-                </button>
+                <HeaderProfile />
               </div>
             </div>
           </header>

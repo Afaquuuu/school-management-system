@@ -12,7 +12,7 @@ import {
   saveSystemUsers,
   type SystemUser,
 } from "@/lib/system-users";
-import { establishUserSession } from "@/lib/teacher-check-in";
+import { establishUserSession, getUserSession } from "@/lib/teacher-check-in";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,8 +35,29 @@ export default function LoginPage() {
   useEffect(() => {
     if (schools.length === 0 || !currentSchool) {
       router.push("/school-auth");
+      return;
+    }
+
+    const session = getUserSession();
+    if (session) {
+      router.replace(session.role.toLowerCase() === "admin" ? "/admin" : "/dashboard");
     }
   }, [schools, currentSchool, router]);
+
+  const finishLogin = (user: SystemUser) => {
+    if (!currentSchool) return;
+
+    const users = loadSystemUsers(currentSchool.id);
+    const updatedUsers = users.map((u) =>
+      u.id === user.id ? { ...u, lastLogin: new Date().toISOString() } : u,
+    );
+
+    saveSystemUsers(currentSchool.id, updatedUsers);
+    establishUserSession(user, currentSchool.id);
+
+    const redirectUrl = user.role.toLowerCase() === "admin" ? "/admin" : "/dashboard";
+    router.replace(redirectUrl);
+  };
 
   const handleSetupAdmin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,15 +92,13 @@ export default function LoginPage() {
     });
 
     establishUserSession(adminUser, currentSchool.id);
-    window.location.href = "/admin";
+    router.replace("/admin");
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-
-    console.log("Login attempt:", { email, password: "***", currentSchool: currentSchool?.name });
 
     if (!currentSchool) {
       setError("No school selected. Please select a school first.");
@@ -87,57 +106,36 @@ export default function LoginPage() {
       return;
     }
 
+    let redirecting = false;
+
     try {
       const users = loadSystemUsers(currentSchool.id);
-      console.log("Total users in school:", users.length);
-      
-      // Find user by email
-      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      console.log("User found:", !!user, user ? `Role: ${user.role}, Status: ${user.status}` : "Not found");
-      
+      const user = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+
       if (!user) {
         setError("User not found. Please check your email address.");
-        setLoading(false);
         return;
       }
 
-      // Check password
       if (user.password !== password) {
-        console.log("Password mismatch");
         setError("Invalid password. Please try again.");
-        setLoading(false);
         return;
       }
 
-      // Check if user is active
       if (user.status !== "Active") {
-        console.log("User status:", user.status);
         setError(`Account is ${user.status.toLowerCase()}. Please contact administrator.`);
-        setLoading(false);
         return;
       }
 
-      console.log("Login successful, redirecting...");
-
-      // Update last login
-      const updatedUsers = users.map((u) =>
-        u.id === user.id ? { ...u, lastLogin: new Date().toISOString() } : u,
-      );
-
-      saveSystemUsers(currentSchool.id, updatedUsers);
-      establishUserSession(user, currentSchool.id);
-
-      console.log("Session stored, redirecting to:", user.role.toLowerCase() === 'admin' ? '/admin' : '/dashboard');
-
-      // Force a page reload to ensure the AuthGuard picks up the new session
-      const redirectUrl = user.role.toLowerCase() === 'admin' ? '/admin' : '/dashboard';
-      window.location.href = redirectUrl;
-
-    } catch (error) {
-      console.error('Login error:', error);
+      finishLogin(user);
+      redirecting = true;
+    } catch (loginError) {
+      console.error("Login error:", loginError);
       setError("An error occurred during login. Please try again.");
     } finally {
-      setLoading(false);
+      if (!redirecting) {
+        setLoading(false);
+      }
     }
   };
 
