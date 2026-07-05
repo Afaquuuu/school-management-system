@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { PageHeader } from "@/components/ui/page-header";
+
 export function SectionPage({
   title,
   description,
@@ -12,12 +14,8 @@ export function SectionPage({
   badge?: string;
 }) {
   return (
-    <div className="space-y-6">
-      <div className="surface-card p-6">
-        {badge ? <p className="section-label mb-2">{badge}</p> : null}
-        <h1 className="page-title">{title}</h1>
-        <p className="page-subtitle mt-1.5 max-w-2xl">{description}</p>
-      </div>
+    <div className="page-stack">
+      <PageHeader badge={badge} title={title} description={description} />
       {children}
     </div>
   );

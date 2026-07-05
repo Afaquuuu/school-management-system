@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
 import { useSchool, getScopedItem } from "@/lib/school-context";
 import { loadFinanceInvoices } from "@/lib/finance-invoices";
 import { loadSystemUsers } from "@/lib/system-users";
@@ -335,75 +337,62 @@ export default function AdminDashboard() {
   }, [currentSchool, pendingCheckIns]);
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-50">Admin Control Panel</h1>
-        <p className="mt-2 text-lg text-slate-600 dark:text-slate-400">
-          Complete control center for all school management activities
-        </p>
-      </div>
+    <div className="page-stack">
+      <PageHeader
+        badge="Administration"
+        title="Admin Control Panel"
+        description="Complete control center for all school management activities"
+        actions={
+          <div className="tab-group">
+            <button
+              type="button"
+              onClick={() => setSelectedView("overview")}
+              className={selectedView === "overview" ? "tab-group-item tab-group-item-active" : "tab-group-item"}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedView("actions")}
+              className={selectedView === "actions" ? "tab-group-item tab-group-item-active" : "tab-group-item"}
+            >
+              Quick Actions
+            </button>
+          </div>
+        }
+      />
 
-      {/* View Toggle */}
-      <div className="flex gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit">
-        <button
-          onClick={() => setSelectedView("overview")}
-          className={`px-4 py-2 rounded-md font-medium transition-colors ${
-            selectedView === "overview"
-              ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-          }`}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => setSelectedView("actions")}
-          className={`px-4 py-2 rounded-md font-medium transition-colors ${
-            selectedView === "actions"
-              ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 shadow-sm"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-          }`}
-        >
-          Quick Actions
-        </button>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {adminStats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div
+            <StatCard
               key={stat.label}
-              className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{stat.label}</p>
-                <Icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-              <p className="text-3xl font-bold text-slate-900 dark:text-slate-50">{stat.value}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">{stat.change}</p>
-            </div>
+              label={stat.label}
+              value={stat.value}
+              hint={stat.change}
+              icon={Icon}
+              tone="info"
+            />
           );
         })}
       </div>
 
       {selectedView === "actions" ? (
         <>
-          {/* Quick Actions Grid */}
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50 mb-4">Quick Actions</h2>
-            <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <h2 className="section-heading">Quick Actions</h2>
+            <p className="section-description mt-1 mb-5">
               Perform common administrative tasks with one click
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {quickActions.map((action) => {
                 const Icon = action.icon;
                 return (
                   <Link key={action.href} href={action.href}>
-                    <div className={`${action.color} ${action.hoverColor} rounded-lg p-6 text-white shadow-md hover:shadow-lg transition-all cursor-pointer`}>
-                      <Icon className="w-8 h-8 mb-3" />
-                      <h3 className="text-lg font-bold mb-1">{action.title}</h3>
+                    <div className={`${action.color} ${action.hoverColor} rounded-2xl p-6 text-white shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated`}>
+                      <Icon className="mb-3 h-8 w-8" />
+                      <h3 className="mb-1 text-lg font-bold">{action.title}</h3>
                       <p className="text-sm text-white/90">{action.description}</p>
                     </div>
                   </Link>
@@ -412,30 +401,29 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Pending Tasks */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Pending Tasks</h2>
-              <span className="text-sm text-slate-500 dark:text-slate-400">{pendingTasks.length} items</span>
+          <div className="content-panel">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="section-heading">Pending Tasks</h2>
+              <span className="badge-neutral">{pendingTasks.length} items</span>
             </div>
             <div className="space-y-3">
               {pendingTasks.map((item, index) => {
                 const Icon = item.icon;
                 return (
                   <Link key={index} href={item.href}>
-                    <div className="flex items-center justify-between p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer">
+                    <div className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 p-4 transition-colors hover:border-teal-200 hover:bg-slate-50">
                       <div className="flex items-center gap-3">
-                        <Icon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                        <span className="text-slate-900 dark:text-slate-50 font-medium">{item.task}</span>
+                        <Icon className="h-5 w-5 text-slate-600" />
+                        <span className="font-semibold text-slate-900">{item.task}</span>
                       </div>
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        className={
                           item.priority === "high"
-                            ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200"
+                            ? "badge-danger"
                             : item.priority === "medium"
-                            ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200"
-                            : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200"
-                        }`}
+                              ? "badge-warning"
+                              : "badge-neutral"
+                        }
                       >
                         {item.priority}
                       </span>
@@ -448,23 +436,22 @@ export default function AdminDashboard() {
         </>
       ) : (
         <>
-          {/* Admin Sections Grid */}
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50 mb-4">Management Sections</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <h2 className="section-heading mb-5">Management Sections</h2>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
               {adminSections.map((section) => {
                 const Icon = section.icon;
                 return (
                   <Link key={section.href} href={section.href}>
-                    <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 shadow-sm hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer h-full">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className={`${section.color} p-3 rounded-lg text-white`}>
-                          <Icon className="w-6 h-6" />
+                    <div className="module-card">
+                      <div className="mb-4 flex items-start justify-between">
+                        <div className={`module-card-icon ${section.color}`}>
+                          <Icon className="h-6 w-6" />
                         </div>
-                        <span className="text-slate-400 dark:text-slate-500">→</span>
+                        <span className="text-slate-300">→</span>
                       </div>
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">{section.title}</h3>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">{section.description}</p>
+                      <h3 className="mb-2 text-lg font-bold text-slate-900">{section.title}</h3>
+                      <p className="section-description">{section.description}</p>
                     </div>
                   </Link>
                 );
@@ -472,54 +459,54 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Recent Activity & System Overview */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Activity */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Recent Activity</h2>
-                <Clock className="w-5 h-5 text-slate-400" />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="content-panel">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="section-heading">Recent Activity</h2>
+                <Clock className="h-5 w-5 text-slate-400" />
               </div>
               <div className="space-y-4">
                 {recentActivity.map((activity, index) => {
                   const Icon = activity.icon;
                   return (
-                    <div key={index} className="flex items-start gap-3 pb-4 border-b border-slate-200 dark:border-slate-700 last:border-0 last:pb-0">
-                      <Icon className={`w-5 h-5 mt-0.5 ${activity.color}`} />
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 border-b border-slate-100 pb-4 last:border-0 last:pb-0"
+                    >
+                      <Icon className={`mt-0.5 h-5 w-5 ${activity.color}`} />
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{activity.action}</p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">{activity.user}</p>
+                        <p className="text-sm font-semibold text-slate-900">{activity.action}</p>
+                        <p className="text-xs text-slate-500">{activity.user}</p>
                       </div>
-                      <span className="text-xs text-slate-500 dark:text-slate-500">{activity.time}</span>
+                      <span className="text-xs font-medium text-slate-400">{activity.time}</span>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* System Overview */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50 mb-4">System Status</h2>
+            <div className="content-panel">
+              <h2 className="section-heading mb-4">System Status</h2>
               <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
-                  <span className="text-green-900 dark:text-green-200">✓ Database Connected</span>
-                  <span className="text-xs text-green-700 dark:text-green-300">Healthy</span>
+                <div className="status-row-success">
+                  <span className="font-medium">Database Connected</span>
+                  <span className="badge-success">Healthy</span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
-                  <span className="text-green-900 dark:text-green-200">✓ Authentication Active</span>
-                  <span className="text-xs text-green-700 dark:text-green-300">Online</span>
+                <div className="status-row-success">
+                  <span className="font-medium">Authentication Active</span>
+                  <span className="badge-success">Online</span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
-                  <span className="text-green-900 dark:text-green-200">✓ File Uploads Enabled</span>
-                  <span className="text-xs text-green-700 dark:text-green-300">Ready</span>
+                <div className="status-row-success">
+                  <span className="font-medium">File Uploads Enabled</span>
+                  <span className="badge-success">Ready</span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-                  <span className="text-yellow-900 dark:text-yellow-200">⚠️ Email Service</span>
-                  <span className="text-xs text-yellow-700 dark:text-yellow-300">Not configured</span>
+                <div className="status-row-warning">
+                  <span className="font-medium">Email Service</span>
+                  <span className="badge-warning">Not configured</span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                  <span className="text-blue-900 dark:text-blue-200">ℹ️ System Uptime</span>
-                  <span className="text-xs text-blue-700 dark:text-blue-300">98.7%</span>
+                <div className="status-row-info">
+                  <span className="font-medium">System Uptime</span>
+                  <span className="badge-info">98.7%</span>
                 </div>
               </div>
             </div>

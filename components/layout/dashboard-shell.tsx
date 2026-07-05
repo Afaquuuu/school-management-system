@@ -57,9 +57,9 @@ function HeaderContext({
   return (
     <div className="hidden min-w-0 flex-1 md:block">
       <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium text-slate-500">{groupLabel}</span>
+        <span className="font-semibold text-slate-400">{groupLabel}</span>
         <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
-        <span className="truncate font-semibold text-slate-900">{pageLabel}</span>
+        <span className="truncate font-bold text-slate-900">{pageLabel}</span>
       </div>
     </div>
   );
@@ -199,7 +199,7 @@ export function DashboardShell({
         ) : null}
 
       <div className="flex min-h-screen min-w-0 flex-col md:pl-[280px]">
-          <header className="sticky top-0 z-20 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl">
+          <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 shadow-soft backdrop-blur-xl">
             <div className="flex items-center gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
               <button
                 type="button"
@@ -214,10 +214,10 @@ export function DashboardShell({
                 <HeaderContext userRole={userRole} />
               </Suspense>
 
-              <div className="hidden min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2 lg:flex lg:max-w-md">
+              <div className="hidden min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-sm lg:flex lg:max-w-md">
                 <Search className="h-4 w-4 shrink-0 text-slate-400" />
                 <input
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                  className="w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-slate-400"
                   placeholder="Search students, invoices, attendance..."
                   aria-label="Search school data"
                 />
@@ -296,8 +296,14 @@ export function DashboardShell({
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
-            <div className="main-content-enter w-full">{children}</div>
+          <main
+            className="flex-1 px-4 py-8 sm:px-6 lg:px-8"
+            style={{
+              background:
+                "linear-gradient(180deg, hsl(var(--content-gradient-start)) 0%, hsl(var(--content-gradient-end)) 100%)",
+            }}
+          >
+            <div className="main-content-enter content-shell w-full">{children}</div>
           </main>
         </div>
     </div>

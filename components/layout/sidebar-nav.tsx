@@ -127,7 +127,7 @@ function NavigationGroupSection({
           "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
           isOpen || isGroupActive
             ? "text-white"
-            : "text-slate-400 hover:bg-slate-800/40 hover:text-slate-200",
+            : "text-white/90 hover:bg-slate-800/40 hover:text-white",
         )}
         aria-expanded={isOpen}
       >
@@ -136,24 +136,19 @@ function NavigationGroupSection({
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
             isOpen || isGroupActive
               ? "bg-teal-600 text-white shadow-sm"
-              : "bg-slate-800 text-slate-500",
+              : "bg-slate-800 text-white/80",
           )}
         >
           <Icon className="h-4 w-4" />
         </span>
         <span className="min-w-0 flex-1">
-          <span
-            className={cn(
-              "block text-[11px] font-semibold uppercase tracking-[0.14em]",
-              isOpen || isGroupActive ? "text-slate-200" : "text-slate-500",
-            )}
-          >
+          <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-white">
             {group.label}
           </span>
         </span>
         <ChevronDown
           className={cn(
-            "h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform duration-200",
+            "h-3.5 w-3.5 shrink-0 text-white/70 transition-transform duration-200",
             isOpen ? "rotate-0" : "-rotate-90",
           )}
         />
@@ -180,10 +175,10 @@ function NavigationGroupSection({
                     href={child.href}
                     onClick={onNavigate}
                     className={cn(
-                      "group flex items-center gap-2 rounded-xl py-2 pl-9 pr-3 text-[13px] font-medium transition-all",
+                      "group flex items-center gap-2 rounded-xl py-2 pl-9 pr-3 text-[13px] font-semibold transition-all",
                       isActive
                         ? "bg-teal-600/90 text-white shadow-sm"
-                        : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100",
+                        : "text-white/85 hover:bg-slate-800/50 hover:text-white",
                     )}
                   >
                     <span
@@ -191,7 +186,7 @@ function NavigationGroupSection({
                         "h-1 w-1 shrink-0 rounded-full transition-colors",
                         isActive
                           ? "bg-white"
-                          : "bg-slate-600 group-hover:bg-teal-400",
+                          : "bg-white/40 group-hover:bg-teal-300",
                       )}
                     />
                     <span>{child.label}</span>

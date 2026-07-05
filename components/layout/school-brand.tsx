@@ -25,10 +25,10 @@ export function SchoolBrand() {
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-base font-semibold tracking-tight text-white">
+        <h2 className="truncate text-base font-bold tracking-tight text-white">
           {currentSchool.name}
         </h2>
-        <p className="truncate text-xs text-slate-400">{currentSchool.email}</p>
+        <p className="truncate text-xs font-medium text-white/70">{currentSchool.email}</p>
       </div>
     </div>
   );

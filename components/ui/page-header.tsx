@@ -22,8 +22,8 @@ export function PageHeader({
     <div
       className={cn(
         variant === "hero"
-          ? "overflow-hidden rounded-2xl border border-teal-800/30 bg-gradient-to-br from-primary via-slate-800 to-slate-900 p-6 text-white shadow-lg md:p-8"
-          : "surface-card p-6",
+          ? "overflow-hidden rounded-2xl border border-teal-800/30 bg-gradient-to-br from-primary via-slate-800 to-slate-900 p-6 text-white shadow-elevated md:p-8"
+          : "surface-card relative overflow-hidden border-slate-200/80 p-6 pl-7 before:absolute before:inset-y-0 before:left-0 before:w-1 before:rounded-l-2xl before:bg-gradient-to-b before:from-teal-500 before:to-teal-700",
         className,
       )}
     >
