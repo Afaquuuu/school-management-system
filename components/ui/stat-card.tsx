@@ -28,9 +28,9 @@ const toneStyles: Record<
     label: "text-red-600",
   },
   info: {
-    icon: "bg-blue-100 text-blue-600",
-    value: "text-blue-700",
-    label: "text-blue-600",
+    icon: "bg-teal-100 text-teal-700",
+    value: "text-teal-800",
+    label: "text-teal-700",
   },
   brand: {
     icon: "bg-violet-100 text-violet-600",

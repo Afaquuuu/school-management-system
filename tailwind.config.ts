@@ -55,9 +55,18 @@ const config: Config = {
         "3xl": "1.25rem",
       },
       boxShadow: {
-        soft: "0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06)",
-        elevated: "0 4px 6px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.08)",
-        sidebar: "4px 0 24px rgba(15, 23, 42, 0.06)",
+        soft: "0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.05)",
+        elevated: "0 4px 6px rgba(15, 23, 42, 0.03), 0 16px 40px rgba(15, 23, 42, 0.07)",
+        sidebar: "4px 0 32px rgba(15, 23, 42, 0.12)",
+      },
+      keyframes: {
+        "fade-in": {
+          from: { opacity: "0", transform: "translateY(4px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 0.2s ease-out",
       },
     },
   },

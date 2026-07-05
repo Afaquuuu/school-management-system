@@ -9,7 +9,6 @@ import {
   Menu,
   Search,
   X,
-  GraduationCap,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -28,7 +27,7 @@ import { getUserSession } from "@/lib/teacher-check-in";
 import { getActivePageContext } from "@/lib/navigation";
 import { UserSession } from "./user-session";
 import { HeaderProfile } from "./header-profile";
-import { SchoolSwitcher } from "./school-switcher";
+import { SchoolBrand } from "./school-brand";
 import { SidebarNav } from "./sidebar-nav";
 
 function HeaderContext({
@@ -62,9 +61,6 @@ function HeaderContext({
         <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
         <span className="truncate font-semibold text-slate-900">{pageLabel}</span>
       </div>
-      <p className="mt-0.5 truncate text-xs text-slate-400">
-        {pathname.replace(/^\//, "").replace(/\?.*$/, "") || "dashboard"}
-      </p>
     </div>
   );
 }
@@ -149,37 +145,24 @@ export function DashboardShell({
   };
 
   return (
-    <div className="min-h-screen bg-transparent text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-[1680px]">
-        <aside
-          className={cn(
-            "fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-slate-200/80 bg-white shadow-sidebar transition-transform duration-300 md:static md:translate-x-0",
-            mobileNavOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
-          )}
-        >
+    <div className="min-h-screen bg-background text-slate-900">
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-slate-800/50 bg-sidebar text-sidebar-foreground shadow-sidebar transition-transform duration-300",
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+        )}
+      >
           <div className="flex h-full flex-col px-4 py-5">
             <div className="mb-5 flex items-center gap-3 px-1">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-md shadow-blue-600/20">
-                <GraduationCap className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="section-label">School OS</p>
-                <h2 className="text-base font-bold tracking-tight text-slate-900">
-                  Management Suite
-                </h2>
-              </div>
+              <SchoolBrand />
               <button
                 type="button"
-                className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 md:hidden"
+                className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 md:hidden"
                 onClick={() => setMobileNavOpen(false)}
                 aria-label="Close navigation"
               >
                 <X className="h-4 w-4" />
               </button>
-            </div>
-
-            <div className="mb-4">
-              <SchoolSwitcher />
             </div>
 
             <Suspense
@@ -200,7 +183,7 @@ export function DashboardShell({
               />
             </Suspense>
 
-            <div className="mt-4 border-t border-slate-100 pt-4">
+            <div className="mt-4 border-t border-slate-800 pt-4">
               <UserSession />
             </div>
           </div>
@@ -209,15 +192,15 @@ export function DashboardShell({
         {mobileNavOpen ? (
           <button
             type="button"
-            className="fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-[2px] md:hidden"
+            className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-sm md:hidden"
             aria-label="Dismiss navigation overlay"
             onClick={() => setMobileNavOpen(false)}
           />
         ) : null}
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur-lg">
-            <div className="flex items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+      <div className="flex min-h-screen min-w-0 flex-col md:pl-[280px]">
+          <header className="sticky top-0 z-20 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl">
+            <div className="flex items-center gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
               <button
                 type="button"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden"
@@ -250,7 +233,7 @@ export function DashboardShell({
                   >
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
-                      <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-blue-600 ring-2 ring-white" />
+                      <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-teal-500 ring-2 ring-white" />
                     )}
                   </button>
 
@@ -262,7 +245,7 @@ export function DashboardShell({
                           <button
                             type="button"
                             onClick={handleMarkAllRead}
-                            className="text-xs font-medium text-blue-600 hover:underline"
+                            className="text-xs font-medium text-teal-700 hover:underline"
                           >
                             Mark all read
                           </button>
@@ -282,7 +265,7 @@ export function DashboardShell({
                               onClick={() => handleMarkRead(alert.id)}
                               className={cn(
                                 "block w-full border-b border-slate-100 px-4 py-3 text-left transition-colors hover:bg-slate-50",
-                                !alert.read && "bg-blue-50/60",
+                                !alert.read && "bg-teal-50/80",
                               )}
                             >
                               <p className="text-sm font-medium text-slate-900">{alert.title}</p>
@@ -299,7 +282,7 @@ export function DashboardShell({
                           <Link
                             href="/admin/alerts"
                             onClick={() => setNotificationsOpen(false)}
-                            className="text-sm font-medium text-blue-600 hover:underline"
+                            className="text-sm font-medium text-teal-700 hover:underline"
                           >
                             Manage alerts
                           </Link>
@@ -313,11 +296,10 @@ export function DashboardShell({
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-[1400px]">{children}</div>
+          <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+            <div className="main-content-enter w-full">{children}</div>
           </main>
         </div>
-      </div>
     </div>
   );
 }

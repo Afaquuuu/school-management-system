@@ -22,7 +22,7 @@ export function PageHeader({
     <div
       className={cn(
         variant === "hero"
-          ? "overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-6 text-white shadow-lg md:p-8"
+          ? "overflow-hidden rounded-2xl border border-teal-800/30 bg-gradient-to-br from-primary via-slate-800 to-slate-900 p-6 text-white shadow-lg md:p-8"
           : "surface-card p-6",
         className,
       )}
@@ -33,7 +33,7 @@ export function PageHeader({
             <p
               className={cn(
                 "section-label mb-2",
-                variant === "hero" ? "text-blue-100" : undefined,
+                variant === "hero" ? "text-teal-100" : undefined,
               )}
             >
               {badge}
@@ -51,7 +51,7 @@ export function PageHeader({
             <p
               className={cn(
                 "page-subtitle mt-1.5 max-w-2xl",
-                variant === "hero" ? "text-blue-100" : undefined,
+                variant === "hero" ? "text-teal-100" : undefined,
               )}
             >
               {description}
@@ -61,7 +61,7 @@ export function PageHeader({
             <div
               className={cn(
                 "mt-3 text-sm",
-                variant === "hero" ? "text-blue-100/90" : "text-slate-500",
+                variant === "hero" ? "text-teal-100/90" : "text-slate-500",
               )}
             >
               {meta}
