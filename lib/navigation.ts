@@ -2,6 +2,7 @@ import {
   BadgeDollarSign,
   BookOpen,
   BarChart3,
+  FileText,
   LayoutDashboard,
   Megaphone,
   ShieldCheck,
@@ -123,6 +124,17 @@ export const navigationGroups: NavigationGroup[] = [
         href: "/communication?tab=compose",
         roles: ["admin", "teacher", "student", "parent", "librarian"],
       },
+    ],
+  },
+  {
+    id: "documents",
+    label: "Documents",
+    icon: FileText,
+    roles: ["admin", "teacher", "student", "parent"],
+    children: [
+      { label: "My Documents", href: "/my-documents", roles: ["student"] },
+      { label: "Child's Documents", href: "/my-documents", roles: ["parent"] },
+      { label: "Verify Documents", href: "/my-documents", roles: ["admin", "teacher"] },
     ],
   },
   {
@@ -281,5 +293,6 @@ export const routeGroups = [
   "/analytics(.*)",
   "/finance(.*)",
   "/communication(.*)",
+  "/my-documents(.*)",
   "/admin(.*)",
 ];

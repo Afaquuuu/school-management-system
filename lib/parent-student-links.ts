@@ -8,6 +8,7 @@ export type SchoolStudentRecord = {
   lastName: string;
   class: string;
   section: string;
+  email?: string;
   rollNumber?: string;
   admissionDate?: string;
   guardianName?: string;
@@ -86,11 +87,15 @@ export function filterStudentsForParentLink(
   if (query) {
     result = result.filter((student) => {
       const label = formatStudentLinkLabel(student).toLowerCase();
+      const fullName = `${student.firstName} ${student.lastName}`.trim().toLowerCase();
+      const firstName = student.firstName.trim().toLowerCase();
       return (
         label.includes(query) ||
+        fullName.includes(query) ||
+        firstName.includes(query) ||
+        student.lastName.toLowerCase().includes(query) ||
         student.studentId.toLowerCase().includes(query) ||
-        student.firstName.toLowerCase().includes(query) ||
-        student.lastName.toLowerCase().includes(query)
+        student.email?.toLowerCase().includes(query)
       );
     });
   }
@@ -212,9 +217,10 @@ export function resolvePersonalViewStudent(
   if (role === "student") {
     const sessionName = session.name?.trim() ?? "";
     const students = loadSchoolStudentRecords(schoolId);
+    const sessionEmail = session.email.trim().toLowerCase();
     const matched = students.find(
       (student) =>
-        student.guardianEmail?.toLowerCase() === session.email.toLowerCase() ||
+        student.email?.trim().toLowerCase() === sessionEmail ||
         student.id === session.id ||
         (sessionName &&
           `${student.firstName} ${student.lastName}`.toLowerCase() === sessionName.toLowerCase()) ||
