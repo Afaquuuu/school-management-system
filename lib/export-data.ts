@@ -30,10 +30,21 @@ export function downloadTextFile(
   if (typeof window === "undefined") return;
 
   const blob = new Blob([content], { type: mimeType });
+  const resolvedName = fileName.includes(".")
+    ? fileName
+    : mimeType.includes("html")
+      ? `${fileName}.html`
+      : `${fileName}.csv`;
+  downloadBlobFile(resolvedName, blob);
+}
+
+export function downloadBlobFile(fileName: string, blob: Blob): void {
+  if (typeof window === "undefined") return;
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = fileName.endsWith(".csv") ? fileName : `${fileName}.csv`;
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

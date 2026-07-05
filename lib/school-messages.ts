@@ -147,8 +147,18 @@ export function getInboxMessages(
   userEmail: string,
 ): SchoolMessage[] {
   const email = userEmail.trim().toLowerCase();
-  return ensureSchoolMessages(schoolId)
+  return loadSchoolMessages(schoolId)
     .filter((message) => message.recipientEmail.toLowerCase() === email)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function getSentMessages(
+  schoolId: string,
+  userEmail: string,
+): SchoolMessage[] {
+  const email = userEmail.trim().toLowerCase();
+  return loadSchoolMessages(schoolId)
+    .filter((message) => message.senderEmail.toLowerCase() === email)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -168,6 +178,17 @@ export function deleteSchoolMessage(
   messageId: string,
 ): SchoolMessage[] {
   const messages = loadSchoolMessages(schoolId).filter((message) => message.id !== messageId);
+  saveSchoolMessages(schoolId, messages);
+  return messages;
+}
+
+export function deleteSchoolMessages(
+  schoolId: string,
+  messageIds: string[],
+): SchoolMessage[] {
+  if (messageIds.length === 0) return loadSchoolMessages(schoolId);
+  const idSet = new Set(messageIds);
+  const messages = loadSchoolMessages(schoolId).filter((message) => !idSet.has(message.id));
   saveSchoolMessages(schoolId, messages);
   return messages;
 }

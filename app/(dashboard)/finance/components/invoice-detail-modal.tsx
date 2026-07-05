@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   X,
   Download,
@@ -14,7 +14,8 @@ import {
   Mail,
 } from "lucide-react";
 import { formatDate } from "@/lib/date-format";
-import { exportKeyValueCsv, printHtml } from "@/lib/export-data";
+import { downloadInvoicePdf } from "@/lib/invoice-pdf";
+import { printHtml } from "@/lib/export-data";
 import {
   getInvoiceLineItems,
   type FinanceInvoice,
@@ -89,7 +90,7 @@ function buildPrintHtml(options: {
     )
     .join("");
 
-  return `<div style="font-family:Georgia,'Times New Roman',serif;color:#0f172a;max-width:820px;margin:0 auto;">
+  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:820px;margin:0 auto;word-spacing:normal;letter-spacing:normal;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1d4ed8;padding-bottom:18px;margin-bottom:22px;">
       <div>
         <div style="font-size:24px;font-weight:700;color:#1e3a8a;">${schoolName}</div>
@@ -99,14 +100,14 @@ function buildPrintHtml(options: {
         </div>
       </div>
       <div style="text-align:right;">
-        <div style="display:inline-block;background:#1d4ed8;color:#fff;padding:8px 16px;font-size:12px;font-weight:700;letter-spacing:0.12em;">FEE INVOICE</div>
+        <div style="display:inline-block;background:#1d4ed8;color:#fff;padding:8px 16px;font-size:12px;font-weight:700;">FEE INVOICE</div>
         <div style="margin-top:10px;font-size:13px;color:#475569;">Academic Year ${academicYear}</div>
       </div>
     </div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">
       <tr>
         <td style="width:50%;vertical-align:top;padding-right:16px;">
-          <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:#64748b;margin-bottom:8px;">BILL TO</div>
+          <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px;">BILL TO</div>
           <div style="font-size:18px;font-weight:700;">${invoice.studentName}</div>
           <div style="margin-top:4px;color:#475569;">Class: ${invoice.className}</div>
           ${admissionNo ? `<div style="margin-top:2px;color:#475569;">Admission No: ${admissionNo}</div>` : ""}
@@ -151,6 +152,7 @@ function buildPrintHtml(options: {
 
 export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps) {
   const { currentSchool } = useSchool();
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const admissionNo = useMemo(() => {
     if (!invoice?.studentId || !currentSchool) return "";
@@ -179,24 +181,27 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
   const schoolPhone = currentSchool?.phone ?? "";
   const schoolEmail = currentSchool?.email ?? "";
 
-  const handleDownloadInvoice = () => {
-    exportKeyValueCsv(`invoice-${invoice.invoiceNo}`, [
-      { label: "School", value: schoolName },
-      { label: "Invoice No", value: invoice.invoiceNo },
-      { label: "Student", value: invoice.studentName },
-      { label: "Class", value: invoice.className },
-      { label: "Admission No", value: admissionNo || "—" },
-      { label: "Issued Date", value: formatDate(invoice.issuedAt) },
-      { label: "Due Date", value: formatDate(invoice.dueAt) },
-      { label: "Total Amount", value: invoice.totalAmount },
-      { label: "Paid Amount", value: invoice.paidAmount },
-      { label: "Balance Due", value: balance },
-      { label: "Status", value: statusConfig.label },
-      ...lineItems.map((item, index) => ({
-        label: `Fee ${index + 1}`,
-        value: `${item.description}: ${formatMoney(item.amount)}`,
-      })),
-    ]);
+  const handleDownloadInvoice = async () => {
+    setIsDownloading(true);
+    try {
+      await downloadInvoicePdf({
+        fileName: `invoice-${invoice.invoiceNo}`,
+        schoolName,
+        schoolAddress,
+        schoolPhone,
+        schoolEmail,
+        invoice,
+        lineItems,
+        statusLabel: statusConfig.label,
+        admissionNo,
+        academicYear,
+      });
+    } catch (error) {
+      console.error("Failed to download invoice PDF:", error);
+      alert("Could not download the invoice PDF. Please try Print Bill and save as PDF instead.");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handlePrintInvoice = () => {
@@ -234,8 +239,9 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
             <button
               type="button"
               onClick={handleDownloadInvoice}
-              className="rounded-lg p-2 text-slate-600 transition hover:bg-white hover:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800"
-              title="Download invoice"
+              disabled={isDownloading}
+              className="rounded-lg p-2 text-slate-600 transition hover:bg-white hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              title={isDownloading ? "Preparing PDF..." : "Download invoice PDF"}
             >
               <Download className="h-4 w-4" />
             </button>

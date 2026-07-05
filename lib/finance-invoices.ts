@@ -58,6 +58,24 @@ type StoredStudent = {
 
 const STORAGE_KEY = "finance_invoices";
 
+const DEMO_INVOICE_IDS = new Set(["1", "2", "3", "4", "5"]);
+const DEMO_STUDENT_NAMES = new Set([
+  "Ama Johnson",
+  "Kofi Badu",
+  "Peter Owusu",
+  "Hannah Lee",
+  "David Mensah",
+]);
+
+export function isDemoInvoice(invoice: FinanceInvoice): boolean {
+  if (DEMO_INVOICE_IDS.has(invoice.id)) return true;
+  return !invoice.studentId && DEMO_STUDENT_NAMES.has(invoice.studentName);
+}
+
+export function removeDemoInvoices(invoices: FinanceInvoice[]): FinanceInvoice[] {
+  return invoices.filter((invoice) => !isDemoInvoice(invoice));
+}
+
 function parseJson<T>(value: string | null, fallback: T): T {
   if (!value) return fallback;
   try {
@@ -72,7 +90,7 @@ export function isWithinDateRange(date: string, from: string, to: string): boole
 }
 
 export function loadFinanceInvoices(schoolId: string): FinanceInvoice[] {
-  return parseJson<FinanceInvoice[]>(getScopedItem(schoolId, STORAGE_KEY), []);
+  return removeDemoInvoices(parseJson<FinanceInvoice[]>(getScopedItem(schoolId, STORAGE_KEY), []));
 }
 
 export function saveFinanceInvoices(schoolId: string, invoices: FinanceInvoice[]): void {

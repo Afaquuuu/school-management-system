@@ -36,13 +36,6 @@ import { DateInput } from "@/components/ui/date-input";
 
 type Invoice = FinanceInvoice;
 
-const sampleInvoices: Invoice[] = [
-  { id: "1", invoiceNo: "INV-2026-001", studentName: "Ama Johnson", className: "Grade 8A", totalAmount: 1500, paidAmount: 1500, status: "paid", issuedAt: "2026-04-01", dueAt: "2026-04-15" },
-  { id: "2", invoiceNo: "INV-2026-002", studentName: "Kofi Badu", className: "Grade 8A", totalAmount: 1500, paidAmount: 750, status: "partially_paid", issuedAt: "2026-04-01", dueAt: "2026-04-15" },
-  { id: "3", invoiceNo: "INV-2026-003", studentName: "Peter Owusu", className: "Grade 8A", totalAmount: 1500, paidAmount: 0, status: "overdue", issuedAt: "2026-03-15", dueAt: "2026-03-30" },
-  { id: "4", invoiceNo: "INV-2026-004", studentName: "Hannah Lee", className: "Grade 9B", totalAmount: 1650, paidAmount: 0, status: "issued", issuedAt: "2026-04-05", dueAt: "2026-04-20" },
-  { id: "5", invoiceNo: "INV-2026-005", studentName: "David Mensah", className: "Grade 7A", totalAmount: 1400, paidAmount: 1400, status: "paid", issuedAt: "2026-04-01", dueAt: "2026-04-15" },
-];
 const statusConfig: Record<InvoiceStatus, { label: string; color: string; icon: any }> = {
   draft: { label: "Draft", color: "bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200", icon: FileText },
   issued: { label: "Issued", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200", icon: Receipt },
@@ -67,12 +60,6 @@ export default function FinancePage() {
     reports: "Financial Reports",
   } as const;
 
-  const sectionDescriptions = {
-    invoices: "Create, track, and manage student fee invoices",
-    payments: "Record and review payment transactions",
-    reports: "Generate financial summaries and collection reports",
-  } as const;
-
   const [selectedTab, setSelectedTab] = useState<"invoices" | "payments" | "reports">("invoices");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "all">("all");
@@ -90,6 +77,20 @@ export default function FinancePage() {
   });
 
   const isParentView = userRole === "parent";
+  const isAccountantView = userRole === "accountant";
+  const isFinanceReadOnly = userRole === "admin";
+
+  const sectionDescriptions = {
+    invoices: isFinanceReadOnly
+      ? "View issued fee invoices, collected amounts, and outstanding balances"
+      : "Create, track, and manage student fee invoices",
+    payments: isFinanceReadOnly
+      ? "Review recorded payments and remaining balances"
+      : "Record and review payment transactions",
+    reports: isFinanceReadOnly
+      ? "Review financial summaries and collection reports"
+      : "Generate financial summaries and collection reports",
+  } as const;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -110,13 +111,7 @@ export default function FinancePage() {
 
     const stored = loadFinanceInvoices(currentSchool.id);
     const today = getTodayIsoDate();
-    setInvoices(
-      stored.length > 0
-        ? withResolvedStatuses(stored, today)
-        : isParentView
-          ? []
-          : withResolvedStatuses(sampleInvoices, today),
-    );
+    setInvoices(withResolvedStatuses(stored, today));
     setInvoicesLoaded(true);
   }, [currentSchool, isParentView]);
 
@@ -162,6 +157,14 @@ export default function FinancePage() {
     if (!isParentView) return invoices;
     return filterInvoicesForLinkedStudents(invoices, parentLinkedStudents);
   }, [invoices, isParentView, parentLinkedStudents]);
+
+  const paymentRecords = useMemo(
+    () =>
+      visibleInvoices
+        .filter((invoice) => invoice.paidAmount > 0)
+        .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt)),
+    [visibleInvoices],
+  );
 
   const filteredInvoices = useMemo(() => {
     return visibleInvoices.filter((invoice) => {
@@ -464,10 +467,12 @@ export default function FinancePage() {
               ? "Official fee invoices and payment status for your children"
               : isSectionView
                 ? sectionDescriptions[selectedTab]
-                : "Manage invoices, payments, and financial records"}
+                : isFinanceReadOnly
+                  ? "Monitor invoices, payments, and outstanding balances"
+                  : "Manage invoices, payments, and financial records"}
           </p>
         </div>
-        {!isParentView && selectedTab === "invoices" && (
+        {isAccountantView && selectedTab === "invoices" && (
         <div className="flex gap-2">
           <button 
             onClick={() => setShowCreateInvoice(true)}
@@ -478,7 +483,7 @@ export default function FinancePage() {
           </button>
         </div>
         )}
-        {!isParentView && selectedTab === "payments" && (
+        {isAccountantView && selectedTab === "payments" && (
         <div className="flex gap-2">
           <button 
             onClick={() => setShowRecordPayment(true)}
@@ -490,6 +495,12 @@ export default function FinancePage() {
         </div>
         )}
       </div>
+
+      {isFinanceReadOnly && !isParentView && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
+          View-only finance overview. Invoices and payments are managed by the accounts office.
+        </div>
+      )}
 
       {/* Financial Stats */}
       {!isParentView && (!isSectionView || selectedTab === "invoices") && (
@@ -678,15 +689,60 @@ export default function FinancePage() {
 
       {/* Payments Tab */}
       {!isParentView && selectedTab === "payments" && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-8 text-center">
-          <CreditCard className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">Payment History</h3>
-          <p className="text-slate-600 dark:text-slate-400 mb-4">
-            View all payment transactions, methods, and receipts
-          </p>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
-            View Payment Records
-          </button>
+        <div className="space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 overflow-hidden">
+            {paymentRecords.length === 0 ? (
+              <div className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                No payments have been recorded yet.
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Invoice No.</th>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Student</th>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Class</th>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Amount Paid</th>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Balance Remaining</th>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Status</th>
+                    <th className="px-6 py-3 text-right font-semibold text-slate-900 dark:text-slate-50">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {paymentRecords.map((invoice) => {
+                    const config = statusConfig[invoice.status];
+                    const StatusIcon = config.icon;
+                    const balance = invoice.totalAmount - invoice.paidAmount;
+
+                    return (
+                      <tr key={invoice.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                        <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-50">{invoice.invoiceNo}</td>
+                        <td className="px-6 py-4 text-slate-900 dark:text-slate-50">{invoice.studentName}</td>
+                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{invoice.className}</td>
+                        <td className="px-6 py-4 font-semibold text-emerald-700 dark:text-emerald-400">₵{invoice.paidAmount.toLocaleString()}</td>
+                        <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-50">₵{balance.toLocaleString()}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${config.color}`}>
+                            <StatusIcon className="w-3 h-3" />
+                            {config.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInvoiceForView(invoice)}
+                            className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
+                          >
+                            View Invoice
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
 
@@ -808,18 +864,22 @@ export default function FinancePage() {
       )}
 
       {/* Modals */}
-      <CreateInvoiceModal
-        isOpen={showCreateInvoice}
-        onClose={() => setShowCreateInvoice(false)}
-        onSubmit={handleCreateInvoice}
-      />
+      {isAccountantView && (
+        <>
+          <CreateInvoiceModal
+            isOpen={showCreateInvoice}
+            onClose={() => setShowCreateInvoice(false)}
+            onSubmit={handleCreateInvoice}
+          />
 
-      <RecordPaymentModal
-        isOpen={showRecordPayment}
-        onClose={() => setShowRecordPayment(false)}
-        onSubmit={handleRecordPayment}
-        invoices={invoices}
-      />
+          <RecordPaymentModal
+            isOpen={showRecordPayment}
+            onClose={() => setShowRecordPayment(false)}
+            onSubmit={handleRecordPayment}
+            invoices={invoices}
+          />
+        </>
+      )}
 
       <InvoiceDetailModal
         invoice={selectedInvoiceForView}

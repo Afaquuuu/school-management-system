@@ -23,14 +23,35 @@ import {
   X,
   Paperclip,
   CornerUpLeft,
+  SendHorizontal,
 } from "lucide-react";
-import { formatDate, getTodayIsoDate } from "@/lib/date-format";
+import { formatDate } from "@/lib/date-format";
 import { useSchool } from "@/lib/school-context";
+import {
+  canManageAnnouncement,
+  canPublishAnyAnnouncement,
+  canPublishClassAnnouncements,
+  canPublishSchoolAnnouncements,
+  createSchoolAnnouncement,
+  deleteSchoolAnnouncement,
+  getAnnouncementScopeLabel,
+  getAnnouncementsPageDescription,
+  getTeacherAnnouncementClasses,
+  getVisibleAnnouncements,
+  SCHOOL_WIDE_AUDIENCE_OPTIONS,
+  CLASS_AUDIENCE_OPTIONS,
+  toggleSchoolAnnouncementPin,
+  type AnnouncementAudience,
+  type AnnouncementPriority,
+  type SchoolAnnouncement,
+} from "@/lib/school-announcements";
 import { getUserSession, type UserSession } from "@/lib/teacher-check-in";
 import {
   deleteSchoolMessage,
+  deleteSchoolMessages,
   getComposeRecipientOptions,
   getInboxMessages,
+  getSentMessages,
   loadSchoolMessages,
   markSchoolMessageRead,
   sendSchoolMessage,
@@ -42,68 +63,7 @@ function isReplyMessage(message: SchoolMessage): boolean {
   return Boolean(message.replyToId) || message.subject.trim().toLowerCase().startsWith("re:");
 }
 
-type AnnouncementPriority = "low" | "normal" | "high" | "urgent";
-
-type Announcement = {
-  id: string;
-  title: string;
-  content: string;
-  priority: AnnouncementPriority;
-  author: string;
-  publishedAt: string;
-  targetAudience: string[];
-  views: number;
-  isPinned: boolean;
-};
-
 type Message = SchoolMessage;
-
-const sampleAnnouncements: Announcement[] = [
-  {
-    id: "1",
-    title: "Mid-Term Examination Schedule Released",
-    content: "The mid-term examination schedule for all classes has been published. Please check the academic calendar for detailed timings.",
-    priority: "high",
-    author: "Principal Dr. K. Osei",
-    publishedAt: "2026-05-05",
-    targetAudience: ["Students", "Teachers", "Parents"],
-    views: 245,
-    isPinned: true,
-  },
-  {
-    id: "2",
-    title: "Parent-Teacher Meeting - May 15th",
-    content: "All parents are invited to attend the quarterly parent-teacher meeting on May 15th at 2:00 PM in the school auditorium.",
-    priority: "urgent",
-    author: "Admin Office",
-    publishedAt: "2026-05-04",
-    targetAudience: ["Parents", "Teachers"],
-    views: 189,
-    isPinned: true,
-  },
-  {
-    id: "3",
-    title: "Sports Day Registration Open",
-    content: "Registration for the annual sports day is now open. Students can register through their class teachers by May 10th.",
-    priority: "normal",
-    author: "Sports Department",
-    publishedAt: "2026-05-03",
-    targetAudience: ["Students"],
-    views: 156,
-    isPinned: false,
-  },
-  {
-    id: "4",
-    title: "Library Hours Extended",
-    content: "The school library will now remain open until 6:00 PM on weekdays to accommodate students preparing for exams.",
-    priority: "low",
-    author: "Library Staff",
-    publishedAt: "2026-05-02",
-    targetAudience: ["Students", "Teachers"],
-    views: 98,
-    isPinned: false,
-  },
-];
 
 const priorityConfig: Record<AnnouncementPriority, { color: string; label: string; icon: any }> = {
   urgent: { color: "bg-red-100 text-red-700 border-red-200", label: "Urgent", icon: AlertCircle },
@@ -129,20 +89,23 @@ export default function CommunicationPage() {
 
   const sectionDescriptions = {
     announcements: "Publish and manage school-wide announcements",
-    messages: "Read and manage direct messages",
-    compose: "Send a new message or announcement",
+    messages: "Read received messages and review messages you have sent",
+    compose: "Send a new direct message",
   } as const;
 
   const [selectedTab, setSelectedTab] = useState<"announcements" | "messages" | "compose">("announcements");
+  const [messageFolder, setMessageFolder] = useState<"inbox" | "sent">("inbox");
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showComposeAnnouncement, setShowComposeAnnouncement] = useState(false);
   const [showComposeMessage, setShowComposeMessage] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<SchoolAnnouncement | null>(null);
   
   // State management
-  const [announcements, setAnnouncements] = useState<Announcement[]>(sampleAnnouncements);
+  const [announcements, setAnnouncements] = useState<SchoolAnnouncement[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [sentMessages, setSentMessages] = useState<Message[]>([]);
   const [session, setSession] = useState<UserSession | null>(null);
   const [replyText, setReplyText] = useState("");
   
@@ -153,7 +116,8 @@ export default function CommunicationPage() {
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementContent, setAnnouncementContent] = useState("");
   const [announcementPriority, setAnnouncementPriority] = useState<AnnouncementPriority>("normal");
-  const [announcementAudience, setAnnouncementAudience] = useState<string[]>([]);
+  const [announcementAudience, setAnnouncementAudience] = useState<AnnouncementAudience[]>([]);
+  const [announcementClassId, setAnnouncementClassId] = useState("");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
@@ -168,9 +132,25 @@ export default function CommunicationPage() {
     setSession(getUserSession());
   }, []);
 
-  useEffect(() => {
+  const refreshMessages = () => {
     if (!currentSchool || !session) return;
     setMessages(getInboxMessages(currentSchool.id, session.email));
+    setSentMessages(getSentMessages(currentSchool.id, session.email));
+  };
+
+  useEffect(() => {
+    if (!currentSchool || !session) return;
+    refreshMessages();
+  }, [currentSchool, session]);
+
+  const refreshAnnouncements = () => {
+    if (!currentSchool || !session) return;
+    setAnnouncements(getVisibleAnnouncements(currentSchool.id, session));
+  };
+
+  useEffect(() => {
+    if (!currentSchool || !session) return;
+    refreshAnnouncements();
   }, [currentSchool, session]);
 
   useEffect(() => {
@@ -178,6 +158,31 @@ export default function CommunicationPage() {
       setReplyText("");
     }
   }, [selectedMessage]);
+
+  const isAdminPublisher = canPublishSchoolAnnouncements(session);
+  const isTeacherPublisher = canPublishClassAnnouncements(currentSchool?.id ?? "", session);
+  const canPublishAnnouncements = canPublishAnyAnnouncement(currentSchool?.id ?? "", session);
+
+  const teacherClassOptions = useMemo(
+    () =>
+      currentSchool && session
+        ? getTeacherAnnouncementClasses(currentSchool.id, session.name)
+        : [],
+    [currentSchool, session],
+  );
+
+  const composeAudienceOptions = isAdminPublisher
+    ? SCHOOL_WIDE_AUDIENCE_OPTIONS
+    : CLASS_AUDIENCE_OPTIONS;
+
+  const openComposeAnnouncement = () => {
+    setAnnouncementTitle("");
+    setAnnouncementContent("");
+    setAnnouncementPriority("normal");
+    setAnnouncementAudience([]);
+    setAnnouncementClassId(teacherClassOptions[0]?.id ?? "");
+    setShowComposeAnnouncement(true);
+  };
 
   const filteredAnnouncements = useMemo(() => 
     announcements.filter(
@@ -191,16 +196,74 @@ export default function CommunicationPage() {
     [announcements, searchTerm, filterPriority]
   );
 
+  const activeMessages = messageFolder === "inbox" ? messages : sentMessages;
+
   const filteredMessages = useMemo(() =>
-    messages.filter(
-      (message) =>
-        message.senderName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        message.subject.toLowerCase().includes(searchTerm.toLowerCase())
+    activeMessages.filter(
+      (message) => {
+        const search = searchTerm.toLowerCase();
+        const contactName =
+          messageFolder === "inbox" ? message.senderName : message.recipientName;
+        return (
+          contactName.toLowerCase().includes(search) ||
+          message.subject.toLowerCase().includes(search) ||
+          message.body.toLowerCase().includes(search) ||
+          message.preview.toLowerCase().includes(search)
+        );
+      },
     ),
-    [messages, searchTerm]
+    [activeMessages, searchTerm, messageFolder]
   );
 
   const unreadCount = useMemo(() => messages.filter((m) => !m.isRead).length, [messages]);
+  const sentCount = sentMessages.length;
+
+  useEffect(() => {
+    setSelectedMessageIds([]);
+  }, [messageFolder, searchTerm]);
+
+  const filteredMessageIds = useMemo(
+    () => filteredMessages.map((message) => message.id),
+    [filteredMessages],
+  );
+
+  const allFilteredSelected =
+    filteredMessageIds.length > 0 &&
+    filteredMessageIds.every((id) => selectedMessageIds.includes(id));
+
+  const toggleMessageSelection = (messageId: string) => {
+    setSelectedMessageIds((current) =>
+      current.includes(messageId)
+        ? current.filter((id) => id !== messageId)
+        : [...current, messageId],
+    );
+  };
+
+  const toggleSelectAllFiltered = () => {
+    if (allFilteredSelected) {
+      setSelectedMessageIds((current) =>
+        current.filter((id) => !filteredMessageIds.includes(id)),
+      );
+      return;
+    }
+
+    setSelectedMessageIds((current) => [
+      ...new Set([...current, ...filteredMessageIds]),
+    ]);
+  };
+
+  const deleteSelectedMessages = () => {
+    if (!currentSchool || selectedMessageIds.length === 0) return;
+
+    const count = selectedMessageIds.length;
+    const label = count === 1 ? "this message" : `${count} messages`;
+    if (!confirm(`Delete ${label}? This action cannot be undone.`)) return;
+
+    deleteSchoolMessages(currentSchool.id, selectedMessageIds);
+    setSelectedMessageIds([]);
+    setSelectedMessage(null);
+    refreshMessages();
+  };
 
   const originalReplyMessage = useMemo(() => {
     if (!currentSchool || !selectedMessage?.replyToId) return null;
@@ -219,28 +282,31 @@ export default function CommunicationPage() {
   }, [currentSchool, session]);
 
   const markAsRead = (messageId: string) => {
-    if (!currentSchool) return;
-    const updated = markSchoolMessageRead(currentSchool.id, messageId);
-    if (session) {
-      setMessages(updated.filter((msg) => msg.recipientEmail.toLowerCase() === session.email.toLowerCase()));
-    }
+    if (!currentSchool || messageFolder !== "inbox") return;
+    markSchoolMessageRead(currentSchool.id, messageId);
+    refreshMessages();
   };
 
   const deleteMessage = (messageId: string) => {
     if (!currentSchool || !session) return;
-    const updated = deleteSchoolMessage(currentSchool.id, messageId);
-    setMessages(updated.filter((msg) => msg.recipientEmail.toLowerCase() === session.email.toLowerCase()));
+    deleteSchoolMessage(currentSchool.id, messageId);
+    refreshMessages();
     setSelectedMessage(null);
   };
 
   const togglePin = (announcementId: string) => {
-    setAnnouncements(prev => prev.map(ann => 
-      ann.id === announcementId ? { ...ann, isPinned: !ann.isPinned } : ann
-    ));
+    if (!currentSchool || !session) return;
+    if (!toggleSchoolAnnouncementPin(currentSchool.id, session, announcementId)) return;
+    refreshAnnouncements();
+    setSelectedAnnouncement((current) =>
+      current?.id === announcementId ? { ...current, isPinned: !current.isPinned } : current,
+    );
   };
 
   const deleteAnnouncement = (announcementId: string) => {
-    setAnnouncements(prev => prev.filter(ann => ann.id !== announcementId));
+    if (!currentSchool || !session) return;
+    if (!deleteSchoolAnnouncement(currentSchool.id, session, announcementId)) return;
+    refreshAnnouncements();
     setSelectedAnnouncement(null);
   };
 
@@ -277,6 +343,8 @@ export default function CommunicationPage() {
     setComposeSubject("");
     setComposeMessage("");
     setShowComposeMessage(false);
+    refreshMessages();
+    setMessageFolder("sent");
     setSelectedTab("messages");
     alert(`Message sent to ${result.recipientLabel}.`);
   };
@@ -312,41 +380,46 @@ export default function CommunicationPage() {
     alert(`Reply sent to ${selectedMessage.senderName}.`);
     setReplyText("");
     setSelectedMessage(null);
-    setMessages(getInboxMessages(currentSchool.id, session.email));
+    setMessageFolder("sent");
+    refreshMessages();
   };
 
   const handleCreateAnnouncement = () => {
-    if (!announcementTitle || !announcementContent || announcementAudience.length === 0) {
-      alert("Please fill in all required fields");
-      return;
-    }
+    if (!currentSchool || !session) return;
 
-    const newAnnouncement: Announcement = {
-      id: Date.now().toString(),
+    const result = createSchoolAnnouncement({
+      schoolId: currentSchool.id,
+      session,
       title: announcementTitle,
       content: announcementContent,
       priority: announcementPriority,
-      author: "You",
-      publishedAt: getTodayIsoDate(),
+      scope: isAdminPublisher ? "school" : "class",
+      classId: isAdminPublisher ? undefined : announcementClassId,
       targetAudience: announcementAudience,
-      views: 0,
-      isPinned: false,
-    };
+    });
 
-    setAnnouncements([newAnnouncement, ...announcements]);
+    if (!result.success) {
+      alert(result.error);
+      return;
+    }
+
     setAnnouncementTitle("");
     setAnnouncementContent("");
     setAnnouncementPriority("normal");
     setAnnouncementAudience([]);
+    setAnnouncementClassId(teacherClassOptions[0]?.id ?? "");
     setShowComposeAnnouncement(false);
-    alert("Announcement published successfully!");
+    refreshAnnouncements();
+    alert(
+      isAdminPublisher
+        ? "School-wide announcement published successfully!"
+        : "Class announcement published successfully!",
+    );
   };
 
-  const toggleAudience = (audience: string) => {
-    setAnnouncementAudience(prev => 
-      prev.includes(audience) 
-        ? prev.filter(a => a !== audience)
-        : [...prev, audience]
+  const toggleAudience = (audience: AnnouncementAudience) => {
+    setAnnouncementAudience((prev) =>
+      prev.includes(audience) ? prev.filter((item) => item !== audience) : [...prev, audience],
     );
   };
 
@@ -367,7 +440,9 @@ export default function CommunicationPage() {
               </div>
               <p className="text-slate-600 dark:text-slate-400 ml-14">
                 {isSectionView
-                  ? sectionDescriptions[selectedTab]
+                  ? selectedTab === "announcements"
+                    ? getAnnouncementsPageDescription(session)
+                    : sectionDescriptions[selectedTab]
                   : "Manage announcements, messages, and notifications for all school stakeholders"}
               </p>
             </div>
@@ -380,14 +455,36 @@ export default function CommunicationPage() {
                 <Mail className="w-4 h-4" />
                 New Message
               </button>
+              {canPublishAnnouncements && (
+                <button
+                  onClick={openComposeAnnouncement}
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-blue-500/30"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  {isTeacherPublisher && !isAdminPublisher ? "New Class Announcement" : "New Announcement"}
+                </button>
+              )}
+            </div>
+            )}
+            {isSectionView && selectedTab === "announcements" && canPublishAnnouncements && (
               <button
-                onClick={() => setShowComposeAnnouncement(true)}
+                type="button"
+                onClick={openComposeAnnouncement}
                 className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-blue-500/30"
               >
                 <Megaphone className="w-4 h-4" />
-                New Announcement
+                {isTeacherPublisher && !isAdminPublisher ? "New Class Announcement" : "New Announcement"}
               </button>
-            </div>
+            )}
+            {isSectionView && selectedTab === "messages" && (
+              <button
+                type="button"
+                onClick={() => setSelectedTab("compose")}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-blue-500/30"
+              >
+                <Send className="w-4 h-4" />
+                Compose
+              </button>
             )}
           </div>
         </div>
@@ -418,7 +515,7 @@ export default function CommunicationPage() {
           </div>
           <p className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-1">{unreadCount}</p>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {messages.length} total messages
+            {messages.length} received · {sentCount} sent
           </p>
         </div>
 
@@ -488,7 +585,11 @@ export default function CommunicationPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
               type="text"
-              placeholder={`Search ${selectedTab}...`}
+              placeholder={
+                selectedTab === "messages"
+                  ? `Search ${messageFolder === "inbox" ? "received" : "sent"} messages...`
+                  : `Search ${selectedTab}...`
+              }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
@@ -559,12 +660,27 @@ export default function CommunicationPage() {
             <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-600 p-12 text-center">
               <Megaphone className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-2">No announcements found</h3>
-              <p className="text-slate-600 dark:text-slate-400">Try adjusting your search or filter criteria</p>
+              <p className="text-slate-600 dark:text-slate-400">
+                {searchTerm || filterPriority !== "all"
+                  ? "Try adjusting your search or filter criteria"
+                  : "School-wide announcements will appear here."}
+              </p>
+              {canPublishAnnouncements && !searchTerm && filterPriority === "all" && (
+                <button
+                  type="button"
+                  onClick={openComposeAnnouncement}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  <Megaphone className="h-4 w-4" />
+                  {isTeacherPublisher && !isAdminPublisher ? "Create Class Announcement" : "Create Announcement"}
+                </button>
+              )}
             </div>
           ) : (
             filteredAnnouncements.map((announcement) => {
               const config = priorityConfig[announcement.priority];
               const PriorityIcon = config.icon;
+              const canManage = session ? canManageAnnouncement(session, announcement) : false;
 
               return (
                 <div
@@ -587,11 +703,14 @@ export default function CommunicationPage() {
                       </div>
                       <p className="text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">{announcement.content}</p>
                       <div className="flex flex-wrap items-center gap-4 text-sm">
+                        <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                          {getAnnouncementScopeLabel(announcement)}
+                        </span>
                         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
                           <div className="p-1.5 bg-slate-100 dark:bg-slate-700 rounded-lg">
                             <Users className="w-4 h-4" />
                           </div>
-                          <span>{announcement.author}</span>
+                          <span>{announcement.authorName}</span>
                         </div>
                         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                           <Calendar className="w-4 h-4" />
@@ -619,13 +738,15 @@ export default function CommunicationPage() {
                         ))}
                       </div>
                       <div className="flex gap-2 mt-2">
-                        <button
-                          onClick={() => togglePin(announcement.id)}
-                          className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-                          title={announcement.isPinned ? "Unpin" : "Pin"}
-                        >
-                          <Pin className={`w-4 h-4 ${announcement.isPinned ? 'text-blue-600 fill-blue-600' : 'text-slate-400'}`} />
-                        </button>
+                        {canManage && (
+                          <button
+                            onClick={() => togglePin(announcement.id)}
+                            className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                            title={announcement.isPinned ? "Unpin" : "Pin"}
+                          >
+                            <Pin className={`w-4 h-4 ${announcement.isPinned ? 'text-blue-600 fill-blue-600' : 'text-slate-400'}`} />
+                          </button>
+                        )}
                         <button
                           onClick={() => setSelectedAnnouncement(announcement)}
                           className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
@@ -633,17 +754,19 @@ export default function CommunicationPage() {
                         >
                           <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         </button>
-                        <button
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this announcement?")) {
-                              deleteAnnouncement(announcement.id);
-                            }
-                          }}
-                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                        </button>
+                        {canManage && (
+                          <button
+                            onClick={() => {
+                              if (confirm("Are you sure you want to delete this announcement?")) {
+                                deleteAnnouncement(announcement.id);
+                              }
+                            }}
+                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -656,80 +779,183 @@ export default function CommunicationPage() {
 
       {/* Messages Tab */}
       {selectedTab === "messages" && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm p-2">
+        <div className="space-y-4 p-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMessageFolder("inbox")}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                messageFolder === "inbox"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              <Mail className="h-4 w-4" />
+              Received
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMessageFolder("sent")}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                messageFolder === "sent"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+              }`}
+            >
+              <SendHorizontal className="h-4 w-4" />
+              Sent
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                {sentCount}
+              </span>
+            </button>
+            </div>
+
+            {filteredMessages.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 px-1">
+                <button
+                  type="button"
+                  onClick={toggleSelectAllFiltered}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  {allFilteredSelected ? "Deselect All" : "Select All"}
+                </button>
+                <button
+                  type="button"
+                  onClick={deleteSelectedMessages}
+                  disabled={selectedMessageIds.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                  {selectedMessageIds.length > 0 ? ` (${selectedMessageIds.length})` : ""}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
           {filteredMessages.length === 0 ? (
             <div className="p-12 text-center">
-              <Mail className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-2">No messages found</h3>
-              <p className="text-slate-600 dark:text-slate-400">Try adjusting your search criteria</p>
+              <Mail className="mx-auto mb-4 h-16 w-16 text-slate-300 dark:text-slate-600" />
+              <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-50">
+                {messageFolder === "inbox" ? "No received messages" : "No sent messages"}
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400">
+                {messageFolder === "inbox"
+                  ? "Messages sent to you will appear here."
+                  : "Messages you compose and send will appear here."}
+              </p>
+              {messageFolder === "sent" && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTab("compose")}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  <Send className="h-4 w-4" />
+                  Compose Message
+                </button>
+              )}
             </div>
           ) : (
             <div className="divide-y divide-slate-200 dark:divide-slate-700">
               {filteredMessages.map((message) => {
                 const isReply = isReplyMessage(message);
+                const isSentFolder = messageFolder === "sent";
+                const contactLabel = isSentFolder ? message.recipientName : message.senderName;
+
+                const isSelected = selectedMessageIds.includes(message.id);
 
                 return (
                 <div
                   key={message.id}
                   onClick={() => {
                     setSelectedMessage(message);
-                    markAsRead(message.id);
+                    if (!isSentFolder) {
+                      markAsRead(message.id);
+                    }
                   }}
-                  className={`p-5 transition-all cursor-pointer rounded-xl border-l-4 ${
-                    isReply
-                      ? `border-l-emerald-500 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/20 ${
-                          !message.isRead ? "bg-emerald-50/80 dark:bg-emerald-950/30" : "bg-white dark:bg-slate-800"
-                        }`
-                      : `border-l-indigo-500 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/20 ${
-                          !message.isRead ? "bg-indigo-50/80 dark:bg-indigo-950/30" : "bg-white dark:bg-slate-800"
-                        }`
+                  className={`cursor-pointer rounded-xl border-l-4 p-5 transition-all ${
+                    isSelected ? "ring-2 ring-blue-300 dark:ring-blue-700" : ""
+                  } ${
+                    isSentFolder
+                      ? "border-l-sky-500 hover:bg-sky-50/60 dark:hover:bg-sky-950/20 bg-white dark:bg-slate-800"
+                      : isReply
+                        ? `border-l-emerald-500 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/20 ${
+                            !message.isRead ? "bg-emerald-50/80 dark:bg-emerald-950/30" : "bg-white dark:bg-slate-800"
+                          }`
+                        : `border-l-indigo-500 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/20 ${
+                            !message.isRead ? "bg-indigo-50/80 dark:bg-indigo-950/30" : "bg-white dark:bg-slate-800"
+                          }`
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-1 items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => toggleMessageSelection(message.id)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        aria-label={`Select message ${message.subject}`}
+                      />
                     <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        {!message.isRead && (
-                          <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${isReply ? "bg-emerald-500" : "bg-indigo-500"}`} />
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        {!isSentFolder && !message.isRead && (
+                          <div className={`h-2.5 w-2.5 animate-pulse rounded-full ${isReply ? "bg-emerald-500" : "bg-indigo-500"}`} />
                         )}
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
-                            isReply
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                              : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                            isSentFolder
+                              ? "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
+                              : isReply
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
                           }`}
                         >
-                          {isReply ? (
+                          {isSentFolder ? (
+                            <>
+                              <SendHorizontal className="h-3 w-3" />
+                              Sent
+                            </>
+                          ) : isReply ? (
                             <>
                               <CornerUpLeft className="h-3 w-3" />
                               Reply
                             </>
                           ) : (
                             <>
-                              <Megaphone className="h-3 w-3" />
-                              Notice
+                              <Mail className="h-3 w-3" />
+                              Received
                             </>
                           )}
                         </span>
-                        <h4 className={`font-bold text-base ${!message.isRead ? "text-slate-900 dark:text-slate-50" : "text-slate-700 dark:text-slate-300"}`}>
-                          {message.senderName}
+                        <h4 className={`text-base font-bold ${!isSentFolder && !message.isRead ? "text-slate-900 dark:text-slate-50" : "text-slate-700 dark:text-slate-300"}`}>
+                          {isSentFolder ? `To: ${contactLabel}` : contactLabel}
                         </h4>
                         {message.hasAttachment && (
-                          <div className="p-1 bg-slate-100 dark:bg-slate-700 rounded">
-                            <Paperclip className="w-3 h-3 text-slate-600 dark:text-slate-400" />
+                          <div className="rounded bg-slate-100 p-1 dark:bg-slate-700">
+                            <Paperclip className="h-3 w-3 text-slate-600 dark:text-slate-400" />
                           </div>
                         )}
                       </div>
-                      <p className={`text-sm mb-2 font-semibold ${!message.isRead ? "text-slate-900 dark:text-slate-50" : "text-slate-600 dark:text-slate-400"}`}>
+                      <p className={`mb-2 text-sm font-semibold ${!isSentFolder && !message.isRead ? "text-slate-900 dark:text-slate-50" : "text-slate-600 dark:text-slate-400"}`}>
                         {message.subject}
                       </p>
-                      <p className={`text-sm line-clamp-2 ${isReply ? "text-emerald-800/80 dark:text-emerald-200/80" : "text-slate-500 dark:text-slate-400"}`}>
+                      <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">
                         {message.preview}
                       </p>
                     </div>
+                    </div>
                     <div className="flex flex-col items-end gap-2">
-                      <span className="text-xs text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">{message.timestamp}</span>
-                      {!message.isRead && (
-                        <span className={`px-3 py-1 text-white text-xs font-bold rounded-full ${isReply ? "bg-emerald-600" : "bg-indigo-600"}`}>
+                      <span className="whitespace-nowrap text-xs font-medium text-slate-500 dark:text-slate-400">{message.timestamp}</span>
+                      {!isSentFolder && !message.isRead && (
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold text-white ${isReply ? "bg-emerald-600" : "bg-indigo-600"}`}>
                           New
                         </span>
                       )}
@@ -740,6 +966,7 @@ export default function CommunicationPage() {
               })}
             </div>
           )}
+          </div>
         </div>
       )}
 
@@ -824,42 +1051,60 @@ export default function CommunicationPage() {
       {selectedMessage && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {(() => {
+              const isSentMessage =
+                session &&
+                selectedMessage.senderEmail.toLowerCase() === session.email.toLowerCase();
+              const isReply = isReplyMessage(selectedMessage);
+
+              return (
+                <>
             <div
               className={`p-6 border-b flex items-center justify-between gap-4 ${
-                isReplyMessage(selectedMessage)
-                  ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40"
-                  : "border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/40"
+                isSentMessage
+                  ? "border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/40"
+                  : isReply
+                    ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40"
+                    : "border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/40"
               }`}
             >
               <div className="flex items-start gap-3 min-w-0">
                 <div
                   className={`rounded-xl p-2.5 shrink-0 ${
-                    isReplyMessage(selectedMessage)
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-                      : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
+                    isSentMessage
+                      ? "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300"
+                      : isReply
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300"
                   }`}
                 >
-                  {isReplyMessage(selectedMessage) ? (
+                  {isSentMessage ? (
+                    <SendHorizontal className="w-5 h-5" />
+                  ) : isReply ? (
                     <CornerUpLeft className="w-5 h-5" />
                   ) : (
-                    <Megaphone className="w-5 h-5" />
+                    <Mail className="w-5 h-5" />
                   )}
                 </div>
                 <div className="min-w-0">
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide mb-2 ${
-                      isReplyMessage(selectedMessage)
-                        ? "bg-emerald-200/70 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
-                        : "bg-indigo-200/70 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200"
+                      isSentMessage
+                        ? "bg-sky-200/70 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200"
+                        : isReply
+                          ? "bg-emerald-200/70 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
+                          : "bg-indigo-200/70 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200"
                     }`}
                   >
-                    {isReplyMessage(selectedMessage) ? "Teacher Reply" : "Class Notice"}
+                    {isSentMessage ? "Sent Message" : isReply ? "Reply Received" : "Received Message"}
                   </span>
                   <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 truncate">
                     {selectedMessage.subject}
                   </h3>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                    From {selectedMessage.senderName} · {selectedMessage.timestamp}
+                    {isSentMessage
+                      ? `To ${selectedMessage.recipientName} · ${selectedMessage.timestamp}`
+                      : `From ${selectedMessage.senderName} · ${selectedMessage.timestamp}`}
                   </p>
                 </div>
               </div>
@@ -870,9 +1115,11 @@ export default function CommunicationPage() {
             <div className="p-6 overflow-y-auto flex-1">
               <div
                 className={`rounded-xl border p-4 mb-6 ${
-                  isReplyMessage(selectedMessage)
-                    ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20"
-                    : "border-indigo-200 bg-indigo-50/50 dark:border-indigo-900 dark:bg-indigo-950/20"
+                  isSentMessage
+                    ? "border-sky-200 bg-sky-50/50 dark:border-sky-900 dark:bg-sky-950/20"
+                    : isReply
+                      ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20"
+                      : "border-indigo-200 bg-indigo-50/50 dark:border-indigo-900 dark:bg-indigo-950/20"
                 }`}
               >
                 <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
@@ -880,7 +1127,7 @@ export default function CommunicationPage() {
                 </p>
               </div>
 
-              {isReplyMessage(selectedMessage) && originalReplyMessage && (
+              {!isSentMessage && isReply && originalReplyMessage && (
                 <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
                   <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Your original message
@@ -894,31 +1141,45 @@ export default function CommunicationPage() {
                 </div>
               )}
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
-                <label className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-50">
-                  Reply to {selectedMessage.senderName}
-                </label>
-                <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-                  Your reply will be sent directly to {selectedMessage.senderName}.
-                </p>
-                <textarea
-                  rows={5}
-                  value={replyText}
-                  onChange={(event) => setReplyText(event.target.value)}
-                  placeholder={`Write your reply to ${selectedMessage.senderName}...`}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50"
-                />
-              </div>
+              {!isSentMessage && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                  <label className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-50">
+                    Reply to {selectedMessage.senderName}
+                  </label>
+                  <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                    Your reply will be sent directly to {selectedMessage.senderName} and appear in your Sent folder.
+                  </p>
+                  <textarea
+                    rows={5}
+                    value={replyText}
+                    onChange={(event) => setReplyText(event.target.value)}
+                    placeholder={`Write your reply to ${selectedMessage.senderName}...`}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50"
+                  />
+                </div>
+              )}
             </div>
             <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
-              <button 
-                type="button"
-                onClick={handleSendReply}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold"
-              >
-                <Send className="w-4 h-4" />
-                Send Reply
-              </button>
+              {!isSentMessage && (
+                <button 
+                  type="button"
+                  onClick={handleSendReply}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold"
+                >
+                  <Send className="w-4 h-4" />
+                  Send Reply
+                </button>
+              )}
+              {isSentMessage && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTab("compose")}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold"
+                >
+                  <Send className="w-4 h-4" />
+                  Compose New
+                </button>
+              )}
               <button 
                 type="button"
                 onClick={() => deleteMessage(selectedMessage.id)}
@@ -927,6 +1188,9 @@ export default function CommunicationPage() {
                 Delete
               </button>
             </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -942,7 +1206,10 @@ export default function CommunicationPage() {
               </button>
             </div>
             <div className="p-6 overflow-y-auto flex-1">
-              <div className="mb-4 flex items-center gap-3">
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                  {getAnnouncementScopeLabel(selectedAnnouncement)}
+                </span>
                 <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${priorityConfig[selectedAnnouncement.priority].color}`}>
                   {priorityConfig[selectedAnnouncement.priority].label}
                 </span>
@@ -953,7 +1220,7 @@ export default function CommunicationPage() {
                 ))}
               </div>
               <div className="mb-4">
-                <p className="text-sm text-slate-600 dark:text-slate-400">By: <span className="font-semibold">{selectedAnnouncement.author}</span></p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">By: <span className="font-semibold">{selectedAnnouncement.authorName}</span></p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">Published: {formatDate(selectedAnnouncement.publishedAt)}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">Views: {selectedAnnouncement.views}</p>
               </div>
@@ -961,24 +1228,26 @@ export default function CommunicationPage() {
                 <p className="text-slate-700 dark:text-slate-300">{selectedAnnouncement.content}</p>
               </div>
             </div>
-            <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
-              <button 
-                onClick={() => togglePin(selectedAnnouncement.id)}
-                className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                {selectedAnnouncement.isPinned ? "Unpin" : "Pin"}
-              </button>
-              <button 
-                onClick={() => {
-                  if (confirm("Are you sure you want to delete this announcement?")) {
-                    deleteAnnouncement(selectedAnnouncement.id);
-                  }
-                }}
-                className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
+            {session && canManageAnnouncement(session, selectedAnnouncement) && (
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
+                <button 
+                  onClick={() => togglePin(selectedAnnouncement.id)}
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                >
+                  {selectedAnnouncement.isPinned ? "Unpin" : "Pin"}
+                </button>
+                <button 
+                  onClick={() => {
+                    if (confirm("Are you sure you want to delete this announcement?")) {
+                      deleteAnnouncement(selectedAnnouncement.id);
+                    }
+                  }}
+                  className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -988,12 +1257,43 @@ export default function CommunicationPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">Create Announcement</h3>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+                  {isAdminPublisher ? "Create School Announcement" : "Create Class Announcement"}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {isAdminPublisher
+                    ? "This notice will be visible school-wide to the audiences you select."
+                    : "This notice will only be visible to the class you are in charge of."}
+                </p>
+              </div>
               <button onClick={() => setShowComposeAnnouncement(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {!isAdminPublisher && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Class *</label>
+                  {teacherClassOptions.length === 0 ? (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                      You are not set as class teacher for any class yet. Ask an administrator to assign you as class in-charge in Academics.
+                    </p>
+                  ) : (
+                    <select
+                      value={announcementClassId}
+                      onChange={(e) => setAnnouncementClassId(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {teacherClassOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Title *</label>
                 <input
@@ -1024,15 +1324,16 @@ export default function CommunicationPage() {
                   <option value="low">Low Priority</option>
                   <option value="normal">Normal</option>
                   <option value="high">High Priority</option>
-                  <option value="urgent">Urgent</option>
+                  {isAdminPublisher && <option value="urgent">Urgent</option>}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Target Audience *</label>
                 <div className="flex flex-wrap gap-2">
-                  {["Students", "Teachers", "Parents"].map((audience) => (
+                  {composeAudienceOptions.map((audience) => (
                     <button
                       key={audience}
+                      type="button"
                       onClick={() => toggleAudience(audience)}
                       className={`px-4 py-2 rounded-lg border-2 transition-colors ${
                         announcementAudience.includes(audience)
@@ -1049,9 +1350,10 @@ export default function CommunicationPage() {
             <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
               <button 
                 onClick={handleCreateAnnouncement}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-semibold"
+                disabled={!isAdminPublisher && teacherClassOptions.length === 0}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 text-white rounded-lg transition-colors font-semibold"
               >
-                Publish Announcement
+                {isAdminPublisher ? "Publish School Announcement" : "Publish Class Announcement"}
               </button>
               <button 
                 onClick={() => setShowComposeAnnouncement(false)}

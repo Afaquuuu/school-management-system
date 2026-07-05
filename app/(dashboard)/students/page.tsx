@@ -77,6 +77,28 @@ type Student = {
   photo?: string;
 };
 
+function studentMatchesSearch(student: Student, rawQuery: string): boolean {
+  const query = rawQuery.trim().toLowerCase();
+  if (!query) return true;
+
+  const fullName = `${student.firstName} ${student.lastName}`.trim().toLowerCase();
+  const haystack = [
+    fullName,
+    student.studentId,
+    student.email,
+    student.guardianName,
+    student.rollNumber,
+    student.phone,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (haystack.includes(query)) return true;
+
+  const words = query.split(/\s+/).filter(Boolean);
+  return words.every((word) => haystack.includes(word));
+}
+
 const statusConfig: Record<StudentStatus, { color: string; label: string }> = {
   active: { color: "bg-green-100 text-green-700 border-green-200", label: "Active" },
   inactive: { color: "bg-gray-100 text-gray-700 border-gray-200", label: "Inactive" },
@@ -175,11 +197,7 @@ export default function StudentsPage() {
 
   const filteredStudents = useMemo(() => 
     students.filter((student) => {
-      const matchesSearch = 
-        student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = studentMatchesSearch(student, searchTerm);
       const matchesClass = filterClass === "all" || student.class === filterClass;
       const matchesSection = filterSection === "all" || student.section === filterSection;
       const matchesStatus = filterStatus === "all" || student.status === filterStatus;

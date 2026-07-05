@@ -110,11 +110,19 @@ export const navigationGroups: NavigationGroup[] = [
     id: "communication",
     label: "Communication",
     icon: Megaphone,
-    roles: ["admin", "teacher", "student", "parent", "librarian"],
+    roles: ["admin", "teacher", "student", "parent", "librarian", "accountant"],
     children: [
       { label: "Announcements", href: "/communication?tab=announcements" },
-      { label: "Messages", href: "/communication?tab=messages" },
-      { label: "Compose", href: "/communication?tab=compose" },
+      {
+        label: "Messages",
+        href: "/communication?tab=messages",
+        roles: ["admin", "teacher", "student", "parent", "librarian"],
+      },
+      {
+        label: "Compose",
+        href: "/communication?tab=compose",
+        roles: ["admin", "teacher", "student", "parent", "librarian"],
+      },
     ],
   },
   {
