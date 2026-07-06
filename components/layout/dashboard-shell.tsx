@@ -23,7 +23,12 @@ import {
   refreshSchoolAlerts,
   type ActiveAlert,
 } from "@/lib/school-alerts";
-import { getUserSession } from "@/lib/teacher-check-in";
+import { getUserSession, redirectToLogin } from "@/lib/teacher-check-in";
+import {
+  isSessionExpired,
+  runScheduledBackupIfDue,
+  touchUserSession,
+} from "@/lib/school-security";
 import { getActivePageContext } from "@/lib/navigation";
 import { UserSession } from "./user-session";
 import { HeaderProfile } from "./header-profile";
@@ -73,6 +78,7 @@ export function DashboardShell({
   const { currentSchool } = useSchool();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("student");
+  const [emailSetupNotice, setEmailSetupNotice] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [alerts, setAlerts] = useState<ActiveAlert[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -86,6 +92,61 @@ export function DashboardShell({
       }
     }
   }, []);
+
+  useEffect(() => {
+    const notice = sessionStorage.getItem("admin_email_setup_required");
+    if (notice) {
+      setEmailSetupNotice(notice);
+      sessionStorage.removeItem("admin_email_setup_required");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!currentSchool) return;
+
+    const enforceSession = () => {
+      const session = getUserSession();
+      if (!session || session.schoolId !== currentSchool.id) return;
+      if (isSessionExpired(currentSchool.id, session)) {
+        redirectToLogin();
+        return;
+      }
+      touchUserSession(session);
+    };
+
+    enforceSession();
+
+    const intervalId = window.setInterval(enforceSession, 60_000);
+    const activityEvents = ["mousedown", "keydown", "scroll", "touchstart"] as const;
+    let lastTouch = 0;
+
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - lastTouch < 30_000) return;
+      lastTouch = now;
+      const session = getUserSession();
+      if (!session || session.schoolId !== currentSchool.id) return;
+      if (!isSessionExpired(currentSchool.id, session)) {
+        touchUserSession(session);
+      }
+    };
+
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, handleActivity, { passive: true });
+    });
+
+    return () => {
+      window.clearInterval(intervalId);
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, handleActivity);
+      });
+    };
+  }, [currentSchool]);
+
+  useEffect(() => {
+    if (!currentSchool || userRole !== "admin") return;
+    runScheduledBackupIfDue(currentSchool.id, currentSchool.name);
+  }, [currentSchool, userRole]);
 
   useEffect(() => {
     if (!currentSchool) return;
@@ -303,7 +364,22 @@ export function DashboardShell({
                 "linear-gradient(180deg, hsl(var(--content-gradient-start)) 0%, hsl(var(--content-gradient-end)) 100%)",
             }}
           >
-            <div className="main-content-enter content-shell w-full">{children}</div>
+            <div className="main-content-enter content-shell w-full">
+              {emailSetupNotice && userRole === "admin" && (
+                <div className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <p>{emailSetupNotice}</p>
+                  <button
+                    type="button"
+                    onClick={() => setEmailSetupNotice("")}
+                    className="shrink-0 text-amber-700 hover:text-amber-900"
+                    aria-label="Dismiss"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+              {children}
+            </div>
           </main>
         </div>
     </div>

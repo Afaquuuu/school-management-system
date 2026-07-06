@@ -27,6 +27,75 @@ export type SystemUser = {
 
 const STORAGE_KEY = "system_users";
 
+const LEGACY_DUMMY_ADMIN_EMAILS = ["gulsharaf@gmail.com"];
+export const PRIMARY_ADMIN_EMAIL = "harrycosmetics02@gmail.com";
+
+function isLegacyDummyAdminEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  return LEGACY_DUMMY_ADMIN_EMAILS.some((legacy) => legacy.toLowerCase() === normalized);
+}
+
+export function migrateDummyAdminEmail(schoolId: string): boolean {
+  if (typeof window === "undefined") return false;
+
+  const replacement = PRIMARY_ADMIN_EMAIL.toLowerCase();
+  const users = loadSystemUsers(schoolId);
+  let changed = false;
+
+  const updatedUsers = users.map((user) => {
+    if (user.role === "Admin" && isLegacyDummyAdminEmail(user.email)) {
+      changed = true;
+      return { ...user, email: replacement };
+    }
+    return user;
+  });
+
+  if (changed) {
+    saveSystemUsers(schoolId, updatedUsers);
+  }
+
+  const sessionRaw = localStorage.getItem("user_session");
+  if (sessionRaw) {
+    try {
+      const session = JSON.parse(sessionRaw) as { schoolId?: string; email?: string };
+      if (
+        session.schoolId === schoolId &&
+        session.email &&
+        isLegacyDummyAdminEmail(session.email)
+      ) {
+        session.email = replacement;
+        localStorage.setItem("user_session", JSON.stringify(session));
+        changed = true;
+      }
+    } catch {
+      // ignore invalid session payload
+    }
+  }
+
+  const pendingRaw = localStorage.getItem("pending_admin_2fa");
+  if (pendingRaw) {
+    try {
+      const pending = JSON.parse(pendingRaw) as {
+        schoolId?: string;
+        user?: { email?: string };
+      };
+      if (
+        pending.schoolId === schoolId &&
+        pending.user?.email &&
+        isLegacyDummyAdminEmail(pending.user.email)
+      ) {
+        pending.user.email = replacement;
+        localStorage.setItem("pending_admin_2fa", JSON.stringify(pending));
+        changed = true;
+      }
+    } catch {
+      // ignore invalid pending 2FA payload
+    }
+  }
+
+  return changed;
+}
+
 export function loadSystemUsers(schoolId: string): SystemUser[] {
   const stored = getScopedItem(schoolId, STORAGE_KEY);
   if (!stored) return [];

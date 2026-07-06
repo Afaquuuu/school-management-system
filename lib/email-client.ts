@@ -1,4 +1,5 @@
 import {
+  buildAdminVerificationEmailMessage,
   buildAnnouncementEmailMessages,
   buildFeeReminderEmailMessages,
 } from "@/lib/email-content";
@@ -15,13 +16,20 @@ import {
 async function postEmailRequest(payload: {
   smtp: CommunicationSettings;
   schoolName: string;
-  messages: Array<{ to: string; subject: string; html: string; text: string }>;
+  messages: Array<{
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+    textOnly?: boolean;
+  }>;
 }): Promise<SendEmailResult> {
   const response = await fetch("/api/email/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       smtp: {
+        emailProvider: payload.smtp.emailProvider,
         smtpServer: payload.smtp.smtpServer,
         smtpPort: payload.smtp.smtpPort,
         senderEmail: payload.smtp.senderEmail,
@@ -130,16 +138,104 @@ export async function sendFeeReminderEmails(input: {
   });
 }
 
+export async function sendAdminVerificationEmail(input: {
+  schoolId: string;
+  schoolName: string;
+  adminName: string;
+  adminEmail: string;
+  code: string;
+}): Promise<SendEmailResult> {
+  const settings = loadSchoolSystemSettings(input.schoolId);
+  const validationError = validateEmailSettings(settings.communication);
+  if (validationError) {
+    return { success: false, sent: 0, failed: [], error: validationError };
+  }
+
+  return postEmailRequest({
+    smtp: settings.communication,
+    schoolName: input.schoolName,
+    messages: [
+      {
+        ...buildAdminVerificationEmailMessage({
+          schoolName: input.schoolName,
+          adminName: input.adminName,
+          code: input.code,
+          to: input.adminEmail,
+        }),
+        textOnly: true,
+      },
+    ],
+  });
+}
+
+export async function sendTestEmail(input: {
+  schoolId: string;
+  schoolName: string;
+  to: string;
+}): Promise<SendEmailResult> {
+  const settings = loadSchoolSystemSettings(input.schoolId);
+  const validationError = validateEmailSettings(settings.communication);
+  if (validationError) {
+    return { success: false, sent: 0, failed: [], error: validationError };
+  }
+
+  const to = input.to.trim().toLowerCase();
+  const subject = `${input.schoolName} — email test`;
+  const text = [
+    "Hello,",
+    "",
+    "This is a test message from your school management system.",
+    "If you are reading this in your inbox, email delivery is working.",
+    "",
+    "You can ignore this message.",
+  ].join("\n");
+  const html = `<p>Hello,</p><p>This is a test message from <strong>${input.schoolName}</strong>.</p><p>If you are reading this in your inbox, email delivery is working.</p>`;
+  const usePlainText = settings.communication.emailProvider === "gmail";
+
+  return postEmailRequest({
+    smtp: settings.communication,
+    schoolName: input.schoolName,
+    messages: [{ to, subject, text, html, textOnly: usePlainText }],
+  });
+}
+
+export const GMAIL_PERSONAL_BLOCK_WARNING =
+  "Google accepted the send but blocked delivery (check the webdev Gmail inbox for a \"Message blocked\" bounce from mailer-daemon@googlemail.com). Personal Gmail cannot send automated mail reliably — switch to Brevo and keep webdev.team002@gmail.com as your verified sender.";
+
+export const GMAIL_DAILY_LIMIT_HINT =
+  "Personal Gmail allows roughly 100–500 emails per day (often lower for app/SMTP sends). Test emails, 2FA codes, and announcements all count toward the same limit. Use Brevo (300/day free) for school notifications.";
+
+function simplifyEmailError(error: string): string {
+  const lower = error.toLowerCase();
+  if (lower.includes("535") || lower.includes("authentication failed") || lower.includes("invalid login")) {
+    return "Brevo rejected the login — use your SMTP login (xxx@smtp-brevo.com) as Username and an SMTP key (xsmtpsib-...) as Password, not your Brevo account password or API key.";
+  }
+  if (lower.includes("daily user sending limit") || lower.includes("550-5.4.5")) {
+    return "Gmail daily sending limit reached — wait 24 hours or switch to Brevo.";
+  }
+  if (lower.includes("message blocked") || lower.includes("550-5.7.1")) {
+    return "Gmail blocked automated delivery — use Brevo instead.";
+  }
+  if (error.length > 120) {
+    return `${error.slice(0, 117)}...`;
+  }
+  return error;
+}
+
 export function formatEmailResultMessage(result: SendEmailResult): string {
   if (result.error && result.sent === 0) {
-    return result.error;
+    return simplifyEmailError(result.error);
   }
 
   if (result.failed.length > 0) {
-    return `Sent ${result.sent} email(s). ${result.failed.length} failed: ${result.failed
+    const limitHit = result.failed.some((item) =>
+      item.error.toLowerCase().includes("daily user sending limit"),
+    );
+    const summary = `Sent ${result.sent} email(s). ${result.failed.length} failed: ${result.failed
       .slice(0, 3)
-      .map((item) => `${item.to} (${item.error})`)
+      .map((item) => `${item.to} (${simplifyEmailError(item.error)})`)
       .join("; ")}`;
+    return limitHit ? `${summary} ${GMAIL_DAILY_LIMIT_HINT}` : summary;
   }
 
   return `Successfully sent ${result.sent} email(s).`;

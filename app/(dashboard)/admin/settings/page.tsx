@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Save, AlertCircle, Download } from "lucide-react";
 import { DateInput } from "@/components/ui/date-input";
 import { PageHeader } from "@/components/ui/page-header";
 import { recordFormFieldLabel } from "@/components/ui/record-form-layout";
 import { useSchool } from "@/lib/school-context";
 import {
   defaultSchoolSystemSettings,
+  DEFAULT_SMTP_SENDER_EMAIL,
+  getBrevoCommunicationPreset,
+  getGmailCommunicationPreset,
   loadSchoolSystemSettings,
   saveSchoolSystemSettings,
   type AcademicSettings,
@@ -16,13 +19,20 @@ import {
   type SchoolSystemSettings,
   type SecuritySettings,
 } from "@/lib/school-settings";
+import {
+  downloadSchoolBackup,
+  getBackupStatusLabel,
+  getLastBackupTimestamp,
+  validateSecuritySettingsInput,
+} from "@/lib/school-security";
+import { formatEmailResultMessage, GMAIL_PERSONAL_BLOCK_WARNING, sendTestEmail } from "@/lib/email-client";
+import { PRIMARY_ADMIN_EMAIL } from "@/lib/system-users";
 
 type SettingsSectionKey = "School Information" | "Academic Settings" | "Communication Settings" | "System Security";
 
 export default function SettingsPage() {
   const { currentSchool, updateSchool } = useSchool();
   const [editingSection, setEditingSection] = useState<SettingsSectionKey | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
@@ -38,6 +48,9 @@ export default function SettingsPage() {
     defaultSchoolSystemSettings().communication,
   );
   const [security, setSecurity] = useState<SecuritySettings>(defaultSchoolSystemSettings().security);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+  const [testEmailTo, setTestEmailTo] = useState(PRIMARY_ADMIN_EMAIL);
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
 
   useEffect(() => {
     if (!currentSchool) return;
@@ -53,6 +66,7 @@ export default function SettingsPage() {
     setAcademic(settings.academic);
     setCommunication(settings.communication);
     setSecurity(settings.security);
+    setLastBackupAt(getLastBackupTimestamp(currentSchool.id));
   }, [currentSchool]);
 
   const persistSettings = (next: SchoolSystemSettings) => {
@@ -101,6 +115,12 @@ export default function SettingsPage() {
     }
 
     if (section === "System Security") {
+      const validationError = validateSecuritySettingsInput(security);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+
       const current = loadSchoolSystemSettings(currentSchool.id);
       persistSettings({ ...current, security });
     }
@@ -108,6 +128,38 @@ export default function SettingsPage() {
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     setEditingSection(null);
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!currentSchool) return;
+
+    setIsSendingTestEmail(true);
+    setError("");
+
+    try {
+      const current = loadSchoolSystemSettings(currentSchool.id);
+      saveSchoolSystemSettings(currentSchool.id, { ...current, communication });
+
+      const result = await sendTestEmail({
+        schoolId: currentSchool.id,
+        schoolName: currentSchool.name,
+        to: testEmailTo.trim(),
+      });
+
+      if (result.sent > 0 && result.failed.length === 0) {
+        const gmailNote =
+          communication.emailProvider === "gmail"
+            ? `\n\n${GMAIL_PERSONAL_BLOCK_WARNING}`
+            : "";
+        alert(
+          `SMTP accepted the message. Check ${testEmailTo.trim()} (Inbox and Spam).${gmailNote}`,
+        );
+      } else {
+        alert(formatEmailResultMessage(result));
+      }
+    } finally {
+      setIsSendingTestEmail(false);
+    }
   };
 
   const resetSection = (section: SettingsSectionKey) => {
@@ -249,13 +301,71 @@ export default function SettingsPage() {
       summary: communication.senderEmail,
       content: (
         <div className="grid gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className={recordFormFieldLabel}>Email provider</label>
+            <select
+              value={communication.emailProvider ?? "brevo"}
+              onChange={(e) => {
+                const provider = e.target.value as CommunicationSettings["emailProvider"];
+                if (provider === "brevo") {
+                  setCommunication((current) =>
+                    getBrevoCommunicationPreset(current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL),
+                  );
+                } else if (provider === "gmail") {
+                  setCommunication((current) =>
+                    getGmailCommunicationPreset(current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL),
+                  );
+                } else {
+                  setCommunication((current) => ({ ...current, emailProvider: "custom" }));
+                }
+              }}
+              className="input-field"
+            >
+              <option value="brevo">Brevo (recommended for 2FA & notifications)</option>
+              <option value="gmail">Gmail (personal — may block automated mail)</option>
+              <option value="custom">Custom SMTP</option>
+            </select>
+          </div>
+          {communication.emailProvider === "gmail" && (
+            <div className="md:col-span-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+              <p className="font-semibold">Personal Gmail blocks automated delivery</p>
+              <p className="mt-2 leading-relaxed">
+                SMTP login can succeed and mail may appear in{" "}
+                <strong>{DEFAULT_SMTP_SENDER_EMAIL}</strong> Sent, but Google often blocks delivery
+                with &quot;Message blocked&quot; from{" "}
+                <strong>mailer-daemon@googlemail.com</strong>. The app cannot fix this — use Brevo
+                and keep <strong>{DEFAULT_SMTP_SENDER_EMAIL}</strong> as your verified sender.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setCommunication((current) => ({
+                    ...getBrevoCommunicationPreset(
+                      current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL,
+                    ),
+                    smtpPassword: "",
+                  }))
+                }
+                className="btn-secondary mt-3"
+              >
+                Switch to Brevo (recommended)
+              </button>
+            </div>
+          )}
           <div>
             <label className={recordFormFieldLabel}>SMTP Server</label>
             <input
               type="text"
               value={communication.smtpServer}
-              onChange={(e) => setCommunication((current) => ({ ...current, smtpServer: e.target.value }))}
+              onChange={(e) =>
+                setCommunication((current) => ({
+                  ...current,
+                  smtpServer: e.target.value,
+                  emailProvider: "custom",
+                }))
+              }
               className="input-field"
+              readOnly={communication.emailProvider !== "custom"}
             />
           </div>
           <div>
@@ -263,8 +373,15 @@ export default function SettingsPage() {
             <input
               type="number"
               value={communication.smtpPort}
-              onChange={(e) => setCommunication((current) => ({ ...current, smtpPort: e.target.value }))}
+              onChange={(e) =>
+                setCommunication((current) => ({
+                  ...current,
+                  smtpPort: e.target.value,
+                  emailProvider: "custom",
+                }))
+              }
               className="input-field"
+              readOnly={communication.emailProvider !== "custom"}
             />
           </div>
           <div>
@@ -272,7 +389,20 @@ export default function SettingsPage() {
             <input
               type="email"
               value={communication.senderEmail}
-              onChange={(e) => setCommunication((current) => ({ ...current, senderEmail: e.target.value }))}
+              onChange={(e) =>
+                setCommunication((current) => {
+                  const senderEmail = e.target.value;
+                  const syncUser =
+                    current.emailProvider === "gmail" || current.emailProvider === "brevo";
+                  return {
+                    ...current,
+                    senderEmail,
+                    ...(syncUser && current.emailProvider === "gmail"
+                      ? { smtpUser: senderEmail }
+                      : {}),
+                  };
+                })
+              }
               className="input-field"
             />
           </div>
@@ -282,7 +412,11 @@ export default function SettingsPage() {
               type="email"
               value={communication.smtpUser}
               onChange={(e) => setCommunication((current) => ({ ...current, smtpUser: e.target.value }))}
-              placeholder="Leave blank to use sender email"
+              placeholder={
+                communication.emailProvider === "brevo"
+                  ? "Copy from Brevo → SMTP tab (xxx@smtp-brevo.com)"
+                  : "Same as sender email"
+              }
               className="input-field"
             />
           </div>
@@ -294,7 +428,11 @@ export default function SettingsPage() {
               onChange={(e) =>
                 setCommunication((current) => ({ ...current, smtpPassword: e.target.value }))
               }
-              placeholder="App password or SMTP credential"
+              placeholder={
+                communication.emailProvider === "brevo"
+                  ? "SMTP key (starts with xsmtpsib-)"
+                  : "Gmail app password"
+              }
               className="input-field"
             />
           </div>
@@ -303,10 +441,46 @@ export default function SettingsPage() {
             <input type="text" value={communication.smsGateway} readOnly className="input-field bg-slate-50" />
           </div>
           <p className="text-xs leading-relaxed text-slate-500 md:col-span-2">
-            Used for fee reminders and announcement emails. For Gmail, use an app password with SMTP
-            server <code className="rounded bg-slate-100 px-1">smtp.gmail.com</code> and port{" "}
-            <code className="rounded bg-slate-100 px-1">587</code>.
+            {communication.emailProvider === "gmail" ? (
+              <>
+                <strong>Gmail setup:</strong> Send from{" "}
+                <strong>{DEFAULT_SMTP_SENDER_EMAIL}</strong> (not your admin login). Enable 2-Step
+                Verification on that Gmail account → create an App Password → paste it as SMTP
+                Password. Sender Email and SMTP Username must match. 2FA codes are delivered to
+                your admin inbox ({PRIMARY_ADMIN_EMAIL}). Google may still block automated mail on
+                personal accounts.
+              </>
+            ) : communication.emailProvider === "brevo" ? (
+              <>
+                <strong>Brevo setup:</strong> Settings → SMTP &amp; API → <strong>SMTP tab</strong>.
+                Copy <strong>SMTP login</strong> (looks like <code>123abc@smtp-brevo.com</code>) into
+                SMTP Username. Generate an <strong>SMTP key</strong> (starts with{" "}
+                <code>xsmtpsib-</code>) — not an API key. Sender Email stays{" "}
+                <strong>{DEFAULT_SMTP_SENDER_EMAIL}</strong> (must be verified under Senders).
+              </>
+            ) : (
+              <>Enter your custom SMTP server credentials above.</>
+            )}
           </p>
+          <div className="md:col-span-2 flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className={recordFormFieldLabel}>Send test email to</label>
+              <input
+                type="email"
+                value={testEmailTo}
+                onChange={(e) => setTestEmailTo(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSendTestEmail}
+              disabled={isSendingTestEmail}
+              className="btn-secondary shrink-0"
+            >
+              {isSendingTestEmail ? "Sending..." : "Send Test Email"}
+            </button>
+          </div>
           <label className="flex items-center gap-2 md:col-span-2">
             <input
               type="checkbox"
@@ -350,23 +524,16 @@ export default function SettingsPage() {
           </div>
           <div>
             <label className={recordFormFieldLabel}>Password Min Length</label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={security.passwordMinLength}
-                onChange={(e) =>
-                  setSecurity((current) => ({ ...current, passwordMinLength: e.target.value }))
-                }
-                className="input-field pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+            <input
+              type="number"
+              min={6}
+              max={32}
+              value={security.passwordMinLength}
+              onChange={(e) =>
+                setSecurity((current) => ({ ...current, passwordMinLength: e.target.value }))
+              }
+              className="input-field"
+            />
           </div>
           <div>
             <label className={recordFormFieldLabel}>Login Attempt Limit</label>
@@ -404,6 +571,27 @@ export default function SettingsPage() {
             />
             <span className="text-sm text-slate-600">Require 2FA for admins</span>
           </label>
+          <p className="text-xs leading-relaxed text-slate-500 md:col-span-2">
+            Admin 2FA sends a 6-digit verification code by email after the password is entered.
+            Configure Brevo SMTP under Communication Settings for reliable delivery.
+          </p>
+          <div className="md:col-span-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex-1 text-sm text-slate-600">
+              {currentSchool ? getBackupStatusLabel(currentSchool.id) : "Backup status unavailable."}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!currentSchool) return;
+                downloadSchoolBackup(currentSchool.id, currentSchool.name);
+                setLastBackupAt(getLastBackupTimestamp(currentSchool.id));
+              }}
+              className="btn-secondary"
+            >
+              <Download className="h-4 w-4" />
+              Download Backup Now
+            </button>
+          </div>
         </div>
       ),
     },
@@ -493,9 +681,12 @@ export default function SettingsPage() {
             i
           </div>
           <div>
-            <p className="font-semibold text-blue-900">Auto Backup Enabled</p>
+            <p className="font-semibold text-blue-900">Automatic Backups</p>
             <p className="mt-1 text-sm text-blue-800">
-              System performs daily backups at 02:00 AM server time.
+              {currentSchool
+                ? getBackupStatusLabel(currentSchool.id)
+                : "Configure backup frequency above."}
+              {lastBackupAt ? ` Last saved backup: ${new Date(lastBackupAt).toLocaleString()}.` : ""}
             </p>
           </div>
         </div>

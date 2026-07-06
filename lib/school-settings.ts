@@ -14,6 +14,7 @@ export type AcademicSettings = {
 };
 
 export type CommunicationSettings = {
+  emailProvider: "gmail" | "brevo" | "custom";
   smtpServer: string;
   smtpPort: string;
   senderEmail: string;
@@ -41,6 +42,11 @@ export type SchoolSystemSettings = {
 
 const STORAGE_KEY = "school_system_settings";
 
+/** Outgoing mail identity — separate from admin login email. */
+export const DEFAULT_SMTP_SENDER_EMAIL = "webdev.team002@gmail.com";
+
+const LEGACY_SENDER_EMAILS = ["gulsharaf@gmail.com", "harrycosmetics02@gmail.com"];
+
 export const defaultSchoolSystemSettings = (): SchoolSystemSettings => ({
   schoolInfo: {
     schoolCode: "",
@@ -54,10 +60,11 @@ export const defaultSchoolSystemSettings = (): SchoolSystemSettings => ({
     gradePointsCalculation: "Weighted",
   },
   communication: {
-    smtpServer: "smtp.gmail.com",
+    emailProvider: "brevo",
+    smtpServer: "smtp-relay.brevo.com",
     smtpPort: "587",
-    senderEmail: "noreply@school.edu",
-    smtpUser: "",
+    senderEmail: DEFAULT_SMTP_SENDER_EMAIL,
+    smtpUser: DEFAULT_SMTP_SENDER_EMAIL,
     smtpPassword: "",
     smsGateway: "Not Configured",
     emailNotifications: true,
@@ -91,8 +98,77 @@ export function loadSchoolSystemSettings(schoolId: string): SchoolSystemSettings
   return {
     schoolInfo: { ...defaults.schoolInfo, ...stored.schoolInfo },
     academic: { ...defaults.academic, ...stored.academic },
-    communication: { ...defaults.communication, ...stored.communication },
+    communication: normalizeCommunicationSettings({
+      ...defaults.communication,
+      ...stored.communication,
+    }),
     security: { ...defaults.security, ...stored.security },
+  };
+}
+
+function normalizeCommunicationSettings(
+  communication: CommunicationSettings,
+): CommunicationSettings {
+  const sender = communication.senderEmail.trim().toLowerCase();
+  const user = communication.smtpUser.trim().toLowerCase();
+  let next = { ...communication };
+
+  if (!sender || LEGACY_SENDER_EMAILS.some((legacy) => legacy.toLowerCase() === sender)) {
+    next.senderEmail = DEFAULT_SMTP_SENDER_EMAIL;
+  }
+
+  if (!next.emailProvider) {
+    next.emailProvider = next.smtpServer.includes("brevo") ? "brevo" : "gmail";
+  }
+
+  if (next.emailProvider === "brevo") {
+    next.smtpServer = "smtp-relay.brevo.com";
+    next.smtpPort = "587";
+    if (
+      LEGACY_SENDER_EMAILS.some((legacy) => legacy.toLowerCase() === user) ||
+      user === "gulsharaf@gmail.com"
+    ) {
+      next.smtpUser = "";
+    }
+  } else if (next.emailProvider === "gmail") {
+    next.smtpServer = "smtp.gmail.com";
+    next.smtpPort = "587";
+    next.smtpUser = next.senderEmail.trim();
+  } else if (
+    LEGACY_SENDER_EMAILS.some((legacy) => legacy.toLowerCase() === user) ||
+    user === "gulsharaf@gmail.com"
+  ) {
+    next.smtpUser = "";
+  }
+
+  return next;
+}
+
+export function getBrevoCommunicationPreset(senderEmail: string): CommunicationSettings {
+  return {
+    emailProvider: "brevo",
+    smtpServer: "smtp-relay.brevo.com",
+    smtpPort: "587",
+    senderEmail: senderEmail.trim(),
+    smtpUser: "",
+    smtpPassword: "",
+    smsGateway: "Not Configured",
+    emailNotifications: true,
+    smsNotifications: false,
+  };
+}
+
+export function getGmailCommunicationPreset(senderEmail: string): CommunicationSettings {
+  return {
+    emailProvider: "gmail",
+    smtpServer: "smtp.gmail.com",
+    smtpPort: "587",
+    senderEmail: senderEmail.trim(),
+    smtpUser: senderEmail.trim(),
+    smtpPassword: "",
+    smsGateway: "Not Configured",
+    emailNotifications: true,
+    smsNotifications: false,
   };
 }
 
@@ -101,4 +177,28 @@ export function saveSchoolSystemSettings(
   settings: SchoolSystemSettings,
 ): void {
   setScopedItem(schoolId, STORAGE_KEY, JSON.stringify(settings));
+}
+
+export function migrateCommunicationSettings(schoolId: string): void {
+  const settings = loadSchoolSystemSettings(schoolId);
+  const stored = parseJson<Partial<SchoolSystemSettings>>(
+    getScopedItem(schoolId, STORAGE_KEY),
+    {},
+  );
+  const previousUser = stored.communication?.smtpUser?.trim() ?? "";
+  const nextUser = settings.communication.smtpUser.trim();
+  const needsProviderMigration =
+    !stored.communication?.emailProvider ||
+    stored.communication.emailProvider === "gmail";
+
+  if (previousUser !== nextUser || needsProviderMigration) {
+    const communication =
+      needsProviderMigration && !settings.communication.smtpPassword.trim()
+        ? getBrevoCommunicationPreset(
+            settings.communication.senderEmail || DEFAULT_SMTP_SENDER_EMAIL,
+          )
+        : settings.communication;
+
+    saveSchoolSystemSettings(schoolId, { ...settings, communication });
+  }
 }

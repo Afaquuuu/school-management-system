@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { normalizeClassLabel } from "@/lib/class-labels";
+import { migrateDummyAdminEmail } from "@/lib/system-users";
+import { migrateCommunicationSettings } from "@/lib/school-settings";
 
 type School = {
   id: string;
@@ -38,6 +40,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (storedSchools) {
       try {
         parsedSchools = JSON.parse(storedSchools) as School[];
+        parsedSchools.forEach((school) => {
+          migrateDummyAdminEmail(school.id);
+          migrateCommunicationSettings(school.id);
+        });
         setSchools(parsedSchools);
       } catch {
         parsedSchools = [];

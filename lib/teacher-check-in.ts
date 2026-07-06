@@ -25,6 +25,7 @@ export type UserSession = {
   classDepartment?: string;
   schoolId: string;
   loginTime: string;
+  lastActivityAt?: string;
 };
 
 export type SystemUser = {
@@ -126,6 +127,7 @@ export function establishUserSession(
     classDepartment: user.classDepartment,
     schoolId,
     loginTime: new Date().toISOString(),
+    lastActivityAt: new Date().toISOString(),
   };
 
   if (typeof window !== "undefined") {

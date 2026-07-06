@@ -5,12 +5,19 @@ export type EmailMessage = {
   subject: string;
   html: string;
   text: string;
+  /** Plain-text only improves Gmail delivery for verification codes. */
+  textOnly?: boolean;
 };
 
 export type SendEmailRequest = {
   smtp: Pick<
     CommunicationSettings,
-    "smtpServer" | "smtpPort" | "senderEmail" | "smtpUser" | "smtpPassword"
+    | "emailProvider"
+    | "smtpServer"
+    | "smtpPort"
+    | "senderEmail"
+    | "smtpUser"
+    | "smtpPassword"
   >;
   schoolName: string;
   messages: EmailMessage[];
@@ -46,5 +53,29 @@ export function validateEmailSettings(
     return "SMTP password is required in Communication Settings.";
   }
 
+  if (communication.emailProvider === "gmail") {
+    const sender = communication.senderEmail.trim().toLowerCase();
+    const user = (communication.smtpUser.trim() || sender).toLowerCase();
+    if (sender !== user) {
+      return "For Gmail, Sender Email and SMTP Username must be the same address.";
+    }
+  }
+
+  if (communication.emailProvider === "brevo") {
+    const pass = communication.smtpPassword.trim();
+    if (pass.startsWith("xkeysib-")) {
+      return "That looks like a Brevo API key. Use an SMTP key (starts with xsmtpsib-) from Settings → SMTP & API → SMTP tab.";
+    }
+    if (!communication.smtpUser.trim()) {
+      return "SMTP Username is required — copy your SMTP login from Brevo (Settings → SMTP & API → SMTP tab).";
+    }
+  }
+
   return null;
+}
+
+export function isEmailDeliveryConfigured(
+  communication: CommunicationSettings,
+): boolean {
+  return validateEmailSettings(communication) === null;
 }

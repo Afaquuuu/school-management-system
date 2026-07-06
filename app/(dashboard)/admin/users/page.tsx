@@ -29,6 +29,7 @@ import {
   resolveLinkedStudentIds,
   type SchoolStudentRecord,
 } from "@/lib/parent-student-links";
+import { getPasswordMinLength, validatePasswordPolicy } from "@/lib/school-security";
 import { ParentStudentLinker } from "@/components/admin/parent-student-linker";
 import {
   credentialRoles,
@@ -135,6 +136,21 @@ export default function UsersPage() {
     }
   };
 
+  const generateCompliantPassword = () => {
+    const minLength = currentSchool ? getPasswordMinLength(currentSchool.id) : 8;
+    return generateLoginPassword(Math.max(minLength, 10));
+  };
+
+  const assertPasswordPolicy = (password: string): boolean => {
+    if (!currentSchool) return true;
+    const result = validatePasswordPolicy(currentSchool.id, password);
+    if (!result.valid) {
+      alert(result.error);
+      return false;
+    }
+    return true;
+  };
+
   const resetForm = (role: SystemUserRole = "Teacher") => {
     setFormData({
       name: "",
@@ -143,7 +159,7 @@ export default function UsersPage() {
       role,
       classDepartment: "",
       status: "Active",
-      password: generateLoginPassword(),
+      password: generateCompliantPassword(),
     });
     setLinkedStudentIds([]);
     setShowFormPassword(true);
@@ -172,6 +188,10 @@ export default function UsersPage() {
 
     if (!formData.password?.trim()) {
       alert("Please set a login password before issuing credentials.");
+      return;
+    }
+
+    if (!assertPasswordPolicy(formData.password.trim())) {
       return;
     }
 
@@ -271,6 +291,10 @@ export default function UsersPage() {
       return;
     }
 
+    if (formData.password?.trim() && !assertPasswordPolicy(formData.password.trim())) {
+      return;
+    }
+
     if (formData.role === "Parent" && currentSchool) {
       linkStudentsToParentAccount(currentSchool.id, linkedStudentIds, {
         name: formData.name!.trim(),
@@ -333,7 +357,7 @@ export default function UsersPage() {
   };
 
   const handleReissuePassword = (user: SystemUser) => {
-    const newPassword = generateLoginPassword();
+    const newPassword = generateCompliantPassword();
     const updatedUsers = users.map((u) =>
       u.id === user.id
         ? {
@@ -744,7 +768,7 @@ export default function UsersPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        setFormData({ ...formData, password: generateLoginPassword() })
+                        setFormData({ ...formData, password: generateCompliantPassword() })
                       }
                       className="rounded-lg border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50"
                     >

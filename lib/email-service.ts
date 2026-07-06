@@ -42,6 +42,42 @@ function resolveSmtpConfig(request: SendEmailRequest): ResolvedSmtpConfig {
   };
 }
 
+function isGmailProvider(config: ResolvedSmtpConfig, request: SendEmailRequest): boolean {
+  return (
+    request.smtp.emailProvider === "gmail" ||
+    config.host.toLowerCase().includes("gmail.com")
+  );
+}
+
+function buildFromAddress(config: ResolvedSmtpConfig, request: SendEmailRequest): string {
+  if (isGmailProvider(config, request)) {
+    return config.user;
+  }
+  return `"${request.schoolName}" <${config.from}>`;
+}
+
+function createSmtpTransporter(config: ResolvedSmtpConfig) {
+  const auth = {
+    user: config.user,
+    pass: config.pass,
+  };
+
+  if (config.host.toLowerCase().includes("gmail.com")) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth,
+    });
+  }
+
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    requireTLS: !config.secure,
+    auth,
+  });
+}
+
 export async function sendEmailBatch(
   request: SendEmailRequest,
 ): Promise<SendEmailResult> {
@@ -65,15 +101,21 @@ export async function sendEmailBatch(
     return { success: false, sent: 0, failed: [], error: "No recipients to email." };
   }
 
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: {
-      user: config.user,
-      pass: config.pass,
-    },
-  });
+  const transporter = createSmtpTransporter(config);
+
+  try {
+    await transporter.verify();
+  } catch (error) {
+    return {
+      success: false,
+      sent: 0,
+      failed: [],
+      error:
+        error instanceof Error
+          ? `SMTP connection failed: ${error.message}`
+          : "SMTP connection failed.",
+    };
+  }
 
   const failed: Array<{ to: string; error: string }> = [];
   let sent = 0;
@@ -86,12 +128,15 @@ export async function sendEmailBatch(
     }
 
     try {
+      const gmail = isGmailProvider(config, request);
+      const usePlainText = message.textOnly || gmail;
+
       await transporter.sendMail({
-        from: `"${request.schoolName}" <${config.from}>`,
+        from: buildFromAddress(config, request),
         to,
         subject: message.subject,
         text: message.text,
-        html: message.html,
+        ...(usePlainText ? {} : { html: message.html }),
       });
       sent += 1;
     } catch (error) {

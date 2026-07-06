@@ -182,3 +182,25 @@ export function buildFeeReminderEmailMessages(input: {
 
   return messages;
 }
+
+export function buildAdminVerificationEmailMessage(input: {
+  schoolName: string;
+  adminName: string;
+  code: string;
+  to: string;
+}): { to: string; subject: string; html: string; text: string } {
+  const subject = `${input.code} is your ${input.schoolName} sign-in code`;
+  const text = [
+    `Hello ${input.adminName},`,
+    "",
+    `Your admin sign-in verification code is: ${input.code}`,
+    "",
+    "This code expires in 10 minutes.",
+    "",
+    "If you did not try to sign in, ignore this email.",
+  ].join("\n");
+
+  const html = `<p>Hello ${input.adminName},</p><p>Your admin sign-in verification code is:</p><p><strong style="font-size:24px;letter-spacing:4px;">${input.code}</strong></p><p>This code expires in 10 minutes.</p>`;
+
+  return { to: input.to, subject, html, text };
+}
