@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { 
   DollarSign, Receipt, CreditCard, TrendingUp, Search, 
   Plus, Download, Filter, CheckCircle, AlertCircle, Clock,
-  FileText, Users, Calendar
+  FileText, Users, Calendar, Mail
 } from "lucide-react";
 import { CreateInvoiceModal, type InvoiceFormData } from "./components/create-invoice-modal";
 import { RecordPaymentModal, type PaymentFormData } from "./components/record-payment-modal";
@@ -33,6 +33,10 @@ import {
   type InvoiceStatus,
 } from "@/lib/finance-invoices";
 import { DateInput } from "@/components/ui/date-input";
+import {
+  formatEmailResultMessage,
+  sendFeeReminderEmails,
+} from "@/lib/email-client";
 
 type Invoice = FinanceInvoice;
 
@@ -70,6 +74,8 @@ export default function FinancePage() {
   const [reportFilters, setReportFilters] = useState(getFinanceDefaultDateRange());
   const [reportClassFilter, setReportClassFilter] = useState("all");
   const [selectedInvoiceForView, setSelectedInvoiceForView] = useState<Invoice | null>(null);
+  const [isSendingReminders, setIsSendingReminders] = useState(false);
+  const [isSendingSingleReminder, setIsSendingSingleReminder] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>(() => {
     if (typeof window === "undefined") return "admin";
     const role = localStorage.getItem("user_role");
@@ -447,6 +453,64 @@ export default function FinancePage() {
     }
   };
 
+  const reminderEligibleInvoices = useMemo(
+    () =>
+      visibleInvoices.filter(
+        (invoice) =>
+          invoice.status !== "paid" &&
+          invoice.status !== "void" &&
+          invoice.status !== "draft" &&
+          invoice.totalAmount - invoice.paidAmount > 0,
+      ),
+    [visibleInvoices],
+  );
+
+  const overdueReminderInvoices = useMemo(
+    () => reminderEligibleInvoices.filter((invoice) => invoice.status === "overdue"),
+    [reminderEligibleInvoices],
+  );
+
+  const handleSendFeeReminders = async (invoicesToRemind: Invoice[]) => {
+    if (!currentSchool || invoicesToRemind.length === 0) return;
+
+    const confirmed = confirm(
+      `Send fee reminder emails for ${invoicesToRemind.length} invoice(s)?`,
+    );
+    if (!confirmed) return;
+
+    setIsSendingReminders(true);
+    try {
+      const result = await sendFeeReminderEmails({
+        schoolId: currentSchool.id,
+        schoolName: currentSchool.name,
+        schoolPhone: currentSchool.phone,
+        schoolEmail: currentSchool.email,
+        invoices: invoicesToRemind,
+      });
+      alert(formatEmailResultMessage(result));
+    } finally {
+      setIsSendingReminders(false);
+    }
+  };
+
+  const handleSendSingleFeeReminder = async (invoice: Invoice) => {
+    if (!currentSchool) return;
+
+    setIsSendingSingleReminder(true);
+    try {
+      const result = await sendFeeReminderEmails({
+        schoolId: currentSchool.id,
+        schoolName: currentSchool.name,
+        schoolPhone: currentSchool.phone,
+        schoolEmail: currentSchool.email,
+        invoices: [invoice],
+      });
+      alert(formatEmailResultMessage(result));
+    } finally {
+      setIsSendingSingleReminder(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -629,6 +693,19 @@ export default function FinancePage() {
               <Download className="w-4 h-4" />
               Export
             </button>
+            {!isFinanceReadOnly && overdueReminderInvoices.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleSendFeeReminders(overdueReminderInvoices)}
+                disabled={isSendingReminders}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                {isSendingReminders
+                  ? "Sending..."
+                  : `Send Reminders (${overdueReminderInvoices.length})`}
+              </button>
+            )}
           </div>
 
           {/* Invoices Table */}
@@ -884,6 +961,9 @@ export default function FinancePage() {
       <InvoiceDetailModal
         invoice={selectedInvoiceForView}
         onClose={() => setSelectedInvoiceForView(null)}
+        canSendReminder={!isFinanceReadOnly && !isParentView}
+        onSendReminder={handleSendSingleFeeReminder}
+        isSendingReminder={isSendingSingleReminder}
       />
     </div>
   );

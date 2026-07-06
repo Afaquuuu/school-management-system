@@ -29,6 +29,11 @@ import { formatDate } from "@/lib/date-format";
 import { useSchool } from "@/lib/school-context";
 import { PageHeader } from "@/components/ui/page-header";
 import {
+  formatEmailResultMessage,
+  sendAnnouncementEmails,
+} from "@/lib/email-client";
+import { loadSchoolSystemSettings } from "@/lib/school-settings";
+import {
   recordFormFieldLabel,
 } from "@/components/ui/record-form-layout";
 import {
@@ -122,6 +127,8 @@ export default function CommunicationPage() {
   const [announcementPriority, setAnnouncementPriority] = useState<AnnouncementPriority>("normal");
   const [announcementAudience, setAnnouncementAudience] = useState<AnnouncementAudience[]>([]);
   const [announcementClassId, setAnnouncementClassId] = useState("");
+  const [sendAnnouncementByEmail, setSendAnnouncementByEmail] = useState(true);
+  const [isPublishingAnnouncement, setIsPublishingAnnouncement] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
@@ -135,6 +142,12 @@ export default function CommunicationPage() {
   useEffect(() => {
     setSession(getUserSession());
   }, []);
+
+  useEffect(() => {
+    if (!currentSchool) return;
+    const settings = loadSchoolSystemSettings(currentSchool.id);
+    setSendAnnouncementByEmail(settings.communication.emailNotifications);
+  }, [currentSchool]);
 
   const refreshMessages = () => {
     if (!currentSchool || !session) return;
@@ -388,7 +401,7 @@ export default function CommunicationPage() {
     refreshMessages();
   };
 
-  const handleCreateAnnouncement = () => {
+  const handleCreateAnnouncement = async () => {
     if (!currentSchool || !session) return;
 
     const result = createSchoolAnnouncement({
@@ -414,11 +427,26 @@ export default function CommunicationPage() {
     setAnnouncementClassId(teacherClassOptions[0]?.id ?? "");
     setShowComposeAnnouncement(false);
     refreshAnnouncements();
-    alert(
-      isAdminPublisher
-        ? "School-wide announcement published successfully!"
-        : "Class announcement published successfully!",
-    );
+
+    let message = isAdminPublisher
+      ? "School-wide announcement published successfully!"
+      : "Class announcement published successfully!";
+
+    if (sendAnnouncementByEmail) {
+      setIsPublishingAnnouncement(true);
+      try {
+        const emailResult = await sendAnnouncementEmails({
+          schoolId: currentSchool.id,
+          schoolName: currentSchool.name,
+          announcement: result.announcement,
+        });
+        message = `${message} ${formatEmailResultMessage(emailResult)}`;
+      } finally {
+        setIsPublishingAnnouncement(false);
+      }
+    }
+
+    alert(message);
   };
 
   const toggleAudience = (audience: AnnouncementAudience) => {
@@ -1380,14 +1408,32 @@ export default function CommunicationPage() {
                   ))}
                 </div>
               </div>
+              <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-900/40">
+                <input
+                  type="checkbox"
+                  checked={sendAnnouncementByEmail}
+                  onChange={(e) => setSendAnnouncementByEmail(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-slate-600 dark:text-slate-300">
+                  Send this announcement by email to the selected audience. Configure SMTP under Admin → System Settings → Communication Settings.
+                </span>
+              </label>
             </div>
             <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
               <button 
                 onClick={handleCreateAnnouncement}
-                disabled={!isAdminPublisher && teacherClassOptions.length === 0}
+                disabled={
+                  isPublishingAnnouncement ||
+                  (!isAdminPublisher && teacherClassOptions.length === 0)
+                }
                 className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 text-white rounded-lg transition-colors font-semibold"
               >
-                {isAdminPublisher ? "Publish School Announcement" : "Publish Class Announcement"}
+                {isPublishingAnnouncement
+                  ? "Publishing..."
+                  : isAdminPublisher
+                    ? "Publish School Announcement"
+                    : "Publish Class Announcement"}
               </button>
               <button 
                 onClick={() => setShowComposeAnnouncement(false)}

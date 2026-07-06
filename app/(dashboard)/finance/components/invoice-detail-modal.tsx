@@ -26,6 +26,9 @@ import { getScopedItem, useSchool } from "@/lib/school-context";
 type InvoiceDetailModalProps = {
   invoice: FinanceInvoice | null;
   onClose: () => void;
+  canSendReminder?: boolean;
+  onSendReminder?: (invoice: FinanceInvoice) => Promise<void>;
+  isSendingReminder?: boolean;
 };
 
 function formatMoney(amount: number): string {
@@ -150,7 +153,13 @@ function buildPrintHtml(options: {
   </div>`;
 }
 
-export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps) {
+export function InvoiceDetailModal({
+  invoice,
+  onClose,
+  canSendReminder = false,
+  onSendReminder,
+  isSendingReminder = false,
+}: InvoiceDetailModalProps) {
   const { currentSchool } = useSchool();
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -175,6 +184,13 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
   const statusConfig = getStatusConfig(invoice.status);
   const StatusIcon = statusConfig.icon;
   const academicYear = `${new Date(invoice.issuedAt).getFullYear()}–${new Date(invoice.issuedAt).getFullYear() + 1}`;
+  const showSendReminder =
+    canSendReminder &&
+    onSendReminder &&
+    invoice.status !== "paid" &&
+    invoice.status !== "void" &&
+    invoice.status !== "draft" &&
+    balance > 0;
 
   const schoolName = currentSchool?.name ?? "School Management System";
   const schoolAddress = currentSchool?.address ?? "School Address";
@@ -488,6 +504,17 @@ export function InvoiceDetailModal({ invoice, onClose }: InvoiceDetailModalProps
 
         {/* Action bar */}
         <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-950">
+          {showSendReminder && (
+            <button
+              type="button"
+              onClick={() => onSendReminder?.(invoice)}
+              disabled={isSendingReminder}
+              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+            >
+              <Mail className="h-4 w-4" />
+              {isSendingReminder ? "Sending..." : "Email Reminder"}
+            </button>
+          )}
           <button
             type="button"
             onClick={handlePrintInvoice}
