@@ -770,3 +770,31 @@ model PerformanceAlert {
 
   @@index([severity, generatedAt])
 }
+
+/// Multi-tenant school registry (replaces browser `saas_schools`).
+model School {
+  id        String          @id
+  name      String
+  address   String          @default("")
+  phone     String          @default("")
+  email     String
+  logo      String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  storage   TenantStorage[]
+}
+
+/// Per-school key/value store (replaces scoped localStorage).
+model TenantStorage {
+  id        String   @id @default(cuid())
+  schoolId  String
+  key       String
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, key])
+  @@index([schoolId])
+}

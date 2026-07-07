@@ -1,0 +1,107 @@
+"use client";
+
+const schoolCaches = new Map<string, Map<string, string>>();
+const pendingWrites = new Map<string, ReturnType<typeof setTimeout>>();
+const hydrationPromises = new Map<string, Promise<void>>();
+
+function writeKey(schoolId: string, key: string): string {
+  return `${schoolId}::${key}`;
+}
+
+function getSchoolCache(schoolId: string): Map<string, string> {
+  let cache = schoolCaches.get(schoolId);
+  if (!cache) {
+    cache = new Map();
+    schoolCaches.set(schoolId, cache);
+  }
+  return cache;
+}
+
+export function getCachedScopedItem(schoolId: string, key: string): string | null {
+  return getSchoolCache(schoolId).get(key) ?? null;
+}
+
+export function setCachedScopedItem(schoolId: string, key: string, value: string): void {
+  getSchoolCache(schoolId).set(key, value);
+  schedulePersist(schoolId, key, value);
+}
+
+export function removeCachedScopedItem(schoolId: string, key: string): void {
+  getSchoolCache(schoolId).delete(key);
+
+  void fetch("/api/tenant-storage", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ schoolId, key }),
+  }).catch((error) => {
+    console.error("Failed to delete tenant storage item:", error);
+  });
+}
+
+export function clearCachedSchoolStorage(schoolId: string): void {
+  schoolCaches.delete(schoolId);
+  hydrationPromises.delete(schoolId);
+}
+
+function schedulePersist(schoolId: string, key: string, value: string): void {
+  const pendingKey = writeKey(schoolId, key);
+  const existing = pendingWrites.get(pendingKey);
+  if (existing) clearTimeout(existing);
+
+  pendingWrites.set(
+    pendingKey,
+    setTimeout(() => {
+      pendingWrites.delete(pendingKey);
+      void fetch("/api/tenant-storage", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId, key, value }),
+      }).catch((error) => {
+        console.error("Failed to persist tenant storage item:", error);
+      });
+    }, 250),
+  );
+}
+
+export async function hydrateSchoolStorageFromServer(schoolId: string): Promise<void> {
+  const existing = hydrationPromises.get(schoolId);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const response = await fetch(`/api/tenant-storage?schoolId=${encodeURIComponent(schoolId)}`);
+    if (!response.ok) {
+      throw new Error("Failed to load school data from server.");
+    }
+
+    const payload = (await response.json()) as { entries?: Record<string, string> };
+    const cache = getSchoolCache(schoolId);
+    cache.clear();
+
+    for (const [key, value] of Object.entries(payload.entries ?? {})) {
+      cache.set(key, value);
+    }
+  })();
+
+  hydrationPromises.set(schoolId, promise);
+
+  try {
+    await promise;
+  } finally {
+    hydrationPromises.delete(schoolId);
+  }
+}
+
+export async function flushPendingStorageWrites(): Promise<void> {
+  const timers = Array.from(pendingWrites.values());
+  pendingWrites.clear();
+  await Promise.all(
+    timers.map(
+      (timer) =>
+        new Promise<void>((resolve) => {
+          clearTimeout(timer);
+          resolve();
+        }),
+    ),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 300));
+}
