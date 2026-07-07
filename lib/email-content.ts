@@ -204,3 +204,66 @@ export function buildAdminVerificationEmailMessage(input: {
 
   return { to: input.to, subject, html, text };
 }
+
+const ALERT_TYPE_LABELS: Record<string, string> = {
+  attendance: "Attendance Alert",
+  performance: "Performance Alert",
+  assignment: "Assignment Alert",
+  exam: "Exam Alert",
+  fee: "Fee Payment Alert",
+};
+
+export function buildAlertEmailMessages(input: {
+  schoolName: string;
+  alert: {
+    type: string;
+    title: string;
+    message: string;
+    severity: string;
+    className?: string;
+  };
+  recipients: string[];
+}): EmailMessage[] {
+  const { schoolName, alert, recipients } = input;
+  const typeLabel = ALERT_TYPE_LABELS[alert.type] ?? "School Alert";
+  const subject = `[${schoolName}] ${alert.title}`;
+  const text = [
+    typeLabel,
+    alert.className ? `Class: ${alert.className}` : "",
+    "",
+    alert.message,
+    "",
+    "Please sign in to your school portal for more details.",
+    "",
+    schoolName,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const severityColor =
+    alert.severity === "critical"
+      ? "#dc2626"
+      : alert.severity === "warning"
+        ? "#d97706"
+        : "#2563eb";
+
+  const bodyHtml = `
+    <p style="margin:0 0 12px;">
+      <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${severityColor};color:#ffffff;font-size:12px;font-weight:700;text-transform:uppercase;">
+        ${escapeHtml(typeLabel)}
+      </span>
+    </p>
+    ${alert.className ? `<p style="color:#475569;margin:0 0 12px;">Class: ${escapeHtml(alert.className)}</p>` : ""}
+    <p style="font-size:16px;font-weight:600;color:#0f172a;margin:0 0 12px;">${escapeHtml(alert.title)}</p>
+    <p style="white-space:pre-wrap;color:#334155;">${escapeHtml(alert.message)}</p>
+    <p style="margin-top:16px;color:#475569;">Please sign in to your school portal for more details.</p>
+  `;
+
+  const html = wrapEmailHtml({
+    schoolName,
+    title: alert.title,
+    bodyHtml,
+  });
+
+  return recipients.map((to) => ({ to, subject, html, text }));
+}

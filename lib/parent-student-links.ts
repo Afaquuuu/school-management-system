@@ -9,6 +9,7 @@ export type SchoolStudentRecord = {
   class: string;
   section: string;
   email?: string;
+  phone?: string;
   rollNumber?: string;
   admissionDate?: string;
   guardianName?: string;

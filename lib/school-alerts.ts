@@ -6,8 +6,11 @@ import {
   getLinkedStudentsForParentEmail,
   resolvePersonalViewStudent,
 } from "@/lib/parent-student-links";
+import { loadSchoolSystemSettings } from "@/lib/school-settings";
+import { isEmailDeliveryConfigured } from "@/lib/email-types";
+import { isWhatsAppDeliveryConfigured } from "@/lib/whatsapp-types";
 
-export type AlertChannelId = "email" | "sms" | "dashboard" | "push";
+export type AlertChannelId = "email" | "whatsapp";
 
 export type AlertTypeId =
   | "attendance"
@@ -38,12 +41,6 @@ export type NotificationChannelConfig = {
   name: string;
   configured: boolean;
   details: string;
-  smtpServer?: string;
-  smtpPort?: number;
-  senderEmail?: string;
-  smsProvider?: string;
-  smsApiKey?: string;
-  pushEnabled?: boolean;
 };
 
 export type SchoolAlertSettings = {
@@ -78,13 +75,15 @@ const ACTIVE_ALERTS_KEY = "active_alerts";
 
 const CHANNEL_LABELS: Record<AlertChannelId, string> = {
   email: "Email",
-  sms: "SMS",
-  dashboard: "Dashboard",
-  push: "Push Notifications",
+  whatsapp: "WhatsApp",
 };
 
 export function getChannelLabel(channel: AlertChannelId): string {
   return CHANNEL_LABELS[channel];
+}
+
+export function sanitizeAlertChannels(channels: AlertChannelId[]): AlertChannelId[] {
+  return sanitizeChannels(channels);
 }
 
 export function getDefaultAlertSettings(): SchoolAlertSettings {
@@ -94,25 +93,25 @@ export function getDefaultAlertSettings(): SchoolAlertSettings {
         id: "attendance",
         name: "Attendance Alerts",
         enabled: true,
-        channels: ["email", "sms", "dashboard"],
+        channels: ["email", "whatsapp"],
       },
       {
         id: "performance",
         name: "Performance Alerts",
         enabled: true,
-        channels: ["email", "dashboard"],
+        channels: ["email"],
       },
       {
         id: "assignment",
         name: "Assignment Alerts",
         enabled: true,
-        channels: ["email", "sms", "dashboard"],
+        channels: ["email", "whatsapp"],
       },
       {
         id: "exam",
         name: "Exam Alerts",
         enabled: false,
-        channels: ["email", "sms"],
+        channels: ["email", "whatsapp"],
       },
       {
         id: "fee",
@@ -155,26 +154,14 @@ export function getDefaultAlertSettings(): SchoolAlertSettings {
       {
         id: "email",
         name: "Email",
-        configured: true,
-        details: "SMTP configured with SendGrid",
-        smtpServer: "smtp.sendgrid.net",
-        smtpPort: 587,
-        senderEmail: "noreply@school.edu",
-      },
-      {
-        id: "sms",
-        name: "SMS",
         configured: false,
-        details: "SMS service not configured",
-        smsProvider: "",
-        smsApiKey: "",
+        details: "Configure SMTP in Admin → Communication Settings",
       },
       {
-        id: "push",
-        name: "Push Notifications",
-        configured: true,
-        details: "Browser notifications enabled",
-        pushEnabled: true,
+        id: "whatsapp",
+        name: "WhatsApp",
+        configured: false,
+        details: "Link WhatsApp in Admin → Communication Settings",
       },
     ],
     updatedAt: new Date().toISOString(),
@@ -190,19 +177,61 @@ function parseJson<T>(value: string | null, fallback: T): T {
   }
 }
 
+export function enrichAlertSettingsWithChannelStatus(
+  schoolId: string,
+  settings: SchoolAlertSettings,
+): SchoolAlertSettings {
+  const communication = loadSchoolSystemSettings(schoolId).communication;
+  const emailConfigured = isEmailDeliveryConfigured(communication);
+  const whatsappConfigured = isWhatsAppDeliveryConfigured(communication);
+
+  return {
+    ...settings,
+    channels: settings.channels.map((channel) => {
+      if (channel.id === "email") {
+        return {
+          ...channel,
+          configured: emailConfigured,
+          details: emailConfigured
+            ? `SMTP: ${communication.smtpServer}:${communication.smtpPort}`
+            : "Configure SMTP in Admin → Communication Settings",
+        };
+      }
+      if (channel.id === "whatsapp") {
+        return {
+          ...channel,
+          configured: whatsappConfigured,
+          details: whatsappConfigured
+            ? `Linked number: +${communication.whatsappLinkedPhone}`
+            : communication.whatsappNotifications
+              ? "Connect WhatsApp in Communication Settings"
+              : "Enable WhatsApp in Admin → Communication Settings",
+        };
+      }
+      return channel;
+    }),
+  };
+}
+
 export function loadAlertSettings(schoolId: string): SchoolAlertSettings {
   const stored = getScopedItem(schoolId, SETTINGS_KEY);
-  if (!stored) return getDefaultAlertSettings();
+  if (!stored) return enrichAlertSettingsWithChannelStatus(schoolId, getDefaultAlertSettings());
 
   const defaults = getDefaultAlertSettings();
   const parsed = parseJson<Partial<SchoolAlertSettings>>(stored, {});
 
-  return {
+  return enrichAlertSettingsWithChannelStatus(schoolId, {
     alertTypes: mergeAlertTypes(defaults.alertTypes, parsed.alertTypes),
     thresholds: mergeThresholds(defaults.thresholds, parsed.thresholds),
     channels: mergeChannels(defaults.channels, parsed.channels),
     updatedAt: parsed.updatedAt ?? defaults.updatedAt,
-  };
+  });
+}
+
+function sanitizeChannels(channels: Array<AlertChannelId | "sms">): AlertChannelId[] {
+  return channels
+    .map((channel) => (channel === "sms" ? "whatsapp" : channel))
+    .filter((channel): channel is AlertChannelId => channel === "email" || channel === "whatsapp");
 }
 
 function mergeAlertTypes(
@@ -212,7 +241,9 @@ function mergeAlertTypes(
   if (!stored?.length) return defaults;
   return defaults.map((item) => {
     const match = stored.find((s) => s.id === item.id);
-    return match ? { ...item, enabled: match.enabled, channels: match.channels } : item;
+    return match
+      ? { ...item, enabled: match.enabled, channels: sanitizeChannels(match.channels) }
+      : item;
   });
 }
 
@@ -233,8 +264,12 @@ function mergeChannels(
 ): NotificationChannelConfig[] {
   if (!stored?.length) return defaults;
   return defaults.map((item) => {
-    const match = stored.find((s) => s.id === item.id);
-    return match ? { ...item, ...match, name: item.name } : item;
+    const match = stored.find(
+      (storedChannel) =>
+        storedChannel.id === item.id ||
+        (item.id === "whatsapp" && (storedChannel.id as string) === "sms"),
+    );
+    return match ? { ...item, ...match, id: item.id, name: item.name } : item;
   });
 }
 
@@ -688,13 +723,19 @@ export function evaluateSchoolAlerts(
   return generated;
 }
 
-export function refreshSchoolAlerts(schoolId: string): ActiveAlert[] {
+export type RefreshSchoolAlertsResult = {
+  alerts: ActiveAlert[];
+  newAlerts: ActiveAlert[];
+};
+
+export function refreshSchoolAlerts(schoolId: string): RefreshSchoolAlertsResult {
   const settings = loadAlertSettings(schoolId);
   const existing = loadActiveAlerts(schoolId);
   const evaluated = evaluateSchoolAlerts(schoolId, settings);
 
   const preserved = existing.filter((alert) => alert.dismissed);
   const merged: ActiveAlert[] = [];
+  const newAlerts: ActiveAlert[] = [];
 
   for (const alert of evaluated) {
     const previous = existing.find((item) => item.fingerprint === alert.fingerprint);
@@ -708,12 +749,15 @@ export function refreshSchoolAlerts(schoolId: string): ActiveAlert[] {
       merged.push(previous);
     } else {
       merged.push(alert);
+      if (!previous) {
+        newAlerts.push(alert);
+      }
     }
   }
 
   const sorted = merged.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   saveActiveAlerts(schoolId, [...sorted, ...preserved]);
-  return sorted;
+  return { alerts: sorted, newAlerts };
 }
 
 export function getVisibleAlerts(schoolId: string): ActiveAlert[] {

@@ -20,9 +20,10 @@ export type CommunicationSettings = {
   senderEmail: string;
   smtpUser: string;
   smtpPassword: string;
-  smsGateway: string;
   emailNotifications: boolean;
-  smsNotifications: boolean;
+  whatsappNotifications: boolean;
+  whatsappDefaultCountryCode: string;
+  whatsappLinkedPhone: string;
 };
 
 export type SecuritySettings = {
@@ -66,9 +67,10 @@ export const defaultSchoolSystemSettings = (): SchoolSystemSettings => ({
     senderEmail: DEFAULT_SMTP_SENDER_EMAIL,
     smtpUser: DEFAULT_SMTP_SENDER_EMAIL,
     smtpPassword: "",
-    smsGateway: "Not Configured",
     emailNotifications: true,
-    smsNotifications: false,
+    whatsappNotifications: false,
+    whatsappDefaultCountryCode: "233",
+    whatsappLinkedPhone: "",
   },
   security: {
     sessionTimeoutMinutes: "30",
@@ -107,11 +109,25 @@ export function loadSchoolSystemSettings(schoolId: string): SchoolSystemSettings
 }
 
 function normalizeCommunicationSettings(
-  communication: CommunicationSettings,
+  communication: CommunicationSettings & {
+    smsGateway?: string;
+    smsNotifications?: boolean;
+    whatsappAccessToken?: string;
+    whatsappPhoneNumberId?: string;
+    whatsappTemplateName?: string;
+    whatsappTemplateLanguage?: string;
+    whatsappApiVersion?: string;
+  },
 ): CommunicationSettings {
   const sender = communication.senderEmail.trim().toLowerCase();
   const user = communication.smtpUser.trim().toLowerCase();
-  let next = { ...communication };
+  let next: CommunicationSettings = {
+    ...communication,
+    whatsappNotifications:
+      communication.whatsappNotifications ?? communication.smsNotifications ?? false,
+    whatsappDefaultCountryCode: communication.whatsappDefaultCountryCode?.trim() || "233",
+    whatsappLinkedPhone: communication.whatsappLinkedPhone?.trim() ?? "",
+  };
 
   if (!sender || LEGACY_SENDER_EMAILS.some((legacy) => legacy.toLowerCase() === sender)) {
     next.senderEmail = DEFAULT_SMTP_SENDER_EMAIL;
@@ -152,9 +168,10 @@ export function getBrevoCommunicationPreset(senderEmail: string): CommunicationS
     senderEmail: senderEmail.trim(),
     smtpUser: "",
     smtpPassword: "",
-    smsGateway: "Not Configured",
     emailNotifications: true,
-    smsNotifications: false,
+    whatsappNotifications: false,
+    whatsappDefaultCountryCode: "233",
+    whatsappLinkedPhone: "",
   };
 }
 
@@ -166,9 +183,10 @@ export function getGmailCommunicationPreset(senderEmail: string): CommunicationS
     senderEmail: senderEmail.trim(),
     smtpUser: senderEmail.trim(),
     smtpPassword: "",
-    smsGateway: "Not Configured",
     emailNotifications: true,
-    smsNotifications: false,
+    whatsappNotifications: false,
+    whatsappDefaultCountryCode: "233",
+    whatsappLinkedPhone: "",
   };
 }
 

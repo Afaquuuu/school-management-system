@@ -98,9 +98,9 @@ dist
 .out
 .storybook-out
 
-# Temporary folders
-tmp/
-temp/
+.whatsapp-sessions/
+.whatsapp-queue/
+
 
 # Editor directories and files
 .vscode/*

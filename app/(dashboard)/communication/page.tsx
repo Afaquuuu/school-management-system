@@ -32,6 +32,10 @@ import {
   formatEmailResultMessage,
   sendAnnouncementEmails,
 } from "@/lib/email-client";
+import {
+  formatWhatsAppQueueMessage,
+  sendAnnouncementWhatsAppMessages,
+} from "@/lib/whatsapp-client";
 import { loadSchoolSystemSettings } from "@/lib/school-settings";
 import {
   recordFormFieldLabel,
@@ -128,6 +132,7 @@ export default function CommunicationPage() {
   const [announcementAudience, setAnnouncementAudience] = useState<AnnouncementAudience[]>([]);
   const [announcementClassId, setAnnouncementClassId] = useState("");
   const [sendAnnouncementByEmail, setSendAnnouncementByEmail] = useState(true);
+  const [sendAnnouncementByWhatsApp, setSendAnnouncementByWhatsApp] = useState(false);
   const [isPublishingAnnouncement, setIsPublishingAnnouncement] = useState(false);
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [showFilterMenu, setShowFilterMenu] = useState(false);
@@ -147,6 +152,7 @@ export default function CommunicationPage() {
     if (!currentSchool) return;
     const settings = loadSchoolSystemSettings(currentSchool.id);
     setSendAnnouncementByEmail(settings.communication.emailNotifications);
+    setSendAnnouncementByWhatsApp(settings.communication.whatsappNotifications);
   }, [currentSchool]);
 
   const refreshMessages = () => {
@@ -432,15 +438,30 @@ export default function CommunicationPage() {
       ? "School-wide announcement published successfully!"
       : "Class announcement published successfully!";
 
-    if (sendAnnouncementByEmail) {
+    if (sendAnnouncementByEmail || sendAnnouncementByWhatsApp) {
       setIsPublishingAnnouncement(true);
       try {
-        const emailResult = await sendAnnouncementEmails({
-          schoolId: currentSchool.id,
-          schoolName: currentSchool.name,
-          announcement: result.announcement,
-        });
-        message = `${message} ${formatEmailResultMessage(emailResult)}`;
+        const deliveryNotes: string[] = [];
+
+        if (sendAnnouncementByEmail) {
+          const emailResult = await sendAnnouncementEmails({
+            schoolId: currentSchool.id,
+            schoolName: currentSchool.name,
+            announcement: result.announcement,
+          });
+          deliveryNotes.push(formatEmailResultMessage(emailResult));
+        }
+
+        if (sendAnnouncementByWhatsApp) {
+          const whatsappResult = await sendAnnouncementWhatsAppMessages({
+            schoolId: currentSchool.id,
+            schoolName: currentSchool.name,
+            announcement: result.announcement,
+          });
+          deliveryNotes.push(formatWhatsAppQueueMessage(whatsappResult));
+        }
+
+        message = `${message} ${deliveryNotes.join(" ")}`;
       } finally {
         setIsPublishingAnnouncement(false);
       }
@@ -1417,6 +1438,17 @@ export default function CommunicationPage() {
                 />
                 <span className="text-sm text-slate-600 dark:text-slate-300">
                   Send this announcement by email to the selected audience. Configure SMTP under Admin → System Settings → Communication Settings.
+                </span>
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-900/40">
+                <input
+                  type="checkbox"
+                  checked={sendAnnouncementByWhatsApp}
+                  onChange={(e) => setSendAnnouncementByWhatsApp(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-slate-600 dark:text-slate-300">
+                  Send this announcement by WhatsApp to the selected audience. Link WhatsApp under Admin → System Settings → Communication Settings.
                 </span>
               </label>
             </div>

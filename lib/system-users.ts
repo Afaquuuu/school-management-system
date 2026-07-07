@@ -297,17 +297,22 @@ export function syncStudentsToSystemUsers(schoolId: string): {
     return { users: existingUsers, newlyIssued };
   }
 
-  const studentIds = new Set(studentRecords.map((student) => student.id));
   const guardianEmails = new Set(
     studentRecords
       .map((student) => student.guardianEmail?.trim().toLowerCase())
       .filter((email): email is string => Boolean(email && isValidLoginEmail(email))),
   );
 
+  const existingStudentUsers = new Map<string, SystemUser>();
+  for (const user of existingUsers) {
+    if (user.id.startsWith("user_student_")) {
+      existingStudentUsers.set(user.id.replace("user_student_", ""), user);
+    }
+  }
+
   const updatedUsers = existingUsers.filter((user) => {
     if (user.id.startsWith("user_student_")) {
-      const studentId = user.id.replace("user_student_", "");
-      return studentIds.has(studentId);
+      return false;
     }
     if (user.id.startsWith("user_parent_")) {
       return guardianEmails.has(user.email.toLowerCase());
@@ -319,9 +324,8 @@ export function syncStudentsToSystemUsers(schoolId: string): {
     const studentEmail = student.email?.trim().toLowerCase();
     if (studentEmail && isValidLoginEmail(studentEmail)) {
       const studentName = `${student.firstName} ${student.lastName}`.trim();
-      const existingIndex = updatedUsers.findIndex(
-        (user) => user.email.toLowerCase() === studentEmail && user.role === "Student",
-      );
+      const studentUserId = `user_student_${student.id}`;
+      const existing = existingStudentUsers.get(student.id);
       const syncedFields = {
         name: studentName,
         email: studentEmail,
@@ -331,14 +335,15 @@ export function syncStudentsToSystemUsers(schoolId: string): {
         status: mapStudentStatusToSystemStatus(student.status),
       };
 
-      if (existingIndex >= 0) {
-        updatedUsers[existingIndex] = {
-          ...updatedUsers[existingIndex],
+      if (existing) {
+        updatedUsers.push({
+          ...existing,
           ...syncedFields,
-        };
+          id: studentUserId,
+        });
       } else {
         const created: SystemUser = {
-          id: `user_student_${student.id}`,
+          id: studentUserId,
           ...syncedFields,
           password: generateLoginPassword(),
           createdAt: new Date().toISOString().split("T")[0],
@@ -349,6 +354,37 @@ export function syncStudentsToSystemUsers(schoolId: string): {
       }
     }
   }
+
+  const canonicalStudentUserIds = new Set(
+    studentRecords
+      .filter((student) => student.email && isValidLoginEmail(student.email))
+      .map((student) => `user_student_${student.id}`),
+  );
+  const currentStudentEmails = new Set(
+    studentRecords
+      .map((student) => student.email?.trim().toLowerCase())
+      .filter((email): email is string => Boolean(email)),
+  );
+
+  const cleanedUsers = updatedUsers.filter((user) => {
+    if (user.role !== "Student") return true;
+    if (canonicalStudentUserIds.has(user.id)) return true;
+
+    const email = user.email.toLowerCase();
+    const owningStudent = studentRecords.find(
+      (student) => student.email?.trim().toLowerCase() === email,
+    );
+    if (owningStudent && user.id !== `user_student_${owningStudent.id}`) {
+      return false;
+    }
+    if (user.id.startsWith("user_student_") && !currentStudentEmails.has(email)) {
+      return false;
+    }
+    return true;
+  });
+
+  updatedUsers.length = 0;
+  updatedUsers.push(...cleanedUsers);
 
   const parentsByEmail = new Map<
     string,

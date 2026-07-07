@@ -26,6 +26,8 @@ import {
   validateSecuritySettingsInput,
 } from "@/lib/school-security";
 import { formatEmailResultMessage, GMAIL_PERSONAL_BLOCK_WARNING, sendTestEmail } from "@/lib/email-client";
+import { formatWhatsAppResultMessage, sendTestWhatsApp, connectWhatsAppSession, disconnectWhatsAppSession, fetchWhatsAppSessionStatus, persistWhatsAppLinkedPhone } from "@/lib/whatsapp-client";
+import { isWhatsAppDeliveryConfigured, type WhatsAppSessionStatus } from "@/lib/whatsapp-types";
 import { PRIMARY_ADMIN_EMAIL } from "@/lib/system-users";
 
 type SettingsSectionKey = "School Information" | "Academic Settings" | "Communication Settings" | "System Security";
@@ -50,7 +52,13 @@ export default function SettingsPage() {
   const [security, setSecurity] = useState<SecuritySettings>(defaultSchoolSystemSettings().security);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
   const [testEmailTo, setTestEmailTo] = useState(PRIMARY_ADMIN_EMAIL);
+  const [testWhatsAppTo, setTestWhatsAppTo] = useState("");
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [isSendingTestWhatsApp, setIsSendingTestWhatsApp] = useState(false);
+  const [whatsappSession, setWhatsappSession] = useState<WhatsAppSessionStatus>({
+    status: "disconnected",
+  });
+  const [isConnectingWhatsApp, setIsConnectingWhatsApp] = useState(false);
 
   useEffect(() => {
     if (!currentSchool) return;
@@ -67,7 +75,30 @@ export default function SettingsPage() {
     setCommunication(settings.communication);
     setSecurity(settings.security);
     setLastBackupAt(getLastBackupTimestamp(currentSchool.id));
+    void fetchWhatsAppSessionStatus(currentSchool.id).then(setWhatsappSession);
   }, [currentSchool]);
+
+  useEffect(() => {
+    if (!currentSchool) return;
+    if (
+      whatsappSession.status !== "qr" &&
+      whatsappSession.status !== "connecting" &&
+      whatsappSession.status !== "connected"
+    ) {
+      return;
+    }
+
+    const intervalId = window.setInterval(async () => {
+      const snapshot = await fetchWhatsAppSessionStatus(currentSchool.id);
+      setWhatsappSession(snapshot);
+      if (snapshot.status === "connected" && snapshot.linkedPhone) {
+        persistWhatsAppLinkedPhone(currentSchool.id, snapshot.linkedPhone);
+        setCommunication(loadSchoolSystemSettings(currentSchool.id).communication);
+      }
+    }, 2000);
+
+    return () => window.clearInterval(intervalId);
+  }, [currentSchool, whatsappSession.status]);
 
   const persistSettings = (next: SchoolSystemSettings) => {
     if (!currentSchool) return;
@@ -160,6 +191,57 @@ export default function SettingsPage() {
     } finally {
       setIsSendingTestEmail(false);
     }
+  };
+
+  const handleSendTestWhatsApp = async () => {
+    if (!currentSchool) return;
+
+    setIsSendingTestWhatsApp(true);
+    setError("");
+
+    try {
+      const current = loadSchoolSystemSettings(currentSchool.id);
+      saveSchoolSystemSettings(currentSchool.id, { ...current, communication });
+
+      const result = await sendTestWhatsApp({
+        schoolId: currentSchool.id,
+        schoolName: currentSchool.name,
+        to: testWhatsAppTo.trim(),
+      });
+
+      alert(formatWhatsAppResultMessage(result));
+    } finally {
+      setIsSendingTestWhatsApp(false);
+    }
+  };
+
+  const handleConnectWhatsApp = async () => {
+    if (!currentSchool) return;
+    setIsConnectingWhatsApp(true);
+    setError("");
+    try {
+      const snapshot = await connectWhatsAppSession(currentSchool.id);
+      setWhatsappSession(snapshot);
+      if (snapshot.error && snapshot.status !== "qr" && snapshot.status !== "connected") {
+        setError(snapshot.error);
+      }
+    } catch (connectError) {
+      setError(
+        connectError instanceof Error
+          ? connectError.message
+          : "Failed to start WhatsApp connection.",
+      );
+    } finally {
+      setIsConnectingWhatsApp(false);
+    }
+  };
+
+  const handleDisconnectWhatsApp = async () => {
+    if (!currentSchool) return;
+    const snapshot = await disconnectWhatsAppSession(currentSchool.id);
+    persistWhatsAppLinkedPhone(currentSchool.id, "");
+    setWhatsappSession(snapshot);
+    setCommunication(loadSchoolSystemSettings(currentSchool.id).communication);
   };
 
   const resetSection = (section: SettingsSectionKey) => {
@@ -436,9 +518,77 @@ export default function SettingsPage() {
               className="input-field"
             />
           </div>
+          <div className="md:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="font-semibold text-emerald-950">Free WhatsApp automation</p>
+                <p className="mt-1 text-sm text-emerald-900">
+                  Link your school&apos;s WhatsApp number once by scanning a QR code. Alerts will
+                  then send automatically to guardian phone numbers.
+                </p>
+                <p className="mt-2 text-xs text-emerald-800">
+                  Status:{" "}
+                  <strong>
+                    {whatsappSession.status === "connected"
+                      ? `Connected${whatsappSession.linkedPhone ? ` (+${whatsappSession.linkedPhone})` : ""}`
+                      : whatsappSession.status === "qr"
+                        ? "Waiting for QR scan"
+                        : whatsappSession.status === "connecting"
+                          ? "Connecting..."
+                          : "Not connected"}
+                  </strong>
+                </p>
+                {whatsappSession.error ? (
+                  <p className="mt-2 text-xs text-red-700">{whatsappSession.error}</p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleConnectWhatsApp}
+                  disabled={isConnectingWhatsApp || whatsappSession.status === "connected"}
+                  className="btn-secondary"
+                >
+                  {isConnectingWhatsApp ? "Starting..." : "Connect WhatsApp"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDisconnectWhatsApp}
+                  disabled={whatsappSession.status === "disconnected"}
+                  className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                >
+                  Disconnect
+                </button>
+              </div>
+            </div>
+            {whatsappSession.qrDataUrl ? (
+              <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+                <img
+                  src={whatsappSession.qrDataUrl}
+                  alt="WhatsApp QR code"
+                  className="h-44 w-44 rounded-lg border border-emerald-200 bg-white p-2"
+                />
+                <p className="text-sm text-emerald-900">
+                  Open WhatsApp on the phone you want to use for school alerts → Linked devices →
+                  Link a device → scan this QR code.
+                </p>
+              </div>
+            ) : null}
+          </div>
           <div>
-            <label className={recordFormFieldLabel}>SMS Gateway</label>
-            <input type="text" value={communication.smsGateway} readOnly className="input-field bg-slate-50" />
+            <label className={recordFormFieldLabel}>Default country code</label>
+            <input
+              type="text"
+              value={communication.whatsappDefaultCountryCode}
+              onChange={(e) =>
+                setCommunication((current) => ({
+                  ...current,
+                  whatsappDefaultCountryCode: e.target.value.replace(/\D/g, ""),
+                }))
+              }
+              placeholder="233"
+              className="input-field"
+            />
           </div>
           <p className="text-xs leading-relaxed text-slate-500 md:col-span-2">
             {communication.emailProvider === "gmail" ? (
@@ -461,6 +611,11 @@ export default function SettingsPage() {
             ) : (
               <>Enter your custom SMTP server credentials above.</>
             )}
+          </p>
+          <p className="text-xs leading-relaxed text-slate-500 md:col-span-2">
+            Use a dedicated school WhatsApp number if possible. Keep this app running while alerts
+            are active, and add guardian phone numbers on student records (local numbers like
+            024… are converted using the country code above).
           </p>
           <div className="md:col-span-2 flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-end">
             <div className="flex-1">
@@ -492,16 +647,39 @@ export default function SettingsPage() {
             />
             <span className="text-sm text-slate-600">Enable email notifications</span>
           </label>
+          <div className="md:col-span-2 flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className={recordFormFieldLabel}>Send test WhatsApp to</label>
+              <input
+                type="tel"
+                value={testWhatsAppTo}
+                onChange={(e) => setTestWhatsAppTo(e.target.value)}
+                placeholder="233XXXXXXXXX"
+                className="input-field"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSendTestWhatsApp}
+              disabled={isSendingTestWhatsApp}
+              className="btn-secondary shrink-0"
+            >
+              {isSendingTestWhatsApp ? "Sending..." : "Send Test WhatsApp"}
+            </button>
+          </div>
           <label className="flex items-center gap-2 md:col-span-2">
             <input
               type="checkbox"
-              checked={communication.smsNotifications}
+              checked={communication.whatsappNotifications}
               onChange={(e) =>
-                setCommunication((current) => ({ ...current, smsNotifications: e.target.checked }))
+                setCommunication((current) => ({
+                  ...current,
+                  whatsappNotifications: e.target.checked,
+                }))
               }
               className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
             />
-            <span className="text-sm text-slate-600">Enable SMS notifications</span>
+            <span className="text-sm text-slate-600">Enable WhatsApp notifications</span>
           </label>
         </div>
       ),
@@ -669,9 +847,15 @@ export default function SettingsPage() {
         <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
           <div>
-            <p className="font-semibold text-amber-900">SMS Gateway Not Configured</p>
+            <p className="font-semibold text-amber-900">
+              {isWhatsAppDeliveryConfigured(communication)
+                ? "WhatsApp Alerts Ready"
+                : "WhatsApp Not Linked Yet"}
+            </p>
             <p className="mt-1 text-sm text-amber-800">
-              Configure SMS to enable parent notifications via text messages.
+              {isWhatsAppDeliveryConfigured(communication)
+                ? "Automated WhatsApp alerts will send from your linked school number."
+                : "Click Connect WhatsApp above and scan the QR code to enable free automated messages."}
             </p>
           </div>
         </div>

@@ -20,9 +20,9 @@ import {
   getVisibleAlertsForViewer,
   markAlertRead,
   markAllAlertsRead,
-  refreshSchoolAlerts,
   type ActiveAlert,
 } from "@/lib/school-alerts";
+import { refreshAndDispatchSchoolAlerts } from "@/lib/alert-dispatch";
 import { getUserSession, redirectToLogin } from "@/lib/teacher-check-in";
 import {
   isSessionExpired,
@@ -34,6 +34,7 @@ import { UserSession } from "./user-session";
 import { HeaderProfile } from "./header-profile";
 import { SchoolBrand } from "./school-brand";
 import { SidebarNav } from "./sidebar-nav";
+import { WhatsAppQueueStatus } from "@/components/whatsapp-queue-status";
 
 function HeaderContext({
   userRole,
@@ -150,11 +151,24 @@ export function DashboardShell({
 
   useEffect(() => {
     if (!currentSchool) return;
-    refreshSchoolAlerts(currentSchool.id);
-    const session = getUserSession();
-    const viewer = { role: userRole, email: session?.email };
-    setAlerts(getVisibleAlertsForViewer(currentSchool.id, viewer));
-    setUnreadCount(getUnreadAlertCountForViewer(currentSchool.id, viewer));
+
+    let cancelled = false;
+
+    const syncAlerts = async () => {
+      await refreshAndDispatchSchoolAlerts(currentSchool.id, currentSchool.name);
+      if (cancelled) return;
+
+      const session = getUserSession();
+      const viewer = { role: userRole, email: session?.email };
+      setAlerts(getVisibleAlertsForViewer(currentSchool.id, viewer));
+      setUnreadCount(getUnreadAlertCountForViewer(currentSchool.id, viewer));
+    };
+
+    void syncAlerts();
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentSchool, userRole]);
 
   useEffect(() => {
@@ -378,6 +392,7 @@ export function DashboardShell({
                   </button>
                 </div>
               )}
+              <WhatsAppQueueStatus />
               {children}
             </div>
           </main>

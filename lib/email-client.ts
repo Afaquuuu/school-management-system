@@ -1,5 +1,6 @@
 import {
   buildAdminVerificationEmailMessage,
+  buildAlertEmailMessages,
   buildAnnouncementEmailMessages,
   buildFeeReminderEmailMessages,
 } from "@/lib/email-content";
@@ -8,6 +9,7 @@ import type { SendEmailResult } from "@/lib/email-types";
 import { validateEmailSettings } from "@/lib/email-types";
 import type { FinanceInvoice } from "@/lib/finance-invoices";
 import type { SchoolAnnouncement } from "@/lib/school-announcements";
+import type { ActiveAlert } from "@/lib/school-alerts";
 import {
   loadSchoolSystemSettings,
   type CommunicationSettings,
@@ -165,6 +167,40 @@ export async function sendAdminVerificationEmail(input: {
         textOnly: true,
       },
     ],
+  });
+}
+
+export async function sendAlertNotificationEmails(input: {
+  schoolId: string;
+  schoolName: string;
+  alert: ActiveAlert;
+  recipients: string[];
+}): Promise<SendEmailResult> {
+  const settings = loadSchoolSystemSettings(input.schoolId);
+  const validationError = validateEmailSettings(settings.communication);
+  if (validationError) {
+    return { success: false, sent: 0, failed: [], error: validationError };
+  }
+
+  if (input.recipients.length === 0) {
+    return {
+      success: false,
+      sent: 0,
+      failed: [],
+      error: "No recipient email addresses were found for this alert.",
+    };
+  }
+
+  const messages = buildAlertEmailMessages({
+    schoolName: input.schoolName,
+    alert: input.alert,
+    recipients: input.recipients,
+  });
+
+  return postEmailRequest({
+    smtp: settings.communication,
+    schoolName: input.schoolName,
+    messages,
   });
 }
 
