@@ -2,14 +2,23 @@ import fs from "node:fs";
 import path from "node:path";
 import { buildWhatsAppText } from "@/lib/whatsapp-service";
 import { WHATSAPP_API_CHUNK_SIZE, sleep } from "@/lib/whatsapp-send-utils";
-import type { WhatsAppMessage } from "@/lib/whatsapp-types";
+import type {
+  WhatsAppDeliveryMessageStatus,
+  WhatsAppMessage,
+  WhatsAppQueueJobSummary,
+} from "@/lib/whatsapp-types";
 import { sendWhatsAppTextMessages } from "@/lib/whatsapp-web-session";
 
 export type WhatsAppQueueJobStatus = "queued" | "processing" | "completed" | "failed";
 
 export type WhatsAppQueueStoredMessage = {
   to: string;
+  alternates?: string[];
+  label?: string;
   text: string;
+  status: WhatsAppDeliveryMessageStatus;
+  deliveredTo?: string;
+  error?: string;
 };
 
 export type WhatsAppQueueJob = {
@@ -25,19 +34,6 @@ export type WhatsAppQueueJob = {
   skipped: number;
   failed: Array<{ to: string; error: string }>;
   createdAt: string;
-  updatedAt: string;
-  error?: string;
-};
-
-export type WhatsAppQueueJobSummary = {
-  id: string;
-  title: string;
-  status: WhatsAppQueueJobStatus;
-  total: number;
-  processed: number;
-  sent: number;
-  skipped: number;
-  failedCount: number;
   updatedAt: string;
   error?: string;
 };
@@ -68,10 +64,20 @@ function readJob(schoolId: string, jobId: string): WhatsAppQueueJob | null {
   if (!fs.existsSync(filePath)) return null;
 
   try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8")) as WhatsAppQueueJob;
+    return normalizeStoredJob(JSON.parse(fs.readFileSync(filePath, "utf8")) as WhatsAppQueueJob);
   } catch {
     return null;
   }
+}
+
+function normalizeStoredJob(job: WhatsAppQueueJob): WhatsAppQueueJob {
+  return {
+    ...job,
+    messages: job.messages.map((message) => ({
+      ...message,
+      status: message.status ?? "pending",
+    })),
+  };
 }
 
 function writeJob(job: WhatsAppQueueJob): void {
@@ -100,6 +106,13 @@ function summarizeJob(job: WhatsAppQueueJob): WhatsAppQueueJobSummary {
     failedCount: job.failed.length,
     updatedAt: job.updatedAt,
     error: job.error,
+    recipients: job.messages.map((message) => ({
+      label: message.label?.trim() || message.to,
+      to: message.to,
+      status: message.status,
+      deliveredTo: message.deliveredTo,
+      error: message.error,
+    })),
   };
 }
 
@@ -128,7 +141,9 @@ function getNextQueuedJob(schoolId: string): WhatsAppQueueJob | null {
   const jobs = listJobFiles(schoolId)
     .map((filePath) => {
       try {
-        return JSON.parse(fs.readFileSync(filePath, "utf8")) as WhatsAppQueueJob;
+        return normalizeStoredJob(
+          JSON.parse(fs.readFileSync(filePath, "utf8")) as WhatsAppQueueJob,
+        );
       } catch {
         return null;
       }
@@ -142,23 +157,74 @@ function getNextQueuedJob(schoolId: string): WhatsAppQueueJob | null {
   );
 }
 
+function applyDeliveryResults(
+  job: WhatsAppQueueJob,
+  chunkStart: number,
+  results: Array<{
+    to: string;
+    label?: string;
+    status: WhatsAppDeliveryMessageStatus;
+    deliveredTo?: string;
+    error?: string;
+  }>,
+): void {
+  results.forEach((result, index) => {
+    const message = job.messages[chunkStart + index];
+    if (!message) return;
+
+    message.status = result.status;
+    message.deliveredTo = result.deliveredTo;
+    message.error = result.error;
+  });
+}
+
+function markChunkFailed(job: WhatsAppQueueJob, chunkStart: number, chunkLength: number, error: string): void {
+  for (let index = chunkStart; index < chunkStart + chunkLength; index += 1) {
+    const message = job.messages[index];
+    if (!message || message.status !== "pending") continue;
+    message.status = "failed";
+    message.error = error;
+    job.failed.push({
+      to: message.label?.trim() || message.to,
+      error,
+    });
+  }
+}
+
 async function processJob(job: WhatsAppQueueJob): Promise<void> {
   job.status = "processing";
   job.updatedAt = new Date().toISOString();
   writeJob(job);
 
   while (job.cursor < job.messages.length) {
-    const chunk = job.messages.slice(job.cursor, job.cursor + WHATSAPP_API_CHUNK_SIZE);
+    const chunkStart = job.cursor;
+    const chunk = job.messages.slice(chunkStart, chunkStart + WHATSAPP_API_CHUNK_SIZE);
     const result = await sendWhatsAppTextMessages({
       schoolId: job.schoolId,
       defaultCountryCode: job.defaultCountryCode,
-      messages: chunk,
+      messages: chunk.map((message) => ({
+        to: message.to,
+        text: message.text,
+        alternates: message.alternates,
+        label: message.label,
+      })),
     });
 
+    if (result.error && result.sent === 0 && result.results.length === 0) {
+      markChunkFailed(job, chunkStart, chunk.length, result.error);
+      job.status = "failed";
+      job.error = result.error;
+      job.cursor = job.messages.length;
+      job.updatedAt = new Date().toISOString();
+      writeJob(job);
+      return;
+    }
+
+    applyDeliveryResults(job, chunkStart, result.results);
     job.sent += result.sent;
     job.skipped += result.skipped;
     job.failed.push(...result.failed);
-    job.cursor += chunk.length;
+    job.cursor = chunkStart + chunk.length;
     job.updatedAt = new Date().toISOString();
     writeJob(job);
 
@@ -218,9 +284,12 @@ export function enqueueWhatsAppMessages(input: {
   defaultCountryCode?: string;
   messages: WhatsAppMessage[];
 }): WhatsAppQueueJob {
-  const storedMessages = input.messages.map((message) => ({
+  const storedMessages: WhatsAppQueueStoredMessage[] = input.messages.map((message) => ({
     to: message.to,
+    alternates: message.alternates?.filter(Boolean),
+    label: message.label?.trim() || undefined,
     text: buildWhatsAppText(message),
+    status: "pending",
   }));
 
   const job: WhatsAppQueueJob = {
@@ -252,7 +321,9 @@ export function getWhatsAppQueueJobs(schoolId: string): WhatsAppQueueJobSummary[
   return listJobFiles(schoolId)
     .map((filePath) => {
       try {
-        return JSON.parse(fs.readFileSync(filePath, "utf8")) as WhatsAppQueueJob;
+        return normalizeStoredJob(
+          JSON.parse(fs.readFileSync(filePath, "utf8")) as WhatsAppQueueJob,
+        );
       } catch {
         return null;
       }

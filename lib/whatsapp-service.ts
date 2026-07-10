@@ -30,6 +30,8 @@ export async function sendWhatsAppBatch(
     messages: request.messages.map((message) => ({
       to: message.to,
       text: buildAlertText(message),
+      alternates: message.alternates,
+      label: message.label,
     })),
   });
 

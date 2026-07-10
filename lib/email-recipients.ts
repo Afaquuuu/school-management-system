@@ -7,6 +7,7 @@ import type { AnnouncementAudience } from "@/lib/school-announcements";
 import { loadSystemUsers } from "@/lib/system-users";
 import type { FinanceInvoice } from "@/lib/finance-invoices";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp-phone";
+import type { WhatsAppRecipientUnit } from "@/lib/whatsapp-types";
 
 function normalizeEmail(value: string | undefined | null): string | null {
   const email = value?.trim().toLowerCase();
@@ -22,6 +23,76 @@ function normalizePhone(value: string | undefined | null): string | null {
 
 function uniqueEmails(emails: Array<string | null | undefined>): string[] {
   return [...new Set(emails.filter(Boolean) as string[])];
+}
+
+function uniquePhoneList(phones: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const phone of phones) {
+    const cleaned = normalizePhone(phone);
+    if (!cleaned || seen.has(cleaned)) continue;
+    seen.add(cleaned);
+    unique.push(cleaned);
+  }
+
+  return unique;
+}
+
+function getLinkedParentPhones(schoolId: string, studentId: string): string[] {
+  return loadSystemUsers(schoolId)
+    .filter(
+      (user) =>
+        user.role === "Parent" &&
+        user.status === "Active" &&
+        user.linkedStudentIds?.includes(studentId),
+    )
+    .map((user) => normalizePhone(user.phone))
+    .filter(Boolean) as string[];
+}
+
+function buildStudentWhatsAppUnit(
+  student: SchoolStudentRecord,
+  schoolId: string,
+  preferGuardian: boolean,
+): WhatsAppRecipientUnit | null {
+  const phones = preferGuardian
+    ? uniquePhoneList([
+        normalizePhone(student.guardianPhone),
+        normalizePhone(student.phone),
+        ...getLinkedParentPhones(schoolId, student.id),
+      ])
+    : uniquePhoneList([
+        normalizePhone(student.phone),
+        normalizePhone(student.guardianPhone),
+        ...getLinkedParentPhones(schoolId, student.id),
+      ]);
+
+  if (phones.length === 0) return null;
+
+  const label = `${student.firstName} ${student.lastName}`.trim() || student.studentId;
+
+  return {
+    to: phones[0],
+    alternates: phones.slice(1),
+    label,
+  };
+}
+
+function buildStaffWhatsAppUnit(user: {
+  id: string;
+  name?: string;
+  role: string;
+  phone?: string;
+}): WhatsAppRecipientUnit | null {
+  const phone = normalizePhone(user.phone);
+  if (!phone) return null;
+
+  return {
+    to: phone,
+    alternates: [],
+    label: user.name?.trim() || user.role,
+  };
 }
 
 function uniqueNormalizedPhones(phones: string[], defaultCountryCode = "233"): string[] {
@@ -200,6 +271,60 @@ export function resolveAnnouncementPhoneRecipients(input: {
   }
 
   return uniqueNormalizedPhones(phones, defaultCountryCode);
+}
+
+export function resolveAnnouncementWhatsAppRecipients(input: {
+  schoolId: string;
+  targetAudience: AnnouncementAudience[];
+  classId?: string;
+}): WhatsAppRecipientUnit[] {
+  const { schoolId, targetAudience, classId } = input;
+  const students = getScopedStudents(schoolId, classId);
+  const units: WhatsAppRecipientUnit[] = [];
+  const seenStudentIds = new Set<string>();
+  const seenStaffIds = new Set<string>();
+
+  const includesStudents = targetAudience.includes("Students");
+  const includesParents = targetAudience.includes("Parents");
+  const preferGuardian = includesParents && !includesStudents;
+
+  if (includesStudents || includesParents) {
+    for (const student of students) {
+      if (seenStudentIds.has(student.id)) continue;
+      const unit = buildStudentWhatsAppUnit(student, schoolId, preferGuardian);
+      if (!unit) continue;
+      seenStudentIds.add(student.id);
+      units.push(unit);
+    }
+  }
+
+  if (targetAudience.includes("Teachers")) {
+    for (const user of loadSystemUsers(schoolId).filter(
+      (item) => item.role === "Teacher" && item.status === "Active",
+    )) {
+      if (seenStaffIds.has(user.id)) continue;
+      const unit = buildStaffWhatsAppUnit(user);
+      if (!unit) continue;
+      seenStaffIds.add(user.id);
+      units.push(unit);
+    }
+  }
+
+  if (targetAudience.includes("All Staff")) {
+    for (const user of loadSystemUsers(schoolId).filter(
+      (item) =>
+        item.status === "Active" &&
+        ["Admin", "Teacher", "Accountant", "Librarian"].includes(item.role),
+    )) {
+      if (seenStaffIds.has(user.id)) continue;
+      const unit = buildStaffWhatsAppUnit(user);
+      if (!unit) continue;
+      seenStaffIds.add(user.id);
+      units.push(unit);
+    }
+  }
+
+  return units;
 }
 
 export function resolveFeeReminderEmails(

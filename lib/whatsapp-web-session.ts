@@ -7,7 +7,7 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import QRCode from "qrcode";
-import { deliverWhatsAppMessages } from "@/lib/whatsapp-send";
+import { deliverWhatsAppMessages, type WhatsAppMessageDeliveryResult } from "@/lib/whatsapp-send";
 export { normalizeWhatsAppPhone } from "@/lib/whatsapp-phone";
 
 export type WhatsAppConnectionStatus =
@@ -268,11 +268,14 @@ export async function sendWhatsAppTextMessages(input: {
   messages: Array<{
     to: string;
     text: string;
+    alternates?: string[];
+    label?: string;
   }>;
 }): Promise<{
   sent: number;
   skipped: number;
   failed: Array<{ to: string; error: string }>;
+  results: WhatsAppMessageDeliveryResult[];
   error?: string;
 }> {
   const session = ensureSession(input.schoolId);
@@ -287,6 +290,7 @@ export async function sendWhatsAppTextMessages(input: {
       sent: 0,
       skipped: 0,
       failed: [],
+      results: [],
       error:
         active.snapshot.status === "qr"
           ? "Scan the WhatsApp QR code in Communication Settings first."
@@ -305,6 +309,7 @@ export async function sendWhatsAppTextMessages(input: {
     sent: delivery.sent,
     skipped: delivery.skipped,
     failed: delivery.failed,
+    results: delivery.results,
     error:
       delivery.sent === 0 && delivery.failed.length > 0
         ? delivery.failed[0]?.error ?? "All WhatsApp messages failed to send."

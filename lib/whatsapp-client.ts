@@ -1,4 +1,4 @@
-import { resolveAnnouncementPhoneRecipients } from "@/lib/email-recipients";
+import { resolveAnnouncementWhatsAppRecipients } from "@/lib/email-recipients";
 import type { ActiveAlert } from "@/lib/school-alerts";
 import type { SchoolAnnouncement } from "@/lib/school-announcements";
 import { loadSchoolSystemSettings, saveSchoolSystemSettings } from "@/lib/school-settings";
@@ -16,6 +16,8 @@ async function postWhatsAppSend(payload: {
   defaultCountryCode?: string;
   messages: Array<{
     to: string;
+    alternates?: string[];
+    label?: string;
     schoolName: string;
     title: string;
     message: string;
@@ -61,6 +63,8 @@ async function postWhatsAppSendChunk(payload: {
   defaultCountryCode?: string;
   messages: Array<{
     to: string;
+    alternates?: string[];
+    label?: string;
     schoolName: string;
     title: string;
     message: string;
@@ -132,11 +136,10 @@ export async function sendAnnouncementWhatsAppMessages(input: {
     return { total: 0, error: validationError };
   }
 
-  const recipients = resolveAnnouncementPhoneRecipients({
+  const recipients = resolveAnnouncementWhatsAppRecipients({
     schoolId: input.schoolId,
     targetAudience: input.announcement.targetAudience,
     classId: input.announcement.classId,
-    defaultCountryCode: settings.communication.whatsappDefaultCountryCode,
   });
 
   if (recipients.length === 0) {
@@ -151,8 +154,10 @@ export async function sendAnnouncementWhatsAppMessages(input: {
     schoolName: input.schoolName,
     title: input.announcement.title,
     defaultCountryCode: settings.communication.whatsappDefaultCountryCode,
-    messages: recipients.map((to) => ({
-      to,
+    messages: recipients.map((recipient) => ({
+      to: recipient.to,
+      alternates: recipient.alternates,
+      label: recipient.label,
       schoolName: input.schoolName,
       title: input.announcement.title,
       message: input.announcement.content,
@@ -167,6 +172,8 @@ async function enqueueWhatsAppMessages(input: {
   defaultCountryCode?: string;
   messages: Array<{
     to: string;
+    alternates?: string[];
+    label?: string;
     schoolName: string;
     title: string;
     message: string;
@@ -221,6 +228,7 @@ export async function sendAlertWhatsAppMessages(input: {
   schoolName: string;
   alert: ActiveAlert;
   recipients: string[];
+  recipientUnits?: Array<{ to: string; alternates?: string[]; label?: string }>;
 }): Promise<SendWhatsAppResult> {
   const settings = loadSchoolSystemSettings(input.schoolId);
   const validationError = validateWhatsAppSettings(settings.communication);
@@ -228,7 +236,12 @@ export async function sendAlertWhatsAppMessages(input: {
     return { success: false, sent: 0, skipped: 0, failed: [], error: validationError };
   }
 
-  if (input.recipients.length === 0) {
+  const units: Array<{ to: string; alternates?: string[]; label?: string }> =
+    input.recipientUnits && input.recipientUnits.length > 0
+      ? input.recipientUnits
+      : input.recipients.map((to) => ({ to }));
+
+  if (units.length === 0) {
     return {
       success: false,
       sent: 0,
@@ -241,8 +254,10 @@ export async function sendAlertWhatsAppMessages(input: {
   return postWhatsAppSend({
     schoolId: input.schoolId,
     defaultCountryCode: settings.communication.whatsappDefaultCountryCode,
-    messages: input.recipients.map((to) => ({
-      to,
+    messages: units.map((unit) => ({
+      to: unit.to,
+      alternates: unit.alternates,
+      label: unit.label,
       schoolName: input.schoolName,
       title: input.alert.title,
       message: input.alert.message,

@@ -1,10 +1,25 @@
 import type { CommunicationSettings } from "@/lib/school-settings";
 
-export type WhatsAppMessage = {
+export type WhatsAppRecipientUnit = {
   to: string;
+  alternates?: string[];
+  label?: string;
+};
+
+export type WhatsAppMessage = WhatsAppRecipientUnit & {
   schoolName: string;
   title: string;
   message: string;
+};
+
+export type WhatsAppDeliveryMessageStatus = "pending" | "sent" | "skipped" | "failed";
+
+export type WhatsAppQueueRecipientStatus = {
+  label: string;
+  to: string;
+  status: WhatsAppDeliveryMessageStatus;
+  deliveredTo?: string;
+  error?: string;
 };
 
 export type SendWhatsAppRequest = {
@@ -41,6 +56,7 @@ export type WhatsAppQueueJobSummary = {
   failedCount: number;
   updatedAt: string;
   error?: string;
+  recipients: WhatsAppQueueRecipientStatus[];
 };
 
 export type WhatsAppQueueEnqueueResult = {

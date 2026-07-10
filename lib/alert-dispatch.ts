@@ -148,9 +148,13 @@ export async function dispatchAlertNotifications(
           schoolName,
           alert,
           recipients: recipients.phones,
+          recipientUnits: recipients.phoneUnits,
         });
 
-        if (sendResult.sent > 0) {
+        if (
+          sendResult.sent > 0 ||
+          (sendResult.skipped > 0 && sendResult.failed.length === 0)
+        ) {
           result.whatsappSent += sendResult.sent;
           markDispatched(schoolId, alert.fingerprint, channel);
         } else {
