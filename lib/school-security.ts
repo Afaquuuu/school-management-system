@@ -1,5 +1,5 @@
 import { downloadTextFile } from "@/lib/export-data";
-import { getScopedKey, getScopedItem } from "@/lib/school-context";
+import { getScopedItem, getScopedKey, setScopedItem } from "@/lib/school-context";
 import {
   defaultSchoolSystemSettings,
   loadSchoolSystemSettings,
@@ -10,6 +10,7 @@ import type { UserSession } from "@/lib/teacher-check-in";
 
 const LOGIN_ATTEMPTS_KEY = "security_login_attempts";
 const LAST_BACKUP_KEY = "security_last_backup_at";
+const AUTOMATIC_BACKUP_KEY = "school_automatic_backup";
 const PENDING_2FA_KEY = "pending_admin_2fa";
 
 type LoginAttemptRecord = {
@@ -302,8 +303,7 @@ export function getLastBackupTimestamp(schoolId: string): string | null {
 }
 
 function setLastBackupTimestamp(schoolId: string, timestamp: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(getScopedKey(schoolId, LAST_BACKUP_KEY), timestamp);
+  setScopedItem(schoolId, LAST_BACKUP_KEY, timestamp);
 }
 
 export function collectSchoolBackupData(schoolId: string): Record<string, unknown> {
@@ -373,9 +373,12 @@ export function getBackupStatusLabel(schoolId: string): string {
 
 export function runScheduledBackupIfDue(
   schoolId: string,
-  schoolName: string,
+  _schoolName: string,
 ): boolean {
   if (!isBackupDue(schoolId)) return false;
-  downloadSchoolBackup(schoolId, schoolName);
+
+  const payload = collectSchoolBackupData(schoolId);
+  setScopedItem(schoolId, AUTOMATIC_BACKUP_KEY, JSON.stringify(payload));
+  setLastBackupTimestamp(schoolId, new Date().toISOString());
   return true;
 }
