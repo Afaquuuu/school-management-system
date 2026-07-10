@@ -198,30 +198,45 @@ export function saveSchoolSystemSettings(
 }
 
 export function migrateCommunicationSettings(schoolId: string): void {
-  const settings = loadSchoolSystemSettings(schoolId);
   const stored = parseJson<Partial<SchoolSystemSettings>>(
     getScopedItem(schoolId, STORAGE_KEY),
     {},
   );
-  const previousUser = stored.communication?.smtpUser?.trim() ?? "";
-  const nextUser = settings.communication.smtpUser.trim();
-  const needsProviderMigration =
-    !stored.communication?.emailProvider ||
-    stored.communication.emailProvider === "gmail";
 
-    if (previousUser !== nextUser || needsProviderMigration) {
-      const communication =
-        needsProviderMigration && !settings.communication.smtpPassword.trim()
-          ? {
-              ...getBrevoCommunicationPreset(
-                settings.communication.senderEmail || DEFAULT_SMTP_SENDER_EMAIL,
-              ),
-              whatsappNotifications: settings.communication.whatsappNotifications,
-              whatsappDefaultCountryCode: settings.communication.whatsappDefaultCountryCode,
-              whatsappLinkedPhone: settings.communication.whatsappLinkedPhone,
-            }
-          : settings.communication;
+  if (!stored.communication) return;
 
-      saveSchoolSystemSettings(schoolId, { ...settings, communication });
+  const hasSavedCredentials = Boolean(
+    stored.communication.smtpUser?.trim() || stored.communication.smtpPassword?.trim(),
+  );
+  const hasWhatsAppLink = Boolean(stored.communication.whatsappLinkedPhone?.trim());
+  const hasExplicitProvider = Boolean(stored.communication.emailProvider);
+
+  // Never wipe saved SMTP or WhatsApp settings on repeat visits.
+  if (hasSavedCredentials || hasWhatsAppLink || hasExplicitProvider) {
+    if (!hasExplicitProvider) {
+      const settings = loadSchoolSystemSettings(schoolId);
+      saveSchoolSystemSettings(schoolId, {
+        ...settings,
+        communication: {
+          ...settings.communication,
+          emailProvider: settings.communication.smtpServer.includes("brevo") ? "brevo" : "gmail",
+        },
+      });
     }
+    return;
+  }
+
+  // One-time legacy migration: old installs with no provider and no credentials.
+  const settings = loadSchoolSystemSettings(schoolId);
+  saveSchoolSystemSettings(schoolId, {
+    ...settings,
+    communication: {
+      ...getBrevoCommunicationPreset(
+        settings.communication.senderEmail || DEFAULT_SMTP_SENDER_EMAIL,
+      ),
+      whatsappNotifications: settings.communication.whatsappNotifications,
+      whatsappDefaultCountryCode: settings.communication.whatsappDefaultCountryCode,
+      whatsappLinkedPhone: settings.communication.whatsappLinkedPhone,
+    },
+  });
 }

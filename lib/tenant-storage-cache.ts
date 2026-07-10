@@ -1,7 +1,15 @@
 "use client";
 
 const schoolCaches = new Map<string, Map<string, string>>();
-const pendingWrites = new Map<string, ReturnType<typeof setTimeout>>();
+const pendingWrites = new Map<
+  string,
+  {
+    timer: ReturnType<typeof setTimeout>;
+    schoolId: string;
+    key: string;
+    value: string;
+  }
+>();
 const hydrationPromises = new Map<string, Promise<void>>();
 
 function writeKey(schoolId: string, key: string): string {
@@ -15,6 +23,18 @@ function getSchoolCache(schoolId: string): Map<string, string> {
     schoolCaches.set(schoolId, cache);
   }
   return cache;
+}
+
+async function persistToServer(schoolId: string, key: string, value: string): Promise<void> {
+  const response = await fetch("/api/tenant-storage", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ schoolId, key, value }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to persist tenant storage item.");
+  }
 }
 
 export function getCachedScopedItem(schoolId: string, key: string): string | null {
@@ -46,21 +66,19 @@ export function clearCachedSchoolStorage(schoolId: string): void {
 function schedulePersist(schoolId: string, key: string, value: string): void {
   const pendingKey = writeKey(schoolId, key);
   const existing = pendingWrites.get(pendingKey);
-  if (existing) clearTimeout(existing);
+  if (existing) clearTimeout(existing.timer);
 
-  pendingWrites.set(
-    pendingKey,
-    setTimeout(() => {
+  pendingWrites.set(pendingKey, {
+    schoolId,
+    key,
+    value,
+    timer: setTimeout(() => {
       pendingWrites.delete(pendingKey);
-      void fetch("/api/tenant-storage", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schoolId, key, value }),
-      }).catch((error) => {
+      void persistToServer(schoolId, key, value).catch((error) => {
         console.error("Failed to persist tenant storage item:", error);
       });
     }, 250),
-  );
+  });
 }
 
 export async function hydrateSchoolStorageFromServer(schoolId: string): Promise<void> {
@@ -92,16 +110,18 @@ export async function hydrateSchoolStorageFromServer(schoolId: string): Promise<
 }
 
 export async function flushPendingStorageWrites(): Promise<void> {
-  const timers = Array.from(pendingWrites.values());
+  const writes = Array.from(pendingWrites.values());
   pendingWrites.clear();
+
+  for (const write of writes) {
+    clearTimeout(write.timer);
+  }
+
   await Promise.all(
-    timers.map(
-      (timer) =>
-        new Promise<void>((resolve) => {
-          clearTimeout(timer);
-          resolve();
-        }),
+    writes.map((write) =>
+      persistToServer(write.schoolId, write.key, write.value).catch((error) => {
+        console.error("Failed to flush tenant storage item:", error);
+      }),
     ),
   );
-  await new Promise((resolve) => setTimeout(resolve, 300));
 }

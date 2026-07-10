@@ -6,6 +6,7 @@ import { DateInput } from "@/components/ui/date-input";
 import { PageHeader } from "@/components/ui/page-header";
 import { recordFormFieldLabel } from "@/components/ui/record-form-layout";
 import { useSchool } from "@/lib/school-context";
+import { flushPendingStorageWrites } from "@/lib/tenant-storage-cache";
 import {
   defaultSchoolSystemSettings,
   DEFAULT_SMTP_SENDER_EMAIL,
@@ -33,7 +34,7 @@ import { PRIMARY_ADMIN_EMAIL } from "@/lib/system-users";
 type SettingsSectionKey = "School Information" | "Academic Settings" | "Communication Settings" | "System Security";
 
 export default function SettingsPage() {
-  const { currentSchool, updateSchool } = useSchool();
+  const { currentSchool, updateSchool, isStorageReady } = useSchool();
   const [editingSection, setEditingSection] = useState<SettingsSectionKey | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -61,7 +62,7 @@ export default function SettingsPage() {
   const [isConnectingWhatsApp, setIsConnectingWhatsApp] = useState(false);
 
   useEffect(() => {
-    if (!currentSchool) return;
+    if (!currentSchool || !isStorageReady) return;
 
     const settings = loadSchoolSystemSettings(currentSchool.id);
     setSchoolInfo({
@@ -76,7 +77,7 @@ export default function SettingsPage() {
     setSecurity(settings.security);
     setLastBackupAt(getLastBackupTimestamp(currentSchool.id));
     void fetchWhatsAppSessionStatus(currentSchool.id).then(setWhatsappSession);
-  }, [currentSchool]);
+  }, [currentSchool, isStorageReady]);
 
   useEffect(() => {
     if (!currentSchool) return;
@@ -108,6 +109,22 @@ export default function SettingsPage() {
     saveSchoolSystemSettings(currentSchool.id, next);
   };
 
+  const persistCommunicationFields = (
+    updates: Partial<CommunicationSettings>,
+  ) => {
+    if (!currentSchool) return;
+
+    setCommunication((current) => {
+      const nextCommunication = { ...current, ...updates };
+      const stored = loadSchoolSystemSettings(currentSchool.id);
+      saveSchoolSystemSettings(currentSchool.id, {
+        ...stored,
+        communication: nextCommunication,
+      });
+      return nextCommunication;
+    });
+  };
+
   const persistCommunicationToggle = (
     updates: Partial<CommunicationSettings>,
   ) => {
@@ -124,7 +141,7 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSave = (section: SettingsSectionKey) => {
+  const handleSave = async (section: SettingsSectionKey) => {
     if (!currentSchool) {
       setError("No school selected. Please sign in to a school account first.");
       return;
@@ -178,6 +195,7 @@ export default function SettingsPage() {
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
     setEditingSection(null);
+    await flushPendingStorageWrites();
   };
 
   const handleSendTestEmail = async () => {
@@ -415,6 +433,8 @@ export default function SettingsPage() {
                 if (provider === "brevo") {
                   setCommunication((current) => ({
                     ...getBrevoCommunicationPreset(current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL),
+                    smtpUser: current.smtpUser,
+                    smtpPassword: current.smtpPassword,
                     whatsappNotifications: current.whatsappNotifications,
                     whatsappDefaultCountryCode: current.whatsappDefaultCountryCode,
                     whatsappLinkedPhone: current.whatsappLinkedPhone,
@@ -422,6 +442,7 @@ export default function SettingsPage() {
                 } else if (provider === "gmail") {
                   setCommunication((current) => ({
                     ...getGmailCommunicationPreset(current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL),
+                    smtpPassword: current.smtpPassword,
                     whatsappNotifications: current.whatsappNotifications,
                     whatsappDefaultCountryCode: current.whatsappDefaultCountryCode,
                     whatsappLinkedPhone: current.whatsappLinkedPhone,
@@ -525,7 +546,7 @@ export default function SettingsPage() {
             <input
               type="email"
               value={communication.smtpUser}
-              onChange={(e) => setCommunication((current) => ({ ...current, smtpUser: e.target.value }))}
+              onChange={(e) => persistCommunicationFields({ smtpUser: e.target.value })}
               placeholder={
                 communication.emailProvider === "brevo"
                   ? "Copy from Brevo → SMTP tab (xxx@smtp-brevo.com)"
@@ -539,9 +560,7 @@ export default function SettingsPage() {
             <input
               type="password"
               value={communication.smtpPassword}
-              onChange={(e) =>
-                setCommunication((current) => ({ ...current, smtpPassword: e.target.value }))
-              }
+              onChange={(e) => persistCommunicationFields({ smtpPassword: e.target.value })}
               placeholder={
                 communication.emailProvider === "brevo"
                   ? "SMTP key (starts with xsmtpsib-)"
@@ -613,10 +632,9 @@ export default function SettingsPage() {
               type="text"
               value={communication.whatsappDefaultCountryCode}
               onChange={(e) =>
-                setCommunication((current) => ({
-                  ...current,
+                persistCommunicationFields({
                   whatsappDefaultCountryCode: e.target.value.replace(/\D/g, ""),
-                }))
+                })
               }
               placeholder="92"
               className="input-field"

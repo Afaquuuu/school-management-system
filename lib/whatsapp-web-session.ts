@@ -240,6 +240,19 @@ export async function getWhatsAppSessionSnapshot(
   }
 
   if (linkedPhone && session.snapshot.status === "disconnected") {
+    if (!session.starting && !session.socket) {
+      session.starting = startSocket(schoolId, false).finally(() => {
+        session.starting = undefined;
+      });
+    }
+
+    if (session.starting) {
+      return {
+        status: "connecting",
+        linkedPhone,
+      };
+    }
+
     return {
       status: "disconnected",
       linkedPhone,
