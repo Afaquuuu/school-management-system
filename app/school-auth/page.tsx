@@ -8,6 +8,7 @@ import {
   isValidLoginEmail,
 } from "@/lib/system-users";
 import { establishUserSession } from "@/lib/teacher-check-in";
+import { flushPendingStorageWrites } from "@/lib/tenant-storage-cache";
 import { Building2, ArrowRight, School, CheckCircle, Shield, Eye, EyeOff } from "lucide-react";
 
 export default function SchoolAuthPage() {
@@ -27,7 +28,7 @@ export default function SchoolAuthPage() {
     confirmPassword: "",
   });
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name || !formData.email) {
@@ -72,6 +73,7 @@ export default function SchoolAuthPage() {
     });
 
     establishUserSession(adminUser, newSchool.id);
+    await flushPendingStorageWrites();
     window.location.href = "/admin";
   };
 

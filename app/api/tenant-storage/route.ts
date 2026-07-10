@@ -5,6 +5,7 @@ import {
   getTenantStorageItem,
   removeAllTenantStorage,
   removeTenantStorageItem,
+  repairOrphanTenantStorageForSchool,
   setTenantStorageItem,
 } from "@/lib/server/tenant-storage";
 import { isServerDatabaseMode } from "@/lib/storage-mode";
@@ -25,10 +26,12 @@ export async function GET(request: Request) {
   }
 
   if (key) {
+    await repairOrphanTenantStorageForSchool(schoolId);
     const value = await getTenantStorageItem(schoolId, key);
     return NextResponse.json({ key, value });
   }
 
+  await repairOrphanTenantStorageForSchool(schoolId);
   const entries = await getAllTenantStorage(schoolId);
   return NextResponse.json({ entries });
 }

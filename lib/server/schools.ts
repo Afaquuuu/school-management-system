@@ -42,13 +42,14 @@ export async function listSchools(): Promise<SchoolRecord[]> {
 }
 
 export async function createSchool(input: {
+  id?: string;
   name: string;
   address: string;
   phone: string;
   email: string;
   logo?: string;
 }): Promise<SchoolRecord> {
-  const id = `school_${Date.now()}`;
+  const id = input.id?.trim() || `school_${Date.now()}`;
 
   if (!isServerDatabaseMode()) {
     return {

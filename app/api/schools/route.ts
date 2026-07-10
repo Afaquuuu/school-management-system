@@ -29,6 +29,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as {
+      id?: string;
       name?: string;
       address?: string;
       phone?: string;
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
     }
 
     const school = await createSchool({
+      id: body.id?.trim(),
       name: body.name.trim(),
       address: body.address?.trim() ?? "",
       phone: body.phone?.trim() ?? "",

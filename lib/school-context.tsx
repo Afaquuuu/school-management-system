@@ -164,7 +164,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       void fetch("/api/schools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(schoolData),
+        body: JSON.stringify({ id: optimisticSchool.id, ...schoolData }),
       })
         .then(async (response) => {
           if (!response.ok) return;
@@ -177,7 +177,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           });
 
           if (currentSchool?.id === optimisticSchool.id) {
-            setCurrentSchoolState(payload.school);
+            setCurrentSchool(payload.school);
           }
         })
         .catch((error) => {

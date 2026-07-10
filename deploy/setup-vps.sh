@@ -35,7 +35,7 @@ apt-get update -y
 apt-get upgrade -y
 
 echo "==> Installing Node.js 20, PostgreSQL, Nginx, PM2, Git, UFW..."
-apt-get install -y curl git nginx ufw postgresql postgresql-contrib
+apt-get install -y curl git nginx ufw postgresql postgresql-contrib build-essential python3
 
 if ! command -v node >/dev/null 2>&1; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -60,6 +60,18 @@ ufw allow OpenSSH
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
+
+# Oracle Ubuntu images ship iptables rules that only allow SSH before UFW runs.
+# Insert HTTP/HTTPS accepts before the REJECT rule so the site is reachable.
+if iptables -L INPUT -n | grep -q "reject-with icmp-host-prohibited"; then
+  iptables -I INPUT 5 -p tcp --dport 80 -j ACCEPT
+  iptables -I INPUT 5 -p tcp --dport 443 -j ACCEPT
+  if command -v netfilter-persistent >/dev/null 2>&1; then
+    netfilter-persistent save
+  elif apt-get install -y iptables-persistent 2>/dev/null; then
+    netfilter-persistent save
+  fi
+fi
 
 echo "==> Preparing app directory..."
 mkdir -p "${APP_DIR}"
