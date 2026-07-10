@@ -93,7 +93,10 @@ export default function SettingsPage() {
       setWhatsappSession(snapshot);
       if (snapshot.status === "connected" && snapshot.linkedPhone) {
         persistWhatsAppLinkedPhone(currentSchool.id, snapshot.linkedPhone);
-        setCommunication(loadSchoolSystemSettings(currentSchool.id).communication);
+        setCommunication((current) => ({
+          ...current,
+          whatsappLinkedPhone: snapshot.linkedPhone ?? current.whatsappLinkedPhone,
+        }));
       }
     }, 2000);
 
@@ -103,6 +106,22 @@ export default function SettingsPage() {
   const persistSettings = (next: SchoolSystemSettings) => {
     if (!currentSchool) return;
     saveSchoolSystemSettings(currentSchool.id, next);
+  };
+
+  const persistCommunicationToggle = (
+    updates: Partial<CommunicationSettings>,
+  ) => {
+    if (!currentSchool) return;
+
+    setCommunication((current) => {
+      const nextCommunication = { ...current, ...updates };
+      const stored = loadSchoolSystemSettings(currentSchool.id);
+      saveSchoolSystemSettings(currentSchool.id, {
+        ...stored,
+        communication: { ...stored.communication, ...nextCommunication },
+      });
+      return nextCommunication;
+    });
   };
 
   const handleSave = (section: SettingsSectionKey) => {
@@ -241,7 +260,10 @@ export default function SettingsPage() {
     const snapshot = await disconnectWhatsAppSession(currentSchool.id);
     persistWhatsAppLinkedPhone(currentSchool.id, "");
     setWhatsappSession(snapshot);
-    setCommunication(loadSchoolSystemSettings(currentSchool.id).communication);
+    setCommunication((current) => ({
+      ...current,
+      whatsappLinkedPhone: "",
+    }));
   };
 
   const resetSection = (section: SettingsSectionKey) => {
@@ -390,13 +412,19 @@ export default function SettingsPage() {
               onChange={(e) => {
                 const provider = e.target.value as CommunicationSettings["emailProvider"];
                 if (provider === "brevo") {
-                  setCommunication((current) =>
-                    getBrevoCommunicationPreset(current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL),
-                  );
+                  setCommunication((current) => ({
+                    ...getBrevoCommunicationPreset(current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL),
+                    whatsappNotifications: current.whatsappNotifications,
+                    whatsappDefaultCountryCode: current.whatsappDefaultCountryCode,
+                    whatsappLinkedPhone: current.whatsappLinkedPhone,
+                  }));
                 } else if (provider === "gmail") {
-                  setCommunication((current) =>
-                    getGmailCommunicationPreset(current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL),
-                  );
+                  setCommunication((current) => ({
+                    ...getGmailCommunicationPreset(current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL),
+                    whatsappNotifications: current.whatsappNotifications,
+                    whatsappDefaultCountryCode: current.whatsappDefaultCountryCode,
+                    whatsappLinkedPhone: current.whatsappLinkedPhone,
+                  }));
                 } else {
                   setCommunication((current) => ({ ...current, emailProvider: "custom" }));
                 }
@@ -426,6 +454,9 @@ export default function SettingsPage() {
                       current.senderEmail || DEFAULT_SMTP_SENDER_EMAIL,
                     ),
                     smtpPassword: "",
+                    whatsappNotifications: current.whatsappNotifications,
+                    whatsappDefaultCountryCode: current.whatsappDefaultCountryCode,
+                    whatsappLinkedPhone: current.whatsappLinkedPhone,
                   }))
                 }
                 className="btn-secondary mt-3"
@@ -641,7 +672,7 @@ export default function SettingsPage() {
               type="checkbox"
               checked={communication.emailNotifications}
               onChange={(e) =>
-                setCommunication((current) => ({ ...current, emailNotifications: e.target.checked }))
+                persistCommunicationToggle({ emailNotifications: e.target.checked })
               }
               className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
             />
@@ -672,10 +703,7 @@ export default function SettingsPage() {
               type="checkbox"
               checked={communication.whatsappNotifications}
               onChange={(e) =>
-                setCommunication((current) => ({
-                  ...current,
-                  whatsappNotifications: e.target.checked,
-                }))
+                persistCommunicationToggle({ whatsappNotifications: e.target.checked })
               }
               className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
             />

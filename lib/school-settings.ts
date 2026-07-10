@@ -209,14 +209,19 @@ export function migrateCommunicationSettings(schoolId: string): void {
     !stored.communication?.emailProvider ||
     stored.communication.emailProvider === "gmail";
 
-  if (previousUser !== nextUser || needsProviderMigration) {
-    const communication =
-      needsProviderMigration && !settings.communication.smtpPassword.trim()
-        ? getBrevoCommunicationPreset(
-            settings.communication.senderEmail || DEFAULT_SMTP_SENDER_EMAIL,
-          )
-        : settings.communication;
+    if (previousUser !== nextUser || needsProviderMigration) {
+      const communication =
+        needsProviderMigration && !settings.communication.smtpPassword.trim()
+          ? {
+              ...getBrevoCommunicationPreset(
+                settings.communication.senderEmail || DEFAULT_SMTP_SENDER_EMAIL,
+              ),
+              whatsappNotifications: settings.communication.whatsappNotifications,
+              whatsappDefaultCountryCode: settings.communication.whatsappDefaultCountryCode,
+              whatsappLinkedPhone: settings.communication.whatsappLinkedPhone,
+            }
+          : settings.communication;
 
-    saveSchoolSystemSettings(schoolId, { ...settings, communication });
-  }
+      saveSchoolSystemSettings(schoolId, { ...settings, communication });
+    }
 }
