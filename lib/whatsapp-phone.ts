@@ -2,16 +2,37 @@ export function normalizeWhatsAppPhone(
   phone: string,
   defaultCountryCode = "233",
 ): string | null {
-  const digits = phone.replace(/\D/g, "");
+  let digits = phone.replace(/\D/g, "");
   if (digits.length < 9) return null;
+
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
+
+  // Pakistan international (+92 3XX XXXXXXX)
+  if (digits.startsWith("92")) {
+    const national = digits.slice(2);
+    if (national.length === 10 && national.startsWith("3")) {
+      return `92${national}`;
+    }
+    if (national.length > 10 && national.startsWith("3")) {
+      return `92${national.slice(0, 10)}`;
+    }
+  }
+
+  // Pakistan local mobile (03XX XXXXXXX) — common even when default country code is unset
+  if (/^03\d{9}$/.test(digits)) {
+    return `92${digits.slice(1)}`;
+  }
 
   const countryCode = defaultCountryCode.replace(/\D/g, "");
   if (!countryCode) return digits;
 
-  let national = digits;
-  if (digits.startsWith(countryCode) && digits.length > countryCode.length + 8) {
+  if (digits.startsWith(countryCode) && digits.length >= countryCode.length + 9) {
     return digits;
   }
+
+  let national = digits;
   if (digits.startsWith("0")) {
     national = digits.slice(1);
   }

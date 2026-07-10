@@ -226,6 +226,7 @@ export default function SettingsPage() {
         schoolId: currentSchool.id,
         schoolName: currentSchool.name,
         to: testWhatsAppTo.trim(),
+        defaultCountryCode: communication.whatsappDefaultCountryCode,
       });
 
       alert(formatWhatsAppResultMessage(result));
@@ -617,7 +618,7 @@ export default function SettingsPage() {
                   whatsappDefaultCountryCode: e.target.value.replace(/\D/g, ""),
                 }))
               }
-              placeholder="233"
+              placeholder="92"
               className="input-field"
             />
           </div>
@@ -685,7 +686,7 @@ export default function SettingsPage() {
                 type="tel"
                 value={testWhatsAppTo}
                 onChange={(e) => setTestWhatsAppTo(e.target.value)}
-                placeholder="233XXXXXXXXX"
+                placeholder="03XXXXXXXXX or +923XXXXXXXXX"
                 className="input-field"
               />
             </div>

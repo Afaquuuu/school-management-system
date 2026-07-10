@@ -254,6 +254,7 @@ export async function sendTestWhatsApp(input: {
   schoolId: string;
   schoolName: string;
   to: string;
+  defaultCountryCode?: string;
 }): Promise<SendWhatsAppResult> {
   const settings = loadSchoolSystemSettings(input.schoolId);
   const validationError = validateWhatsAppSettings(settings.communication);
@@ -263,7 +264,9 @@ export async function sendTestWhatsApp(input: {
 
   return postWhatsAppSend({
     schoolId: input.schoolId,
-    defaultCountryCode: settings.communication.whatsappDefaultCountryCode,
+    defaultCountryCode:
+      input.defaultCountryCode?.trim() ||
+      settings.communication.whatsappDefaultCountryCode,
     messages: [
       {
         to: input.to.trim(),
