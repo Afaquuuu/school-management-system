@@ -2,12 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, MessageCircle, X, XCircle } from "lucide-react";
-import { useSchool } from "@/lib/school-context";
+import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
 import {
   fetchWhatsAppQueueJobs,
   formatWhatsAppQueueStatus,
 } from "@/lib/whatsapp-client";
 import type { WhatsAppQueueJobSummary, WhatsAppQueueRecipientStatus } from "@/lib/whatsapp-types";
+
+const DISMISSED_QUEUE_JOBS_KEY = "whatsapp_queue_dismissed_jobs";
+
+function loadDismissedQueueJobIds(schoolId: string): string[] {
+  const raw = getScopedItem(schoolId, DISMISSED_QUEUE_JOBS_KEY);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as string[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistDismissedQueueJobIds(schoolId: string, jobIds: string[]): void {
+  setScopedItem(schoolId, DISMISSED_QUEUE_JOBS_KEY, JSON.stringify(jobIds));
+}
 
 function RecipientStatusIcon({ status }: { status: WhatsAppQueueRecipientStatus["status"] }) {
   if (status === "sent") {
@@ -38,10 +56,25 @@ function recipientStatusText(recipient: WhatsAppQueueRecipientStatus): string {
 }
 
 export function WhatsAppQueueStatus() {
-  const { currentSchool } = useSchool();
+  const { currentSchool, isStorageReady } = useSchool();
   const [jobs, setJobs] = useState<WhatsAppQueueJobSummary[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [expandedJobIds, setExpandedJobIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!currentSchool || !isStorageReady) return;
+    setDismissedIds(loadDismissedQueueJobIds(currentSchool.id));
+  }, [currentSchool, isStorageReady]);
+
+  const dismissJob = (jobId: string) => {
+    if (!currentSchool) return;
+
+    setDismissedIds((current) => {
+      const next = [...new Set([...current, jobId])];
+      persistDismissedQueueJobIds(currentSchool.id, next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!currentSchool) return;
@@ -183,7 +216,7 @@ export function WhatsAppQueueStatus() {
               {!isActive ? (
                 <button
                   type="button"
-                  onClick={() => setDismissedIds((current) => [...current, job.id])}
+                  onClick={() => dismissJob(job.id)}
                   className="shrink-0 opacity-70 hover:opacity-100"
                   aria-label="Dismiss WhatsApp queue status"
                 >
