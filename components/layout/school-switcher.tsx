@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSchool } from "@/lib/school-context";
+import { isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
 import { Building2, ChevronDown, LogOut, Settings, Plus, Check } from "lucide-react";
 
 export function SchoolSwitcher() {
   const router = useRouter();
   const { currentSchool, schools, switchSchool, logout } = useSchool();
+  const registrationAllowed = isPublicSchoolRegistrationAllowed();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!currentSchool) {
@@ -82,13 +84,15 @@ export function SchoolSwitcher() {
             </div>
 
             <div className="border-t border-slate-100 p-2">
-              <button
-                onClick={handleAddSchool}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="text-sm font-medium">Add Another School</span>
-              </button>
+              {registrationAllowed ? (
+                <button
+                  onClick={handleAddSchool}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="text-sm font-medium">Add Another School</span>
+                </button>
+              ) : null}
 
               <button
                 onClick={() => router.push("/admin/settings")}

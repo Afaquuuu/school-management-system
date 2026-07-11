@@ -6,6 +6,7 @@ import {
   listSchools,
   updateSchool,
 } from "@/lib/server/schools";
+import { isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
 import { isServerDatabaseMode } from "@/lib/storage-mode";
 
 export const runtime = "nodejs";
@@ -39,6 +40,13 @@ export async function POST(request: Request) {
 
     if (!body.name?.trim() || !body.email?.trim()) {
       return NextResponse.json({ error: "School name and email are required." }, { status: 400 });
+    }
+
+    if (!isPublicSchoolRegistrationAllowed()) {
+      return NextResponse.json(
+        { error: "Public school registration is disabled on this server." },
+        { status: 403 },
+      );
     }
 
     const school = await createSchool({

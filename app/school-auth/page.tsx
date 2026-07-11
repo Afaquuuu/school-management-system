@@ -9,11 +9,13 @@ import {
 } from "@/lib/system-users";
 import { establishUserSession } from "@/lib/teacher-check-in";
 import { flushPendingStorageWrites } from "@/lib/tenant-storage-cache";
+import { isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
 import { Building2, ArrowRight, School, CheckCircle, Shield, Eye, EyeOff } from "lucide-react";
 
 export default function SchoolAuthPage() {
   const router = useRouter();
   const { schools, addSchool, setCurrentSchool } = useSchool();
+  const registrationAllowed = isPublicSchoolRegistrationAllowed();
   const [mode, setMode] = useState<"select" | "register">("select");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -126,30 +128,32 @@ export default function SchoolAuthPage() {
         </div>
 
         <div className="auth-card">
-          <div className="mb-6 flex gap-1 rounded-lg bg-slate-100 p-1">
-            <button
-              onClick={() => setMode("select")}
-              className={`flex-1 rounded-md px-4 py-2.5 text-sm font-semibold transition-all ${
-                mode === "select"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Select School
-            </button>
-            <button
-              onClick={() => setMode("register")}
-              className={`flex-1 rounded-md px-4 py-2.5 text-sm font-semibold transition-all ${
-                mode === "register"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              Register School
-            </button>
-          </div>
+          {registrationAllowed ? (
+            <div className="mb-6 flex gap-1 rounded-lg bg-slate-100 p-1">
+              <button
+                onClick={() => setMode("select")}
+                className={`flex-1 rounded-md px-4 py-2.5 text-sm font-semibold transition-all ${
+                  mode === "select"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Select School
+              </button>
+              <button
+                onClick={() => setMode("register")}
+                className={`flex-1 rounded-md px-4 py-2.5 text-sm font-semibold transition-all ${
+                  mode === "register"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Register School
+              </button>
+            </div>
+          ) : null}
 
-          {mode === "select" ? (
+          {!registrationAllowed || mode === "select" ? (
             <div className="space-y-4">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">Select your school</h2>
@@ -160,9 +164,15 @@ export default function SchoolAuthPage() {
                 <div className="py-10 text-center">
                   <Building2 className="mx-auto mb-4 h-14 w-14 text-slate-300" />
                   <p className="mb-4 text-slate-500">No schools registered yet</p>
-                  <button onClick={() => setMode("register")} className="btn-primary">
-                    Register Your School
-                  </button>
+                  {registrationAllowed ? (
+                    <button onClick={() => setMode("register")} className="btn-primary">
+                      Register Your School
+                    </button>
+                  ) : (
+                    <p className="text-sm text-slate-400">
+                      Contact your platform administrator to add a school.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
