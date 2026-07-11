@@ -262,11 +262,14 @@ model StudentGuardian {
 
 model Subject {
   id             String         @id @default(cuid())
+  legacyId       String?        @unique
   academicYearId String
   code           String
   name           String
+  subjectStatus  String         @default("active")
   creditHours    Int            @default(1)
   isCore         Boolean        @default(true)
+  metadata       Json?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -528,17 +531,30 @@ model LedgerEntry {
 }
 
 model Announcement {
-  id            String               @id @default(cuid())
-  title         String
-  content       String
-  priority      AnnouncementPriority @default(normal)
-  publishedAt   DateTime?
-  authorId      String
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id              String               @id @default(cuid())
+  legacyId        String?              @unique
+  title           String
+  content         String
+  priority        AnnouncementPriority @default(normal)
+  scope           String               @default("school")
+  classLegacyId   String?
+  classLabel      String?
+  authorLegacyId  String               @default("")
+  authorName      String               @default("")
+  authorEmail     String               @default("")
+  publishedAt     DateTime?
+  targetAudience  Json                 @default("[]")
+  views           Int                  @default(0)
+  isPinned        Boolean              @default(false)
+  authorId        String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
-  author        User                 @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  notifications Notification[]
+  author          User?                @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  notifications   Notification[]
+
+  @@index([publishedAt])
+  @@index([scope])
 }
 
 model MessageThread {

@@ -2,6 +2,9 @@ import {
   ACCOUNTS_STORAGE_KEY,
 } from "@/lib/server/accounts-relational";
 import {
+  ANNOUNCEMENTS_STORAGE_KEY,
+} from "@/lib/server/announcements-relational";
+import {
   CLASSES_STORAGE_KEY,
 } from "@/lib/server/classes-relational";
 import {
@@ -10,6 +13,9 @@ import {
 import {
   STUDENTS_STORAGE_KEY,
 } from "@/lib/server/students-relational";
+import {
+  SUBJECTS_STORAGE_KEY,
+} from "@/lib/server/subjects-relational";
 
 /** Domains with dedicated relational tables (not generic JSON store). */
 export const STRUCTURED_STORAGE_KEYS = new Set([
@@ -17,6 +23,8 @@ export const STRUCTURED_STORAGE_KEYS = new Set([
   CLASSES_STORAGE_KEY,
   STAFF_STORAGE_KEY,
   ACCOUNTS_STORAGE_KEY,
+  ANNOUNCEMENTS_STORAGE_KEY,
+  SUBJECTS_STORAGE_KEY,
 ]);
 
 /** App keys stored as one row per JSON array item in StoredJsonItem. */
@@ -26,8 +34,6 @@ export const ARRAY_JSON_STORAGE_KEYS = new Set([
   "exam_schedules",
   "exam_marks",
   "finance_invoices",
-  "school_subjects",
-  "school_announcements",
   "school_messages",
   "teacher_check_ins",
   "school_resources",
@@ -66,8 +72,5 @@ export function isSingletonJsonStorageKey(key: string): boolean {
 }
 
 export function isManagedJsonStorageKey(key: string): boolean {
-  return (
-    isArrayJsonStorageKey(key) ||
-    isSingletonJsonStorageKey(key)
-  );
+  return isArrayJsonStorageKey(key) || isSingletonJsonStorageKey(key);
 }

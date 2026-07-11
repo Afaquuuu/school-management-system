@@ -192,7 +192,19 @@ export async function getJsonStoreValue(schoolId: string, storageKey: string): P
 
   const tenant = getTenantPrisma(databaseName);
   if (isArrayJsonStorageKey(storageKey)) {
-    return listArrayJson(tenant, storageKey);
+    const arrayValue = await listArrayJson(tenant, storageKey);
+    if (arrayValue) return arrayValue;
+
+    const singletonValue = await getSingletonJson(tenant, storageKey);
+    if (singletonValue) {
+      try {
+        const parsed = JSON.parse(singletonValue) as unknown;
+        if (Array.isArray(parsed)) return singletonValue;
+      } catch {
+        // ignore invalid singleton payloads
+      }
+    }
+    return null;
   }
 
   if (isSingletonJsonStorageKey(storageKey)) {

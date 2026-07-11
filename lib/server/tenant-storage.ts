@@ -8,6 +8,12 @@ import {
   setRelationalAccountsJson,
 } from "@/lib/server/accounts-relational";
 import {
+  ANNOUNCEMENTS_STORAGE_KEY,
+  getRelationalAnnouncementsJson,
+  migrateLegacyAnnouncementsIfNeeded,
+  setRelationalAnnouncementsJson,
+} from "@/lib/server/announcements-relational";
+import {
   CLASSES_STORAGE_KEY,
   getRelationalClassesJson,
   migrateLegacyClassesIfNeeded,
@@ -33,6 +39,12 @@ import {
   setRelationalStudentsJson,
   STUDENTS_STORAGE_KEY,
 } from "@/lib/server/students-relational";
+import {
+  getRelationalSubjectsJson,
+  migrateLegacySubjectsIfNeeded,
+  setRelationalSubjectsJson,
+  SUBJECTS_STORAGE_KEY,
+} from "@/lib/server/subjects-relational";
 import { isStructuredStorageKey, STRUCTURED_STORAGE_KEYS } from "@/lib/server/storage-keys";
 import { getTenantPrisma } from "@/lib/tenant-prisma";
 
@@ -51,6 +63,8 @@ async function ensureRelationalDataMigrated(schoolId: string): Promise<void> {
   await migrateLegacyClassesIfNeeded(schoolId);
   await migrateLegacyStaffIfNeeded(schoolId);
   await migrateLegacyAccountsIfNeeded(schoolId);
+  await migrateLegacyAnnouncementsIfNeeded(schoolId);
+  await migrateLegacySubjectsIfNeeded(schoolId);
   await migrateAllLegacyJsonKeysIfNeeded(schoolId);
 }
 
@@ -64,6 +78,10 @@ async function getRelationalJson(schoolId: string, key: string): Promise<string 
       return getRelationalStaffJson(schoolId);
     case ACCOUNTS_STORAGE_KEY:
       return getRelationalAccountsJson(schoolId);
+    case ANNOUNCEMENTS_STORAGE_KEY:
+      return getRelationalAnnouncementsJson(schoolId);
+    case SUBJECTS_STORAGE_KEY:
+      return getRelationalSubjectsJson(schoolId);
     default:
       return null;
   }
@@ -82,6 +100,12 @@ async function setRelationalJson(schoolId: string, key: string, value: string): 
       return;
     case ACCOUNTS_STORAGE_KEY:
       await setRelationalAccountsJson(schoolId, value);
+      return;
+    case ANNOUNCEMENTS_STORAGE_KEY:
+      await setRelationalAnnouncementsJson(schoolId, value);
+      return;
+    case SUBJECTS_STORAGE_KEY:
+      await setRelationalSubjectsJson(schoolId, value);
       return;
     default:
       throw new Error(`Unsupported relational storage key: ${key}`);
@@ -162,6 +186,18 @@ export async function removeTenantStorageItem(schoolId: string, key: string): Pr
     return;
   }
 
+  if (key === ANNOUNCEMENTS_STORAGE_KEY) {
+    await tenant.announcement.deleteMany({ where: { legacyId: { not: null } } });
+    await removeJsonStoreValue(schoolId, key);
+    return;
+  }
+
+  if (key === SUBJECTS_STORAGE_KEY) {
+    await tenant.subject.deleteMany({ where: { legacyId: { not: null } } });
+    await removeJsonStoreValue(schoolId, key);
+    return;
+  }
+
   await removeJsonStoreValue(schoolId, key);
 }
 
@@ -213,6 +249,8 @@ export async function removeAllTenantStorage(schoolId: string): Promise<void> {
   }
 
   await tenant.systemAccount.deleteMany();
+  await tenant.announcement.deleteMany({ where: { legacyId: { not: null } } });
+  await tenant.subject.deleteMany({ where: { legacyId: { not: null } } });
   await tenant.storedJsonItem.deleteMany();
   await tenant.storedJsonSingleton.deleteMany();
   await tenant.appStorage.deleteMany();

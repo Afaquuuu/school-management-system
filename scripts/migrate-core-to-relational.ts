@@ -4,6 +4,10 @@ import {
   migrateLegacyAccountsIfNeeded,
 } from "@/lib/server/accounts-relational";
 import {
+  ANNOUNCEMENTS_STORAGE_KEY,
+  migrateLegacyAnnouncementsIfNeeded,
+} from "@/lib/server/announcements-relational";
+import {
   CLASSES_STORAGE_KEY,
   migrateLegacyClassesIfNeeded,
 } from "@/lib/server/classes-relational";
@@ -16,6 +20,10 @@ import {
   migrateLegacyStudentsIfNeeded,
   STUDENTS_STORAGE_KEY,
 } from "@/lib/server/students-relational";
+import {
+  migrateLegacySubjectsIfNeeded,
+  SUBJECTS_STORAGE_KEY,
+} from "@/lib/server/subjects-relational";
 import { deployTenantSchemasForAllSchools } from "@/lib/server/tenant-provisioning";
 import { getSchoolDatabaseName } from "@/lib/server/schools";
 import { getTenantPrisma } from "@/lib/tenant-prisma";
@@ -34,6 +42,8 @@ async function main() {
     const classMigrated = await migrateLegacyClassesIfNeeded(school.id);
     const staffMigrated = await migrateLegacyStaffIfNeeded(school.id);
     const accountMigrated = await migrateLegacyAccountsIfNeeded(school.id);
+    const announcementMigrated = await migrateLegacyAnnouncementsIfNeeded(school.id);
+    const subjectMigrated = await migrateLegacySubjectsIfNeeded(school.id);
 
     console.log(
       studentMigrated
@@ -54,6 +64,16 @@ async function main() {
       accountMigrated
         ? `Migrated users for ${school.name} into SystemAccount (parents/admins/teachers).`
         : `No legacy ${ACCOUNTS_STORAGE_KEY} migration needed for ${school.name}.`,
+    );
+    console.log(
+      announcementMigrated
+        ? `Migrated announcements for ${school.name} into Announcement.`
+        : `No legacy ${ANNOUNCEMENTS_STORAGE_KEY} migration needed for ${school.name}.`,
+    );
+    console.log(
+      subjectMigrated
+        ? `Migrated subjects for ${school.name} into Subject.`
+        : `No legacy ${SUBJECTS_STORAGE_KEY} migration needed for ${school.name}.`,
     );
 
     const databaseName = await getSchoolDatabaseName(school.id);
