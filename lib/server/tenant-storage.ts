@@ -14,6 +14,14 @@ import {
   setRelationalClassesJson,
 } from "@/lib/server/classes-relational";
 import {
+  getJsonStoreValue,
+  listJsonStoreKeysForSchool,
+  migrateAllLegacyJsonKeysIfNeeded,
+  migrateLegacyJsonKeyIfNeeded,
+  removeJsonStoreValue,
+  setJsonStoreValue,
+} from "@/lib/server/json-store-relational";
+import {
   getRelationalStaffJson,
   migrateLegacyStaffIfNeeded,
   setRelationalStaffJson,
@@ -25,14 +33,10 @@ import {
   setRelationalStudentsJson,
   STUDENTS_STORAGE_KEY,
 } from "@/lib/server/students-relational";
+import { isStructuredStorageKey, STRUCTURED_STORAGE_KEYS } from "@/lib/server/storage-keys";
 import { getTenantPrisma } from "@/lib/tenant-prisma";
 
-const RELATIONAL_KEYS = new Set([
-  STUDENTS_STORAGE_KEY,
-  CLASSES_STORAGE_KEY,
-  STAFF_STORAGE_KEY,
-  ACCOUNTS_STORAGE_KEY,
-]);
+const RELATIONAL_KEYS = STRUCTURED_STORAGE_KEYS;
 
 async function getTenantClientForSchool(schoolId: string) {
   const databaseName = await getSchoolDatabaseName(schoolId);
@@ -47,6 +51,7 @@ async function ensureRelationalDataMigrated(schoolId: string): Promise<void> {
   await migrateLegacyClassesIfNeeded(schoolId);
   await migrateLegacyStaffIfNeeded(schoolId);
   await migrateLegacyAccountsIfNeeded(schoolId);
+  await migrateAllLegacyJsonKeysIfNeeded(schoolId);
 }
 
 async function getRelationalJson(schoolId: string, key: string): Promise<string | null> {
@@ -94,6 +99,10 @@ export async function getTenantStorageItem(
     return getRelationalJson(schoolId, key);
   }
 
+  await migrateLegacyJsonKeyIfNeeded(schoolId, key);
+  const jsonStoreValue = await getJsonStoreValue(schoolId, key);
+  if (jsonStoreValue !== null) return jsonStoreValue;
+
   const tenant = await getTenantClientForSchool(schoolId);
   const row = await tenant.appStorage.findUnique({
     where: { key },
@@ -115,12 +124,7 @@ export async function setTenantStorageItem(
     return;
   }
 
-  const tenant = await getTenantClientForSchool(schoolId);
-  await tenant.appStorage.upsert({
-    where: { key },
-    create: { key, value },
-    update: { value },
-  });
+  await setJsonStoreValue(schoolId, key, value);
 }
 
 export async function removeTenantStorageItem(schoolId: string, key: string): Promise<void> {
@@ -158,9 +162,7 @@ export async function removeTenantStorageItem(schoolId: string, key: string): Pr
     return;
   }
 
-  await tenant.appStorage.deleteMany({
-    where: { key },
-  });
+  await removeJsonStoreValue(schoolId, key);
 }
 
 export async function getAllTenantStorage(schoolId: string): Promise<Record<string, string>> {
@@ -168,17 +170,27 @@ export async function getAllTenantStorage(schoolId: string): Promise<Record<stri
 
   await ensureRelationalDataMigrated(schoolId);
 
+  const entries: Record<string, string> = {};
+
+  for (const key of RELATIONAL_KEYS) {
+    const value = await getRelationalJson(schoolId, key);
+    if (value) entries[key] = value;
+  }
+
+  const jsonKeys = await listJsonStoreKeysForSchool(schoolId);
+  for (const key of jsonKeys) {
+    if (isStructuredStorageKey(key)) continue;
+    const value = await getJsonStoreValue(schoolId, key);
+    if (value) entries[key] = value;
+  }
+
   const tenant = await getTenantClientForSchool(schoolId);
   const rows = await tenant.appStorage.findMany({
     select: { key: true, value: true },
   });
-
-  const entries = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-
-  for (const key of RELATIONAL_KEYS) {
-    const value = await getRelationalJson(schoolId, key);
-    if (value) {
-      entries[key] = value;
+  for (const row of rows) {
+    if (!entries[row.key]) {
+      entries[row.key] = row.value;
     }
   }
 
@@ -201,6 +213,8 @@ export async function removeAllTenantStorage(schoolId: string): Promise<void> {
   }
 
   await tenant.systemAccount.deleteMany();
+  await tenant.storedJsonItem.deleteMany();
+  await tenant.storedJsonSingleton.deleteMany();
   await tenant.appStorage.deleteMany();
 }
 
@@ -210,28 +224,12 @@ export async function migrateTenantStorageSchool(
 ): Promise<void> {
   if (!isServerDatabaseMode() || fromSchoolId === toSchoolId) return;
 
-  for (const key of RELATIONAL_KEYS) {
-    const value = await getTenantStorageItem(fromSchoolId, key);
-    if (value) {
-      await setTenantStorageItem(toSchoolId, key, value);
-      await removeTenantStorageItem(fromSchoolId, key);
-    }
+  const fromEntries = await getAllTenantStorage(fromSchoolId);
+  for (const [key, value] of Object.entries(fromEntries)) {
+    await setTenantStorageItem(toSchoolId, key, value);
   }
 
-  const fromTenant = await getTenantClientForSchool(fromSchoolId);
-  const toTenant = await getTenantClientForSchool(toSchoolId);
-  const rows = await fromTenant.appStorage.findMany();
-
-  for (const row of rows) {
-    if (RELATIONAL_KEYS.has(row.key)) continue;
-    await toTenant.appStorage.upsert({
-      where: { key: row.key },
-      create: { key: row.key, value: row.value },
-      update: { value: row.value },
-    });
-  }
-
-  await fromTenant.appStorage.deleteMany();
+  await removeAllTenantStorage(fromSchoolId);
 }
 
 /** Move admin/users saved under a stale client id onto the registered school row. */

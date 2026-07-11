@@ -7,6 +7,7 @@ import {
   CLASSES_STORAGE_KEY,
   migrateLegacyClassesIfNeeded,
 } from "@/lib/server/classes-relational";
+import { migrateAllLegacyJsonKeysForTenant } from "@/lib/server/json-store-relational";
 import {
   migrateLegacyStaffIfNeeded,
   STAFF_STORAGE_KEY,
@@ -16,6 +17,8 @@ import {
   STUDENTS_STORAGE_KEY,
 } from "@/lib/server/students-relational";
 import { deployTenantSchemasForAllSchools } from "@/lib/server/tenant-provisioning";
+import { getSchoolDatabaseName } from "@/lib/server/schools";
+import { getTenantPrisma } from "@/lib/tenant-prisma";
 
 async function main() {
   await deployTenantSchemasForAllSchools();
@@ -52,6 +55,19 @@ async function main() {
         ? `Migrated users for ${school.name} into SystemAccount (parents/admins/teachers).`
         : `No legacy ${ACCOUNTS_STORAGE_KEY} migration needed for ${school.name}.`,
     );
+
+    const databaseName = await getSchoolDatabaseName(school.id);
+    if (databaseName) {
+      const tenant = getTenantPrisma(databaseName);
+      const jsonMigrated = await migrateAllLegacyJsonKeysForTenant(tenant);
+      if (jsonMigrated.length > 0) {
+        console.log(
+          `Migrated ${jsonMigrated.length} JSON store key(s) for ${school.name}: ${jsonMigrated.join(", ")}`,
+        );
+      } else {
+        console.log(`No remaining AppStorage JSON keys to migrate for ${school.name}.`);
+      }
+    }
   }
 }
 

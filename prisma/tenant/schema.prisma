@@ -822,3 +822,24 @@ model AppStorage {
   value     String   @db.Text
   updatedAt DateTime @updatedAt
 }
+
+/// One row per item in former JSON array blobs (attendance, exams, finance, etc.).
+model StoredJsonItem {
+  id          String   @id @default(cuid())
+  storageKey  String
+  legacyId    String
+  sortOrder   Int      @default(0)
+  payload     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([storageKey, legacyId])
+  @@index([storageKey, sortOrder])
+}
+
+/// One row per former JSON object / settings blob.
+model StoredJsonSingleton {
+  storageKey  String   @id
+  payload     Json
+  updatedAt   DateTime @updatedAt
+}
