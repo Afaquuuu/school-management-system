@@ -26,7 +26,11 @@ export type StudentDocument = {
   fileName: string;
   mimeType: string;
   fileSize: number;
-  dataUrl: string;
+  fileUrl?: string;
+  cloudinaryPublicId?: string;
+  cloudinaryResourceType?: string;
+  /** Legacy inline base64 — kept for older uploads before Cloudinary */
+  dataUrl?: string;
   uploadedAt: string;
 };
 
@@ -331,7 +335,10 @@ export function createStudentDocument(
     fileName: string;
     mimeType: string;
     fileSize: number;
-    dataUrl: string;
+    fileUrl?: string;
+    cloudinaryPublicId?: string;
+    cloudinaryResourceType?: string;
+    dataUrl?: string;
   },
 ): StudentDocument {
   const documents = loadStudentDocuments(schoolId);
@@ -343,6 +350,9 @@ export function createStudentDocument(
     fileName: input.fileName,
     mimeType: input.mimeType,
     fileSize: input.fileSize,
+    fileUrl: input.fileUrl,
+    cloudinaryPublicId: input.cloudinaryPublicId,
+    cloudinaryResourceType: input.cloudinaryResourceType,
     dataUrl: input.dataUrl,
     uploadedAt: new Date().toISOString(),
   };
@@ -351,9 +361,69 @@ export function createStudentDocument(
   return document;
 }
 
+export async function uploadStudentDocument(
+  schoolId: string,
+  studentId: string,
+  input: {
+    category: DocumentCategory;
+    customLabel?: string;
+    file: File;
+  },
+): Promise<StudentDocument> {
+  const formData = new FormData();
+  formData.append("schoolId", schoolId);
+  formData.append("studentId", studentId);
+  formData.append("category", input.category);
+  if (input.customLabel?.trim()) {
+    formData.append("customLabel", input.customLabel.trim());
+  }
+  formData.append("file", input.file);
+
+  const response = await fetch("/api/student-documents", {
+    method: "POST",
+    body: formData,
+  });
+
+  const payload = (await response.json()) as {
+    document?: StudentDocument;
+    error?: string;
+  };
+
+  if (!response.ok || !payload.document) {
+    throw new Error(payload.error ?? "Could not upload the document.");
+  }
+
+  const documents = loadStudentDocuments(schoolId);
+  saveStudentDocuments(schoolId, [...documents, payload.document]);
+
+  return payload.document;
+}
+
 export function deleteStudentDocument(schoolId: string, documentId: string): void {
   const documents = loadStudentDocuments(schoolId).filter((document) => document.id !== documentId);
   saveStudentDocuments(schoolId, documents);
+}
+
+export async function deleteStudentDocumentRemote(
+  schoolId: string,
+  documentId: string,
+): Promise<void> {
+  const response = await fetch("/api/student-documents", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ schoolId, documentId }),
+  });
+
+  const payload = (await response.json()) as { error?: string };
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Could not delete the document.");
+  }
+
+  deleteStudentDocument(schoolId, documentId);
+}
+
+export function getDocumentFileUrl(document: StudentDocument): string {
+  return document.fileUrl ?? document.dataUrl ?? "";
 }
 
 export function isImageDocument(mimeType: string): boolean {

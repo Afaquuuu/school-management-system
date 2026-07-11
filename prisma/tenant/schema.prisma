@@ -972,18 +972,21 @@ model SchoolResourceRecord {
 }
 
 model StudentDocumentRecord {
-  id              String   @id @default(cuid())
-  legacyId        String   @unique
-  studentLegacyId String
-  category        String
-  customLabel     String?
-  fileName        String
-  mimeType        String
-  fileSize        Int
-  dataUrl         String   @db.Text
-  uploadedAt      DateTime
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  legacyId              String   @unique
+  studentLegacyId       String
+  category              String
+  customLabel           String?
+  fileName              String
+  mimeType              String
+  fileSize              Int
+  fileUrl               String?
+  cloudinaryPublicId    String?
+  cloudinaryResourceType String?
+  dataUrl               String?  @db.Text
+  uploadedAt            DateTime
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@index([studentLegacyId])
 }

@@ -27,14 +27,14 @@ import {
 import { useSchool } from "@/lib/school-context";
 import { getUserSession } from "@/lib/teacher-check-in";
 import {
-  createStudentDocument,
-  deleteStudentDocument,
+  deleteStudentDocumentRemote,
   DOCUMENT_CATEGORIES,
   findStudentForSession,
   formatDocumentStudentListLabel,
   formatDocumentStudentSecondaryLabel,
   formatFileSize,
   getDocumentCategoryLabel,
+  getDocumentFileUrl,
   getDocumentsForStudent,
   getMissingDocumentCategories,
   getStudentDocumentStats,
@@ -42,7 +42,7 @@ import {
   loadAllDocumentStudents,
   loadStudentDocuments,
   pickDocumentFile,
-  readFileAsDataUrl,
+  uploadStudentDocument,
   validateDocumentFile,
   type DocumentCategory,
   type StudentDocument,
@@ -83,6 +83,7 @@ function DocumentPreviewModal({
 
   const label = getDocumentCategoryLabel(document);
   const isImage = isImageDocument(document.mimeType);
+  const fileUrl = getDocumentFileUrl(document);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
@@ -104,21 +105,21 @@ function DocumentPreviewModal({
           {isImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={document.dataUrl}
+              src={fileUrl}
               alt={label}
               className="mx-auto max-h-[70vh] rounded-xl border border-slate-200 bg-white object-contain shadow-sm"
             />
           ) : (
             <iframe
               title={label}
-              src={document.dataUrl}
+              src={fileUrl}
               className="h-[70vh] w-full rounded-xl border border-slate-200 bg-white shadow-sm"
             />
           )}
         </div>
 
         <div className="border-t border-slate-200 px-6 py-4">
-          <a href={document.dataUrl} download={document.fileName} className="btn-primary">
+          <a href={fileUrl} download={document.fileName} target="_blank" rel="noreferrer" className="btn-primary">
             Download {document.fileName}
           </a>
         </div>
@@ -401,14 +402,10 @@ export default function MyDocumentsPage() {
         return;
       }
 
-      const dataUrl = await readFileAsDataUrl(file);
-      createStudentDocument(currentSchool.id, currentStudent.id, {
+      await uploadStudentDocument(currentSchool.id, currentStudent.id, {
         category: selectedCategory,
         customLabel: selectedCategory === "other" ? customLabel : undefined,
-        fileName: file.name,
-        mimeType: file.type || "application/octet-stream",
-        fileSize: file.size,
-        dataUrl,
+        file,
       });
 
       refreshDocuments(currentStudent.id);
@@ -421,14 +418,18 @@ export default function MyDocumentsPage() {
     }
   };
 
-  const handleDelete = (documentId: string) => {
+  const handleDelete = async (documentId: string) => {
     if (!currentSchool || !currentStudent || !isStudentView) return;
     if (!window.confirm("Remove this document? You can upload it again later.")) return;
 
-    deleteStudentDocument(currentSchool.id, documentId);
-    refreshDocuments(currentStudent.id);
-    setUploadSuccess("Document removed.");
-    setUploadError("");
+    try {
+      await deleteStudentDocumentRemote(currentSchool.id, documentId);
+      refreshDocuments(currentStudent.id);
+      setUploadSuccess("Document removed.");
+      setUploadError("");
+    } catch {
+      setUploadError("Could not remove the document. Please try again.");
+    }
   };
 
   if (!userRole || (!isStudentView && !isParentView && !isVerifierView)) {

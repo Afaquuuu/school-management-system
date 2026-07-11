@@ -47,7 +47,10 @@ type StudentDocumentJson = {
   fileName: string;
   mimeType: string;
   fileSize: number;
-  dataUrl: string;
+  fileUrl?: string;
+  cloudinaryPublicId?: string;
+  cloudinaryResourceType?: string;
+  dataUrl?: string;
   uploadedAt: string;
 };
 
@@ -212,7 +215,10 @@ export const studentDocumentsDomain = buildDomainBridge<StudentDocumentJson>({
       fileName: row.fileName,
       mimeType: row.mimeType,
       fileSize: row.fileSize,
-      dataUrl: row.dataUrl,
+      fileUrl: row.fileUrl ?? undefined,
+      cloudinaryPublicId: row.cloudinaryPublicId ?? undefined,
+      cloudinaryResourceType: row.cloudinaryResourceType ?? undefined,
+      dataUrl: row.dataUrl ?? undefined,
       uploadedAt: row.uploadedAt.toISOString(),
     }));
   },
@@ -226,7 +232,10 @@ export const studentDocumentsDomain = buildDomainBridge<StudentDocumentJson>({
         fileName: item.fileName,
         mimeType: item.mimeType,
         fileSize: item.fileSize,
-        dataUrl: item.dataUrl,
+        fileUrl: item.fileUrl ?? null,
+        cloudinaryPublicId: item.cloudinaryPublicId ?? null,
+        cloudinaryResourceType: item.cloudinaryResourceType ?? null,
+        dataUrl: item.dataUrl ?? null,
         uploadedAt: parseDate(item.uploadedAt) ?? new Date(),
       };
       if (existingId) {
