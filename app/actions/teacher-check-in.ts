@@ -2,9 +2,11 @@
 
 import { auth } from "@clerk/nextjs/server";
 
-import { prisma } from "@/lib/prisma";
+import { getSchoolDatabaseName } from "@/lib/server/schools";
+import { getTenantPrisma } from "@/lib/tenant-prisma";
 
 export async function teacherCheckIn(input: {
+  schoolId: string;
   classroomId?: string;
   latitude?: number;
   longitude?: number;
@@ -16,7 +18,13 @@ export async function teacherCheckIn(input: {
     throw new Error("Unauthenticated teacher.");
   }
 
-  const staff = await prisma.staffProfile.findUnique({
+  const databaseName = await getSchoolDatabaseName(input.schoolId);
+  if (!databaseName) {
+    throw new Error("School database is not available.");
+  }
+
+  const tenant = getTenantPrisma(databaseName);
+  const staff = await tenant.staffProfile.findUnique({
     where: { userId },
     select: { id: true },
   });
@@ -25,7 +33,7 @@ export async function teacherCheckIn(input: {
     throw new Error("Teacher profile not found.");
   }
 
-  return prisma.teacherCheckIn.create({
+  return tenant.teacherCheckIn.create({
     data: {
       teacherId: staff.id,
       classroomId: input.classroomId ?? null,

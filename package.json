@@ -8,10 +8,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio",
+    "db:generate": "prisma generate --schema prisma/catalog/schema.prisma && prisma generate --schema prisma/tenant/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/catalog/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema prisma/catalog/schema.prisma",
+    "db:deploy:tenants": "tsx scripts/deploy-tenant-schemas.ts",
+    "db:migrate:legacy": "tsx scripts/migrate-legacy-to-multi-db.ts",
+    "db:studio": "prisma studio --schema prisma/catalog/schema.prisma",
+    "db:studio:tenant": "prisma studio --schema prisma/tenant/schema.prisma",
     "db:seed": "prisma db seed"
   },
   "dependencies": {

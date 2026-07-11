@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { prisma } from "@/lib/prisma";
+import { catalogPrisma } from "@/lib/catalog-prisma";
 import { isServerDatabaseMode } from "@/lib/storage-mode";
+import { listActiveTenantDatabaseNames } from "@/lib/server/tenant-provisioning";
 
 export const runtime = "nodejs";
 
@@ -17,17 +18,24 @@ export async function GET() {
   }
 
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await catalogPrisma.$queryRaw`SELECT 1`;
+    const schools = await catalogPrisma.school.count({
+      where: { status: "active" },
+    });
+    const tenantDatabases = await listActiveTenantDatabaseNames();
+
     return NextResponse.json({
       ok: true,
-      mode: "postgresql",
+      mode: "postgresql-multi-db",
       database: "connected",
+      catalogSchools: schools,
+      tenantDatabases,
     });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
-        mode: "postgresql",
+        mode: "postgresql-multi-db",
         database: "error",
         error: error instanceof Error ? error.message : "Database connection failed.",
       },

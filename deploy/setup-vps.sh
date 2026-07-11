@@ -9,7 +9,7 @@ set -euo pipefail
 
 APP_DIR="/var/www/school-management-system"
 APP_USER="ubuntu"
-DB_NAME="school_management"
+DB_NAME="school_catalog"
 DB_USER="schoolapp"
 REPO_URL="https://github.com/Afaquuuu/school-management-system.git"
 
@@ -54,6 +54,7 @@ sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'"
   sudo -u postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
 
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};"
+sudo -u postgres psql -c "ALTER USER ${DB_USER} CREATEDB;"
 
 echo "==> Configuring firewall..."
 ufw allow OpenSSH
@@ -85,7 +86,9 @@ cd "${APP_DIR}"
 
 if [[ ! -f "${APP_DIR}/.env" ]]; then
   cp "${APP_DIR}/.env.example" "${APP_DIR}/.env"
-  sed -i "s|postgresql://schoolapp:CHANGE_ME@localhost:5432/school_management|postgresql://${DB_USER}:${DB_PASSWORD}@localhost:5432/${DB_NAME}|g" "${APP_DIR}/.env"
+  sed -i "s|CHANGE_ME|${DB_PASSWORD}|g" "${APP_DIR}/.env"
+  sed -i "s|school_catalog|${DB_NAME}|g" "${APP_DIR}/.env"
+  sed -i "s|school_management|school_management|g" "${APP_DIR}/.env"
   chown "${APP_USER}:${APP_USER}" "${APP_DIR}/.env"
   chmod 600 "${APP_DIR}/.env"
 fi

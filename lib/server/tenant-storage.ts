@@ -1,5 +1,15 @@
-import { prisma } from "@/lib/prisma";
+import { catalogPrisma } from "@/lib/catalog-prisma";
 import { isServerDatabaseMode } from "@/lib/storage-mode";
+import { getSchoolDatabaseName } from "@/lib/server/schools";
+import { getTenantPrisma } from "@/lib/tenant-prisma";
+
+async function getTenantClientForSchool(schoolId: string) {
+  const databaseName = await getSchoolDatabaseName(schoolId);
+  if (!databaseName) {
+    throw new Error(`No active database found for school ${schoolId}.`);
+  }
+  return getTenantPrisma(databaseName);
+}
 
 export async function getTenantStorageItem(
   schoolId: string,
@@ -7,10 +17,9 @@ export async function getTenantStorageItem(
 ): Promise<string | null> {
   if (!isServerDatabaseMode()) return null;
 
-  const row = await prisma.tenantStorage.findUnique({
-    where: {
-      schoolId_key: { schoolId, key },
-    },
+  const tenant = await getTenantClientForSchool(schoolId);
+  const row = await tenant.appStorage.findUnique({
+    where: { key },
     select: { value: true },
   });
 
@@ -24,11 +33,10 @@ export async function setTenantStorageItem(
 ): Promise<void> {
   if (!isServerDatabaseMode()) return;
 
-  await prisma.tenantStorage.upsert({
-    where: {
-      schoolId_key: { schoolId, key },
-    },
-    create: { schoolId, key, value },
+  const tenant = await getTenantClientForSchool(schoolId);
+  await tenant.appStorage.upsert({
+    where: { key },
+    create: { key, value },
     update: { value },
   });
 }
@@ -36,16 +44,17 @@ export async function setTenantStorageItem(
 export async function removeTenantStorageItem(schoolId: string, key: string): Promise<void> {
   if (!isServerDatabaseMode()) return;
 
-  await prisma.tenantStorage.deleteMany({
-    where: { schoolId, key },
+  const tenant = await getTenantClientForSchool(schoolId);
+  await tenant.appStorage.deleteMany({
+    where: { key },
   });
 }
 
 export async function getAllTenantStorage(schoolId: string): Promise<Record<string, string>> {
   if (!isServerDatabaseMode()) return {};
 
-  const rows = await prisma.tenantStorage.findMany({
-    where: { schoolId },
+  const tenant = await getTenantClientForSchool(schoolId);
+  const rows = await tenant.appStorage.findMany({
     select: { key: true, value: true },
   });
 
@@ -55,9 +64,8 @@ export async function getAllTenantStorage(schoolId: string): Promise<Record<stri
 export async function removeAllTenantStorage(schoolId: string): Promise<void> {
   if (!isServerDatabaseMode()) return;
 
-  await prisma.tenantStorage.deleteMany({
-    where: { schoolId },
-  });
+  const tenant = await getTenantClientForSchool(schoolId);
+  await tenant.appStorage.deleteMany();
 }
 
 export async function migrateTenantStorageSchool(
@@ -66,23 +74,19 @@ export async function migrateTenantStorageSchool(
 ): Promise<void> {
   if (!isServerDatabaseMode() || fromSchoolId === toSchoolId) return;
 
-  const rows = await prisma.tenantStorage.findMany({
-    where: { schoolId: fromSchoolId },
-  });
+  const fromTenant = await getTenantClientForSchool(fromSchoolId);
+  const toTenant = await getTenantClientForSchool(toSchoolId);
+  const rows = await fromTenant.appStorage.findMany();
 
   for (const row of rows) {
-    await prisma.tenantStorage.upsert({
-      where: {
-        schoolId_key: { schoolId: toSchoolId, key: row.key },
-      },
-      create: { schoolId: toSchoolId, key: row.key, value: row.value },
+    await toTenant.appStorage.upsert({
+      where: { key: row.key },
+      create: { key: row.key, value: row.value },
       update: { value: row.value },
     });
   }
 
-  await prisma.tenantStorage.deleteMany({
-    where: { schoolId: fromSchoolId },
-  });
+  await fromTenant.appStorage.deleteMany();
 }
 
 /** Move admin/users saved under a stale client id onto the registered school row. */
@@ -91,7 +95,7 @@ export async function repairOrphanTenantStorageForSchool(
 ): Promise<boolean> {
   if (!isServerDatabaseMode()) return false;
 
-  const school = await prisma.school.findUnique({
+  const school = await catalogPrisma.school.findUnique({
     where: { id: targetSchoolId },
     select: { id: true },
   });
@@ -101,19 +105,13 @@ export async function repairOrphanTenantStorageForSchool(
   if (existingUsers) return false;
 
   const registeredSchoolIds = new Set(
-    (await prisma.school.findMany({ select: { id: true } })).map((row) => row.id),
+    (await catalogPrisma.school.findMany({ select: { id: true } })).map((row) => row.id),
   );
 
-  const orphanSchoolIds = await prisma.tenantStorage.findMany({
-    where: { schoolId: { notIn: Array.from(registeredSchoolIds) } },
-    distinct: ["schoolId"],
-    select: { schoolId: true },
-  });
-
-  for (const { schoolId: orphanId } of orphanSchoolIds) {
+  for (const orphanId of registeredSchoolIds) {
+    if (orphanId === targetSchoolId) continue;
     const users = await getTenantStorageItem(orphanId, "system_users");
     if (!users) continue;
-
     await migrateTenantStorageSchool(orphanId, targetSchoolId);
     return true;
   }

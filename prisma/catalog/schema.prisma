@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/catalog-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CATALOG_DATABASE_URL")
+}
+
+enum SchoolStatus {
+  provisioning
+  active
+  suspended
+}
+
+/// Platform catalog — one row per school, each school has its own PostgreSQL database.
+model School {
+  id           String       @id
+  name         String
+  address      String       @default("")
+  phone        String       @default("")
+  email        String
+  logo         String?
+  databaseName String       @unique
+  status       SchoolStatus @default(provisioning)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}

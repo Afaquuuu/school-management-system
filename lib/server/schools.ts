@@ -1,5 +1,10 @@
-import { prisma } from "@/lib/prisma";
+import { catalogPrisma } from "@/lib/catalog-prisma";
+import { buildTenantDatabaseName } from "@/lib/database-url";
 import { isServerDatabaseMode } from "@/lib/storage-mode";
+import {
+  deprovisionTenantDatabase,
+  provisionTenantDatabase,
+} from "@/lib/server/tenant-provisioning";
 
 export type SchoolRecord = {
   id: string;
@@ -31,10 +36,23 @@ function toSchoolRecord(row: {
   };
 }
 
+export async function getSchoolDatabaseName(schoolId: string): Promise<string | null> {
+  if (!isServerDatabaseMode()) return null;
+
+  const school = await catalogPrisma.school.findUnique({
+    where: { id: schoolId },
+    select: { databaseName: true, status: true },
+  });
+
+  if (!school || school.status !== "active") return null;
+  return school.databaseName;
+}
+
 export async function listSchools(): Promise<SchoolRecord[]> {
   if (!isServerDatabaseMode()) return [];
 
-  const rows = await prisma.school.findMany({
+  const rows = await catalogPrisma.school.findMany({
+    where: { status: "active" },
     orderBy: { createdAt: "asc" },
   });
 
@@ -59,7 +77,9 @@ export async function createSchool(input: {
     };
   }
 
-  const row = await prisma.school.create({
+  const databaseName = buildTenantDatabaseName(id);
+
+  const row = await catalogPrisma.school.create({
     data: {
       id,
       name: input.name,
@@ -67,10 +87,23 @@ export async function createSchool(input: {
       phone: input.phone,
       email: input.email,
       logo: input.logo,
+      databaseName,
+      status: "provisioning",
     },
   });
 
-  return toSchoolRecord(row);
+  try {
+    await provisionTenantDatabase(id);
+    const active = await catalogPrisma.school.update({
+      where: { id },
+      data: { status: "active" },
+    });
+    return toSchoolRecord(active);
+  } catch (error) {
+    await catalogPrisma.school.delete({ where: { id } }).catch(() => undefined);
+    await deprovisionTenantDatabase(databaseName).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function updateSchool(
@@ -80,7 +113,7 @@ export async function updateSchool(
   if (!isServerDatabaseMode()) return null;
 
   try {
-    const row = await prisma.school.update({
+    const row = await catalogPrisma.school.update({
       where: { id },
       data: {
         name: updates.name,
@@ -100,7 +133,14 @@ export async function deleteSchool(id: string): Promise<boolean> {
   if (!isServerDatabaseMode()) return false;
 
   try {
-    await prisma.school.delete({ where: { id } });
+    const school = await catalogPrisma.school.findUnique({
+      where: { id },
+      select: { databaseName: true },
+    });
+    if (!school) return false;
+
+    await catalogPrisma.school.delete({ where: { id } });
+    await deprovisionTenantDatabase(school.databaseName);
     return true;
   } catch {
     return false;
