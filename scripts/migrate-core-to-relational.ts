@@ -24,6 +24,7 @@ import {
   migrateLegacySubjectsIfNeeded,
   SUBJECTS_STORAGE_KEY,
 } from "@/lib/server/subjects-relational";
+import { migrateAllStructuredDomainsIfNeeded } from "@/lib/server/structured-domain-registry";
 import { deployTenantSchemasForAllSchools } from "@/lib/server/tenant-provisioning";
 import { getSchoolDatabaseName } from "@/lib/server/schools";
 import { getTenantPrisma } from "@/lib/tenant-prisma";
@@ -44,6 +45,7 @@ async function main() {
     const accountMigrated = await migrateLegacyAccountsIfNeeded(school.id);
     const announcementMigrated = await migrateLegacyAnnouncementsIfNeeded(school.id);
     const subjectMigrated = await migrateLegacySubjectsIfNeeded(school.id);
+    const domainMigrated = await migrateAllStructuredDomainsIfNeeded(school.id);
 
     console.log(
       studentMigrated
@@ -62,7 +64,7 @@ async function main() {
     );
     console.log(
       accountMigrated
-        ? `Migrated users for ${school.name} into SystemAccount (parents/admins/teachers).`
+        ? `Migrated users for ${school.name} into SystemAccount.`
         : `No legacy ${ACCOUNTS_STORAGE_KEY} migration needed for ${school.name}.`,
     );
     console.log(
@@ -76,16 +78,20 @@ async function main() {
         : `No legacy ${SUBJECTS_STORAGE_KEY} migration needed for ${school.name}.`,
     );
 
+    if (domainMigrated.length > 0) {
+      console.log(
+        `Migrated ${domainMigrated.length} additional domain(s) for ${school.name}: ${domainMigrated.join(", ")}`,
+      );
+    }
+
     const databaseName = await getSchoolDatabaseName(school.id);
     if (databaseName) {
       const tenant = getTenantPrisma(databaseName);
       const jsonMigrated = await migrateAllLegacyJsonKeysForTenant(tenant);
       if (jsonMigrated.length > 0) {
         console.log(
-          `Migrated ${jsonMigrated.length} JSON store key(s) for ${school.name}: ${jsonMigrated.join(", ")}`,
+          `Migrated leftover JSON keys for ${school.name}: ${jsonMigrated.join(", ")}`,
         );
-      } else {
-        console.log(`No remaining AppStorage JSON keys to migrate for ${school.name}.`);
       }
     }
   }

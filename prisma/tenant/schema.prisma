@@ -831,6 +831,233 @@ model SystemAccount {
   @@index([email])
 }
 
+model AttendanceEntry {
+  id              String   @id @default(cuid())
+  legacyId        String   @unique
+  sessionDate     String
+  classLabel      String
+  studentLegacyId String
+  studentName     String
+  status          String
+  remarks         String   @default("")
+  savedAt         DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([sessionDate, classLabel])
+  @@index([studentLegacyId])
+}
+
+model ExamCycleRecord {
+  id          String   @id @default(cuid())
+  legacyId    String   @unique
+  name        String
+  startDate   String
+  endDate     String
+  cycleStatus String   @default("upcoming")
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ExamScheduleRecord {
+  id              String   @id @default(cuid())
+  legacyId        String   @unique
+  cycleLegacyId   String
+  className       String
+  subjectLegacyId String
+  examDate        String
+  examTime        String
+  duration        Int
+  maxMarks        Int
+  venue           String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([cycleLegacyId])
+}
+
+model ExamMarkRecord {
+  id              String   @id @default(cuid())
+  legacyId        String   @unique
+  studentLegacyId String
+  cycleLegacyId   String
+  className       String
+  section         String   @default("")
+  subjectLegacyId String
+  marksObtained   Float
+  remarks         String   @default("")
+  enteredBy       String   @default("")
+  enteredAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([cycleLegacyId, studentLegacyId])
+}
+
+model FinanceInvoiceRecord {
+  id              String   @id @default(cuid())
+  legacyId        String   @unique
+  invoiceNo       String
+  studentLegacyId String?
+  studentName     String
+  className       String
+  totalAmount     Float
+  paidAmount      Float    @default(0)
+  invoiceStatus   String   @default("issued")
+  issuedAt        String
+  dueAt           String
+  lineItems       Json?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([invoiceNo])
+}
+
+model SchoolMessageRecord {
+  id                String   @id @default(cuid())
+  legacyId          String   @unique
+  senderLegacyId    String
+  senderName        String
+  senderEmail       String
+  recipientLegacyId String
+  recipientName     String
+  recipientEmail    String
+  subject           String
+  body              String   @db.Text
+  preview           String   @default("")
+  messageCreatedAt  DateTime
+  timestampLabel    String   @default("")
+  isRead            Boolean  @default(false)
+  hasAttachment     Boolean  @default(false)
+  replyToLegacyId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([recipientLegacyId, isRead])
+}
+
+model TeacherCheckInRecord {
+  id              String    @id @default(cuid())
+  legacyId        String    @unique
+  teacherLegacyId String
+  teacherName     String
+  teacherEmail    String
+  department      String    @default("")
+  checkDate       String
+  checkInAt       DateTime
+  reviewStatus    String    @default("pending")
+  reviewedBy      String?
+  reviewedByName  String?
+  reviewedAt      DateTime?
+  reviewNote      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([checkDate, teacherLegacyId])
+}
+
+model SchoolResourceRecord {
+  id           String   @id @default(cuid())
+  legacyId     String   @unique
+  code         String
+  name         String
+  capacity     Int      @default(40)
+  resourceType String   @default("classroom")
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model StudentDocumentRecord {
+  id              String   @id @default(cuid())
+  legacyId        String   @unique
+  studentLegacyId String
+  category        String
+  customLabel     String?
+  fileName        String
+  mimeType        String
+  fileSize        Int
+  dataUrl         String   @db.Text
+  uploadedAt      DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([studentLegacyId])
+}
+
+model GeneratedReportRecord {
+  id          String   @id @default(cuid())
+  legacyId    String   @unique
+  reportType  String
+  title       String
+  generatedAt DateTime
+  dateFrom    String
+  dateTo      String
+  format      String
+  sizeBytes   Int
+  rowCount    Int
+  fileName    String
+  mimeType    String
+  content     String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ActiveAlertRecord {
+  id              String   @id @default(cuid())
+  legacyId        String   @unique
+  alertType       String
+  title           String
+  message         String   @db.Text
+  severity        String
+  alertCreatedAt  DateTime
+  isRead          Boolean  @default(false)
+  isDismissed     Boolean  @default(false)
+  channels        Json     @default("[]")
+  fingerprint     String   @default("")
+  studentLegacyId String?
+  className       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AlertDispatchLogRecord {
+  id           String   @id @default(cuid())
+  legacyId     String   @unique
+  fingerprint  String
+  channel      String
+  dispatchedAt DateTime
+  createdAt    DateTime @default(now())
+}
+
+model TimetableEntryRecord {
+  id        String   @id @default(cuid())
+  legacyId  String   @unique
+  sortOrder Int      @default(0)
+  payload   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SchoolAssignmentRecord {
+  id        String   @id @default(cuid())
+  legacyId  String   @unique
+  title     String
+  className String
+  dueDate   String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SchoolSettingRecord {
+  settingKey String   @id
+  payload    Json
+  updatedAt  DateTime @updatedAt
+}
+
 /// Transitional per-tenant key store (removed as domains move to relational tables).
 model AppStorage {
   id        String   @id @default(cuid())
