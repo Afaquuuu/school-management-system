@@ -1,7 +1,16 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useSchool } from "@/lib/school-context";
 import { isClientDatabaseMode } from "@/lib/storage-mode";
+
+const PUBLIC_ENTRY_PATHS = ["/", "/school-auth", "/login", "/unauthorized"];
+
+function isPublicEntryPath(pathname: string): boolean {
+  return PUBLIC_ENTRY_PATHS.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+}
 
 function LoadingScreen({ message }: { message: string }) {
   return (
@@ -15,17 +24,19 @@ function LoadingScreen({ message }: { message: string }) {
 }
 
 export function StorageReadyGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const { isLoading, isStorageReady, currentSchool } = useSchool();
+  const publicEntry = isPublicEntryPath(pathname);
 
   if (!isClientDatabaseMode()) {
     return <>{children}</>;
   }
 
-  if (isLoading) {
+  if (isLoading && !publicEntry) {
     return <LoadingScreen message="Loading schools..." />;
   }
 
-  if (currentSchool && !isStorageReady) {
+  if (currentSchool && !isStorageReady && !publicEntry) {
     return <LoadingScreen message="Loading school data..." />;
   }
 
