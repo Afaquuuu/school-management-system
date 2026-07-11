@@ -156,20 +156,27 @@ model SchoolClass {
 model StudentProfile {
   id              String            @id @default(cuid())
   userId          String            @unique
+  legacyId        String?           @unique
   admissionNo     String            @unique
   rollNumber      String?
-  classId         String
+  classId         String?
+  classLabel      String            @default("")
+  sectionLabel    String            @default("")
   dateOfBirth     DateTime?
   gender          Gender?
   guardianNotes   String?
   bloodGroup      String?
+  address         String?
+  photoUrl        String?
+  studentStatus   String            @default("active")
+  metadata        Json?
   admissionDate   DateTime         @default(now())
   isActive        Boolean          @default(true)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  schoolClass     SchoolClass      @relation(fields: [classId], references: [id], onDelete: Restrict)
+  schoolClass     SchoolClass?     @relation(fields: [classId], references: [id], onDelete: SetNull)
   guardians       StudentGuardian[]
   attendance      AttendanceRecord[]
   subjectAttendanceRecords SubjectAttendanceRecord[]
