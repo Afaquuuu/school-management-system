@@ -8,7 +8,12 @@ import { getUserSession, type UserSession } from "@/lib/teacher-check-in";
 const PUBLIC_ROUTES = ["/", "/login", "/school-auth", "/unauthorized"];
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
+  return PUBLIC_ROUTES.some((route) => {
+    if (route === "/") {
+      return pathname === "/";
+    }
+    return pathname === route || pathname.startsWith(`${route}/`);
+  });
 }
 
 function getDashboardPath(role: string): string {
@@ -70,17 +75,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [ready, userSession, pathname, router, publicRoute]);
 
-  if (!ready) {
-    return <LoadingScreen />;
-  }
-
   if (publicRoute) {
     return <>{children}</>;
   }
 
-  if (userSession) {
-    return <>{children}</>;
+  if (!ready || !userSession) {
+    return <LoadingScreen />;
   }
 
-  return <LoadingScreen />;
+  return <>{children}</>;
 }
