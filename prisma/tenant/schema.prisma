@@ -236,6 +236,7 @@ model StaffProfile {
 
 model GuardianProfile {
   id              String           @id @default(cuid())
+  legacyAccountId String?          @unique
   userId          String           @unique
   relationship    String?
   occupation      String?

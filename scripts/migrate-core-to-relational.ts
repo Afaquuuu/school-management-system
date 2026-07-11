@@ -3,6 +3,7 @@ import {
   ACCOUNTS_STORAGE_KEY,
   migrateLegacyAccountsIfNeeded,
 } from "@/lib/server/accounts-relational";
+import { migrateGuardianProfilesIfNeeded } from "@/lib/server/guardians-relational";
 import {
   ANNOUNCEMENTS_STORAGE_KEY,
   migrateLegacyAnnouncementsIfNeeded,
@@ -43,6 +44,7 @@ async function main() {
     const classMigrated = await migrateLegacyClassesIfNeeded(school.id);
     const staffMigrated = await migrateLegacyStaffIfNeeded(school.id);
     const accountMigrated = await migrateLegacyAccountsIfNeeded(school.id);
+    const guardianMigrated = await migrateGuardianProfilesIfNeeded(school.id);
     const announcementMigrated = await migrateLegacyAnnouncementsIfNeeded(school.id);
     const subjectMigrated = await migrateLegacySubjectsIfNeeded(school.id);
     const domainMigrated = await migrateAllStructuredDomainsIfNeeded(school.id);
@@ -66,6 +68,11 @@ async function main() {
       accountMigrated
         ? `Migrated users for ${school.name} into SystemAccount.`
         : `No legacy ${ACCOUNTS_STORAGE_KEY} migration needed for ${school.name}.`,
+    );
+    console.log(
+      guardianMigrated
+        ? `Synced parent accounts for ${school.name} into GuardianProfile and StudentGuardian.`
+        : `GuardianProfile sync checked for ${school.name}.`,
     );
     console.log(
       announcementMigrated

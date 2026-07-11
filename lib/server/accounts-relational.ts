@@ -1,5 +1,9 @@
 import type { PrismaClient } from "@prisma/tenant-client";
 
+import {
+  deleteGuardianForAccount,
+  syncGuardianProfilesFromAccounts,
+} from "@/lib/server/guardians-relational";
 import { getTenantPrisma } from "@/lib/tenant-prisma";
 import { getSchoolDatabaseName } from "@/lib/server/schools";
 import type { SystemUser } from "@/lib/system-users";
@@ -59,6 +63,7 @@ export async function saveAccountsToRelationalStore(
 
   for (const row of existing) {
     if (!incomingIds.has(row.id)) {
+      await deleteGuardianForAccount(tenant, row.id);
       await tenant.systemAccount.delete({ where: { id: row.id } });
     }
   }
@@ -86,6 +91,8 @@ export async function saveAccountsToRelationalStore(
       update: data,
     });
   }
+
+  await syncGuardianProfilesFromAccounts(tenant, users);
 }
 
 export async function getRelationalAccountsJson(schoolId: string): Promise<string | null> {

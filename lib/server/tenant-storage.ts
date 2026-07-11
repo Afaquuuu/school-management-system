@@ -43,6 +43,7 @@ import {
   setRelationalSubjectsJson,
   SUBJECTS_STORAGE_KEY,
 } from "@/lib/server/subjects-relational";
+import { migrateGuardianProfilesIfNeeded } from "@/lib/server/guardians-relational";
 import {
   deleteStructuredDomain,
   getStructuredDomainHandler,
@@ -74,6 +75,7 @@ async function ensureRelationalDataMigrated(schoolId: string): Promise<void> {
   await migrateLegacyClassesIfNeeded(schoolId);
   await migrateLegacyStaffIfNeeded(schoolId);
   await migrateLegacyAccountsIfNeeded(schoolId);
+  await migrateGuardianProfilesIfNeeded(schoolId);
   await migrateLegacyAnnouncementsIfNeeded(schoolId);
   await migrateLegacySubjectsIfNeeded(schoolId);
   await migrateAllStructuredDomainsIfNeeded(schoolId);
@@ -197,6 +199,13 @@ export async function removeTenantStorageItem(schoolId: string, key: string): Pr
   }
 
   if (key === ACCOUNTS_STORAGE_KEY) {
+    const guardians = await tenant.guardianProfile.findMany({
+      where: { legacyAccountId: { not: null } },
+      select: { userId: true },
+    });
+    for (const guardian of guardians) {
+      await tenant.user.delete({ where: { id: guardian.userId } });
+    }
     await tenant.systemAccount.deleteMany();
     await tenant.appStorage.deleteMany({ where: { key: ACCOUNTS_STORAGE_KEY } });
     return;
