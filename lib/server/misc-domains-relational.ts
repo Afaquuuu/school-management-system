@@ -218,7 +218,7 @@ export const studentDocumentsDomain = buildDomainBridge<StudentDocumentJson>({
       fileUrl: row.fileUrl ?? undefined,
       cloudinaryPublicId: row.cloudinaryPublicId ?? undefined,
       cloudinaryResourceType: row.cloudinaryResourceType ?? undefined,
-      dataUrl: row.dataUrl ?? undefined,
+      dataUrl: row.fileUrl ? undefined : row.dataUrl ?? undefined,
       uploadedAt: row.uploadedAt.toISOString(),
     }));
   },
@@ -235,7 +235,7 @@ export const studentDocumentsDomain = buildDomainBridge<StudentDocumentJson>({
         fileUrl: item.fileUrl ?? null,
         cloudinaryPublicId: item.cloudinaryPublicId ?? null,
         cloudinaryResourceType: item.cloudinaryResourceType ?? null,
-        dataUrl: item.dataUrl ?? null,
+        dataUrl: item.fileUrl ? null : item.dataUrl ?? null,
         uploadedAt: parseDate(item.uploadedAt) ?? new Date(),
       };
       if (existingId) {

@@ -13,6 +13,7 @@ import {
 import {
   ALLOWED_DOCUMENT_MIME_TYPES,
   MAX_DOCUMENT_SIZE_BYTES,
+  stripDocumentBlobForClient,
   type DocumentCategory,
 } from "@/lib/student-documents";
 
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
       uploadedAt: new Date().toISOString(),
     });
 
-    return NextResponse.json({ document });
+    return NextResponse.json({ document: stripDocumentBlobForClient(document) });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to upload document." },
@@ -150,5 +151,7 @@ export async function GET(request: Request) {
     ? documents.filter((document) => document.studentId === studentId)
     : documents;
 
-  return NextResponse.json({ documents: filtered });
+  return NextResponse.json({
+    documents: filtered.map(stripDocumentBlobForClient),
+  });
 }

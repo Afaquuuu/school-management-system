@@ -1,5 +1,7 @@
 "use client";
 
+const STUDENT_DOCUMENTS_STORAGE_KEY = "student_documents";
+
 const schoolCaches = new Map<string, Map<string, string>>();
 const pendingWrites = new Map<
   string,
@@ -44,6 +46,28 @@ export function getCachedScopedItem(schoolId: string, key: string): string | nul
 export function setCachedScopedItem(schoolId: string, key: string, value: string): void {
   getSchoolCache(schoolId).set(key, value);
   schedulePersist(schoolId, key, value);
+}
+
+/** Update in-memory cache only — used when the server already persisted the change. */
+export function setCachedScopedItemLocalOnly(schoolId: string, key: string, value: string): void {
+  getSchoolCache(schoolId).set(key, value);
+}
+
+function compactStudentDocumentsCacheValue(value: string): string {
+  try {
+    const documents = JSON.parse(value) as Array<{ fileUrl?: string; dataUrl?: string }>;
+    if (!Array.isArray(documents)) return value;
+
+    return JSON.stringify(
+      documents.map((document) => {
+        if (!document.fileUrl || !document.dataUrl) return document;
+        const { dataUrl: _removed, ...rest } = document;
+        return rest;
+      }),
+    );
+  } catch {
+    return value;
+  }
 }
 
 export function removeCachedScopedItem(schoolId: string, key: string): void {
@@ -96,7 +120,10 @@ export async function hydrateSchoolStorageFromServer(schoolId: string): Promise<
     cache.clear();
 
     for (const [key, value] of Object.entries(payload.entries ?? {})) {
-      cache.set(key, value);
+      cache.set(
+        key,
+        key === STUDENT_DOCUMENTS_STORAGE_KEY ? compactStudentDocumentsCacheValue(value) : value,
+      );
     }
   })();
 

@@ -26,6 +26,8 @@ import {
   SUBJECTS_STORAGE_KEY,
 } from "@/lib/server/subjects-relational";
 import { migrateAllStructuredDomainsIfNeeded } from "@/lib/server/structured-domain-registry";
+import { isCloudinaryConfigured } from "@/lib/server/cloudinary-client";
+import { migrateLegacyStudentDocumentsIfNeeded } from "@/lib/server/student-documents-migration";
 import { deployTenantSchemasForAllSchools } from "@/lib/server/tenant-provisioning";
 import { getSchoolDatabaseName } from "@/lib/server/schools";
 import { getTenantPrisma } from "@/lib/tenant-prisma";
@@ -89,6 +91,15 @@ async function main() {
       console.log(
         `Migrated ${domainMigrated.length} additional domain(s) for ${school.name}: ${domainMigrated.join(", ")}`,
       );
+    }
+
+    if (isCloudinaryConfigured()) {
+      const documentResult = await migrateLegacyStudentDocumentsIfNeeded(school.id);
+      if (documentResult.uploaded + documentResult.cleared + documentResult.failed > 0) {
+        console.log(
+          `Student documents for ${school.name}: uploaded ${documentResult.uploaded}, cleared ${documentResult.cleared}, failed ${documentResult.failed}.`,
+        );
+      }
     }
 
     const databaseName = await getSchoolDatabaseName(school.id);

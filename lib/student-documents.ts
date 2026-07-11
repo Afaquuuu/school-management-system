@@ -1,5 +1,6 @@
 import { formatStudentClassLabel } from "@/lib/class-labels";
 import { getScopedItem, setScopedItem } from "@/lib/school-context";
+import { setCachedScopedItemLocalOnly } from "@/lib/tenant-storage-cache";
 import {
   formatStudentLinkLabel,
   loadSchoolStudentRecords,
@@ -101,7 +102,28 @@ export const ALLOWED_DOCUMENT_EXTENSIONS = ".png,.jpg,.jpeg,.pdf,image/png,image
 
 export const MAX_DOCUMENT_SIZE_BYTES = 2 * 1024 * 1024;
 
-const STORAGE_KEY = "student_documents";
+export const STUDENT_DOCUMENTS_STORAGE_KEY = "student_documents";
+
+const STORAGE_KEY = STUDENT_DOCUMENTS_STORAGE_KEY;
+
+/** Drop inline base64 when a Cloudinary URL exists — keeps DB/cache payloads small. */
+export function stripDocumentBlobForStorage(document: StudentDocument): StudentDocument {
+  if (!document.fileUrl || !document.dataUrl) return document;
+  const { dataUrl: _removed, ...rest } = document;
+  return rest;
+}
+
+export function stripDocumentBlobForClient(document: StudentDocument): StudentDocument {
+  return stripDocumentBlobForStorage(document);
+}
+
+export function stripDocumentBlobsForClient(documents: StudentDocument[]): StudentDocument[] {
+  return documents.map(stripDocumentBlobForClient);
+}
+
+export function serializeStudentDocumentsForCache(documents: StudentDocument[]): string {
+  return JSON.stringify(stripDocumentBlobsForClient(documents));
+}
 
 export function getDocumentCategoryLabel(document: Pick<StudentDocument, "category" | "customLabel">): string {
   if (document.category === "other" && document.customLabel?.trim()) {
@@ -132,7 +154,7 @@ export function loadStudentDocuments(schoolId: string): StudentDocument[] {
 }
 
 export function saveStudentDocuments(schoolId: string, documents: StudentDocument[]): void {
-  setScopedItem(schoolId, STORAGE_KEY, JSON.stringify(documents));
+  setScopedItem(schoolId, STORAGE_KEY, serializeStudentDocumentsForCache(documents));
 }
 
 export function getDocumentsForStudent(schoolId: string, studentId: string): StudentDocument[] {
@@ -393,8 +415,7 @@ export async function uploadStudentDocument(
     throw new Error(payload.error ?? "Could not upload the document.");
   }
 
-  const documents = loadStudentDocuments(schoolId);
-  saveStudentDocuments(schoolId, [...documents, payload.document]);
+  mergeStudentDocumentInLocalCache(schoolId, payload.document);
 
   return payload.document;
 }
@@ -419,7 +440,25 @@ export async function deleteStudentDocumentRemote(
     throw new Error(payload.error ?? "Could not delete the document.");
   }
 
-  deleteStudentDocument(schoolId, documentId);
+  removeStudentDocumentFromLocalCache(schoolId, documentId);
+}
+
+function mergeStudentDocumentInLocalCache(schoolId: string, document: StudentDocument): void {
+  const documents = loadStudentDocuments(schoolId).filter((item) => item.id !== document.id);
+  setCachedScopedItemLocalOnly(
+    schoolId,
+    STORAGE_KEY,
+    serializeStudentDocumentsForCache([...documents, document]),
+  );
+}
+
+function removeStudentDocumentFromLocalCache(schoolId: string, documentId: string): void {
+  const documents = loadStudentDocuments(schoolId).filter((document) => document.id !== documentId);
+  setCachedScopedItemLocalOnly(
+    schoolId,
+    STORAGE_KEY,
+    serializeStudentDocumentsForCache(documents),
+  );
 }
 
 export function getDocumentFileUrl(document: StudentDocument): string {
