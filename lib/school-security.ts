@@ -1,4 +1,5 @@
 import { downloadTextFile } from "@/lib/export-data";
+import { BACKUP_FREQUENCIES } from "@/lib/backup-frequency";
 import { getScopedItem, getScopedKey, setScopedItem } from "@/lib/school-context";
 import {
   defaultSchoolSystemSettings,
@@ -118,7 +119,7 @@ export function validateSecuritySettingsInput(
     return "Login attempt limit must be between 3 and 20.";
   }
 
-  if (!["Hourly", "Daily", "Weekly"].includes(security.backupFrequency)) {
+  if (!(BACKUP_FREQUENCIES as readonly string[]).includes(security.backupFrequency)) {
     return "Select a valid backup frequency.";
   }
 
@@ -288,10 +289,12 @@ export function verifyPendingAdminTwoFactor(code: string): PendingAdminTwoFactor
 
 function getBackupIntervalMs(frequency: string): number {
   switch (frequency) {
-    case "Hourly":
-      return 60 * 60 * 1000;
     case "Weekly":
       return 7 * 24 * 60 * 60 * 1000;
+    case "Monthly":
+      return 30 * 24 * 60 * 60 * 1000;
+    case "Yearly":
+      return 365 * 24 * 60 * 60 * 1000;
     case "Daily":
     default:
       return 24 * 60 * 60 * 1000;

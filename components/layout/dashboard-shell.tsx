@@ -23,10 +23,10 @@ import {
   type ActiveAlert,
 } from "@/lib/school-alerts";
 import { refreshAndDispatchSchoolAlerts } from "@/lib/alert-dispatch";
+import { runSchoolBackupIfDue } from "@/lib/backup-client";
 import { getUserSession, redirectToLogin } from "@/lib/teacher-check-in";
 import {
   isSessionExpired,
-  runScheduledBackupIfDue,
   touchUserSession,
 } from "@/lib/school-security";
 import { getActivePageContext } from "@/lib/navigation";
@@ -146,7 +146,7 @@ export function DashboardShell({
 
   useEffect(() => {
     if (!currentSchool || userRole !== "admin") return;
-    runScheduledBackupIfDue(currentSchool.id, currentSchool.name);
+    void runSchoolBackupIfDue(currentSchool.id).catch(() => undefined);
   }, [currentSchool, userRole]);
 
   useEffect(() => {

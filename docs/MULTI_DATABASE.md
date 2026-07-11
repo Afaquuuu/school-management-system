@@ -87,6 +87,25 @@ TENANT_DATABASE_URL=postgresql://schoolapp:pass@localhost:5432/sms_school_178368
 pg_dump -d sms_school_1783689051336 > qaaps_backup.sql
 ```
 
+Admins can also schedule backups in **Admin → Settings → System Security**:
+
+- Daily / Weekly / Monthly / Yearly
+- Create backup now
+- Download latest `.sql.gz` backup from the server
+
+Run scheduled backups for all schools (add to cron hourly):
+
+```bash
+cd /var/www/school-management-system
+npm run db:backups:run
+```
+
+Example cron:
+
+```bash
+0 * * * * cd /var/www/school-management-system && /usr/bin/npm run db:backups:run >> /var/log/school-backups.log 2>&1
+```
+
 ## Restore one school
 
 ```bash

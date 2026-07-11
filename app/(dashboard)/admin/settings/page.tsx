@@ -21,8 +21,13 @@ import {
   type SecuritySettings,
 } from "@/lib/school-settings";
 import {
-  downloadSchoolBackup,
-  getBackupStatusLabel,
+  createSchoolBackupNow,
+  downloadSchoolBackupFile,
+  fetchSchoolBackupStatus,
+  type SchoolBackupStatusResponse,
+} from "@/lib/backup-client";
+import { BACKUP_FREQUENCIES } from "@/lib/backup-frequency";
+import {
   getLastBackupTimestamp,
   validateSecuritySettingsInput,
 } from "@/lib/school-security";
@@ -52,6 +57,8 @@ export default function SettingsPage() {
   );
   const [security, setSecurity] = useState<SecuritySettings>(defaultSchoolSystemSettings().security);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+  const [serverBackupStatus, setServerBackupStatus] = useState<SchoolBackupStatusResponse | null>(null);
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState(PRIMARY_ADMIN_EMAIL);
   const [testWhatsAppTo, setTestWhatsAppTo] = useState("");
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
@@ -76,6 +83,9 @@ export default function SettingsPage() {
     setCommunication(settings.communication);
     setSecurity(settings.security);
     setLastBackupAt(getLastBackupTimestamp(currentSchool.id));
+    void fetchSchoolBackupStatus(currentSchool.id)
+      .then(setServerBackupStatus)
+      .catch(() => setServerBackupStatus(null));
     void fetchWhatsAppSessionStatus(currentSchool.id).then(setWhatsappSession);
   }, [currentSchool, isStorageReady]);
 
@@ -772,7 +782,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className={recordFormFieldLabel}>Data Backup Frequency</label>
+            <label className={recordFormFieldLabel}>PostgreSQL Backup Schedule</label>
             <select
               value={security.backupFrequency}
               onChange={(e) =>
@@ -780,10 +790,16 @@ export default function SettingsPage() {
               }
               className="input-field"
             >
-              <option value="Hourly">Hourly</option>
-              <option value="Daily">Daily</option>
-              <option value="Weekly">Weekly</option>
+              {BACKUP_FREQUENCIES.map((frequency) => (
+                <option key={frequency} value={frequency}>
+                  {frequency}
+                </option>
+              ))}
             </select>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              Saves a full PostgreSQL backup for this school on the server. Choose daily, weekly,
+              monthly, or yearly.
+            </p>
           </div>
           <label className="flex items-center gap-2 md:col-span-2">
             <input
@@ -800,22 +816,80 @@ export default function SettingsPage() {
             Admin 2FA sends a 6-digit verification code by email after the password is entered.
             Configure Brevo SMTP under Communication Settings for reliable delivery.
           </p>
-          <div className="md:col-span-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-            <div className="flex-1 text-sm text-slate-600">
-              {currentSchool ? getBackupStatusLabel(currentSchool.id) : "Backup status unavailable."}
+          <div className="md:col-span-2 space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="text-sm text-slate-600">
+              {serverBackupStatus?.statusLabel ??
+                "Server backup status will appear here after the first PostgreSQL backup."}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (!currentSchool) return;
-                downloadSchoolBackup(currentSchool.id, currentSchool.name);
-                setLastBackupAt(getLastBackupTimestamp(currentSchool.id));
-              }}
-              className="btn-secondary"
-            >
-              <Download className="h-4 w-4" />
-              Download Backup Now
-            </button>
+            {serverBackupStatus?.nextDueAt ? (
+              <p className="text-xs text-slate-500">
+                Next scheduled backup: {new Date(serverBackupStatus.nextDueAt).toLocaleString()}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                disabled={!currentSchool || isCreatingBackup}
+                onClick={async () => {
+                  if (!currentSchool) return;
+                  setIsCreatingBackup(true);
+                  setError("");
+                  try {
+                    const status = await createSchoolBackupNow(currentSchool.id);
+                    setServerBackupStatus(status);
+                    setLastBackupAt(status.meta.lastAt);
+                  } catch (backupError) {
+                    setError(
+                      backupError instanceof Error
+                        ? backupError.message
+                        : "Failed to create PostgreSQL backup.",
+                    );
+                  } finally {
+                    setIsCreatingBackup(false);
+                  }
+                }}
+                className="btn-secondary disabled:opacity-60"
+              >
+                <Download className="h-4 w-4" />
+                {isCreatingBackup ? "Creating Backup..." : "Create Server Backup Now"}
+              </button>
+              {currentSchool && serverBackupStatus?.meta.lastFile ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadSchoolBackupFile(currentSchool.id, serverBackupStatus.meta.lastFile!)
+                  }
+                  className="btn-secondary"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Latest Backup
+                </button>
+              ) : null}
+            </div>
+            {serverBackupStatus?.files?.length ? (
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Saved backups on server
+                </p>
+                <ul className="space-y-2 text-sm text-slate-700">
+                  {serverBackupStatus.files.slice(0, 5).map((file) => (
+                    <li key={file.filename} className="flex items-center justify-between gap-3">
+                      <span className="truncate">{file.filename}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          currentSchool &&
+                          downloadSchoolBackupFile(currentSchool.id, file.filename)
+                        }
+                        className="text-teal-700 hover:underline"
+                      >
+                        Download
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
         </div>
       ),
@@ -914,10 +988,8 @@ export default function SettingsPage() {
           <div>
             <p className="font-semibold text-blue-900">Automatic Backups</p>
             <p className="mt-1 text-sm text-blue-800">
-              {currentSchool
-                ? getBackupStatusLabel(currentSchool.id)
-                : "Configure backup frequency above."}
-              {lastBackupAt ? ` Last saved backup: ${new Date(lastBackupAt).toLocaleString()}.` : ""}
+              {serverBackupStatus?.statusLabel ??
+                "Configure PostgreSQL backup frequency above."}
             </p>
           </div>
         </div>
