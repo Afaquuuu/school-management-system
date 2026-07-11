@@ -13,6 +13,7 @@ import {
   removeCachedScopedItem,
   setCachedScopedItem,
 } from "@/lib/tenant-storage-cache";
+import { getOwnerRegistrationKeyForApi } from "@/lib/school-registration-access";
 
 type School = {
   id: string;
@@ -203,7 +204,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       void fetch("/api/schools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: optimisticSchool.id, ...schoolData }),
+        body: JSON.stringify({
+          id: optimisticSchool.id,
+          ...schoolData,
+          registrationKey: getOwnerRegistrationKeyForApi(),
+        }),
       })
         .then(async (response) => {
           if (!response.ok) return;

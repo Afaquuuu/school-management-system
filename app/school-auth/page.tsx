@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSchool } from "@/lib/school-context";
 import {
@@ -9,14 +9,23 @@ import {
 } from "@/lib/system-users";
 import { establishUserSession } from "@/lib/teacher-check-in";
 import { flushPendingStorageWrites } from "@/lib/tenant-storage-cache";
+import {
+  canAccessSchoolRegistration,
+  getOwnerRegistrationKeyForApi,
+  verifyOwnerRegistrationKey,
+} from "@/lib/school-registration-access";
 import { isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
 import { Building2, ArrowRight, School, CheckCircle, Shield, Eye, EyeOff } from "lucide-react";
 
 export default function SchoolAuthPage() {
   const router = useRouter();
   const { schools, addSchool, setCurrentSchool } = useSchool();
-  const registrationAllowed = isPublicSchoolRegistrationAllowed();
+  const [ownerUnlocked, setOwnerUnlocked] = useState(canAccessSchoolRegistration());
+  const registrationAllowed = isPublicSchoolRegistrationAllowed() || ownerUnlocked;
   const [mode, setMode] = useState<"select" | "register">("select");
+  const [ownerKeyInput, setOwnerKeyInput] = useState("");
+  const [ownerKeyError, setOwnerKeyError] = useState("");
+  const [isVerifyingOwnerKey, setIsVerifyingOwnerKey] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -29,6 +38,42 @@ export default function SchoolAuthPage() {
     adminPassword: "",
     confirmPassword: "",
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ownerKey = params.get("ownerKey")?.trim();
+    if (!ownerKey) return;
+
+    void verifyOwnerRegistrationKey(ownerKey).then((ok) => {
+      if (ok) {
+        setOwnerUnlocked(true);
+        setMode("register");
+      } else {
+        setOwnerKeyError("Invalid owner registration key.");
+      }
+      window.history.replaceState({}, "", "/school-auth");
+    });
+  }, []);
+
+  const handleOwnerKeyUnlock = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setOwnerKeyError("");
+    setIsVerifyingOwnerKey(true);
+
+    try {
+      const ok = await verifyOwnerRegistrationKey(ownerKeyInput);
+      if (!ok) {
+        setOwnerKeyError("Invalid owner registration key.");
+        return;
+      }
+
+      setOwnerUnlocked(true);
+      setMode("register");
+      setOwnerKeyInput("");
+    } finally {
+      setIsVerifyingOwnerKey(false);
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -366,6 +411,34 @@ export default function SchoolAuthPage() {
               </p>
             </form>
           )}
+
+          {!isPublicSchoolRegistrationAllowed() && !ownerUnlocked ? (
+            <div className="mt-6 border-t border-slate-200 pt-5">
+              <p className="mb-3 text-center text-xs font-medium uppercase tracking-wide text-slate-400">
+                Platform owner only
+              </p>
+              <form onSubmit={handleOwnerKeyUnlock} className="space-y-3">
+                <input
+                  type="password"
+                  value={ownerKeyInput}
+                  onChange={(event) => setOwnerKeyInput(event.target.value)}
+                  placeholder="Owner registration key"
+                  className="input-field"
+                  autoComplete="off"
+                />
+                {ownerKeyError ? (
+                  <p className="text-sm text-red-600">{ownerKeyError}</p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={isVerifyingOwnerKey || !ownerKeyInput.trim()}
+                  className="btn-secondary w-full py-2.5"
+                >
+                  {isVerifyingOwnerKey ? "Checking..." : "Unlock Register School"}
+                </button>
+              </form>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSchool } from "@/lib/school-context";
-import { isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
+import { canAccessSchoolRegistration } from "@/lib/school-registration-access";
 import { Building2, ChevronDown, LogOut, Settings, Plus, Check } from "lucide-react";
 
 export function SchoolSwitcher() {
   const router = useRouter();
   const { currentSchool, schools, switchSchool, logout } = useSchool();
-  const registrationAllowed = isPublicSchoolRegistrationAllowed();
+  const registrationAllowed = canAccessSchoolRegistration();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!currentSchool) {

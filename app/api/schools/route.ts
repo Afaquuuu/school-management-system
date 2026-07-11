@@ -6,7 +6,7 @@ import {
   listSchools,
   updateSchool,
 } from "@/lib/server/schools";
-import { isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
+import { canCreateSchool, isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
 import { isServerDatabaseMode } from "@/lib/storage-mode";
 
 export const runtime = "nodejs";
@@ -36,15 +36,16 @@ export async function POST(request: Request) {
       phone?: string;
       email?: string;
       logo?: string;
+      registrationKey?: string;
     };
 
     if (!body.name?.trim() || !body.email?.trim()) {
       return NextResponse.json({ error: "School name and email are required." }, { status: 400 });
     }
 
-    if (!isPublicSchoolRegistrationAllowed()) {
+    if (!canCreateSchool(body.registrationKey)) {
       return NextResponse.json(
-        { error: "Public school registration is disabled on this server." },
+        { error: "School registration is restricted on this server." },
         { status: 403 },
       );
     }
