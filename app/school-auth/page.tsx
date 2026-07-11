@@ -10,8 +10,7 @@ import {
 import { establishUserSession } from "@/lib/teacher-check-in";
 import { flushPendingStorageWrites } from "@/lib/tenant-storage-cache";
 import {
-  canAccessSchoolRegistration,
-  getOwnerRegistrationKeyForApi,
+  hasOwnerRegistrationAccess,
   verifyOwnerRegistrationKey,
 } from "@/lib/school-registration-access";
 import { isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
@@ -20,8 +19,9 @@ import { Building2, ArrowRight, School, CheckCircle, Shield, Eye, EyeOff } from 
 export default function SchoolAuthPage() {
   const router = useRouter();
   const { schools, addSchool, setCurrentSchool } = useSchool();
-  const [ownerUnlocked, setOwnerUnlocked] = useState(canAccessSchoolRegistration());
-  const registrationAllowed = isPublicSchoolRegistrationAllowed() || ownerUnlocked;
+  const [ownerUnlocked, setOwnerUnlocked] = useState(false);
+  const showRegisterSchool =
+    isPublicSchoolRegistrationAllowed() || ownerUnlocked || hasOwnerRegistrationAccess();
   const [mode, setMode] = useState<"select" | "register">("select");
   const [ownerKeyInput, setOwnerKeyInput] = useState("");
   const [ownerKeyError, setOwnerKeyError] = useState("");
@@ -40,6 +40,9 @@ export default function SchoolAuthPage() {
   });
 
   useEffect(() => {
+    setMode("select");
+    setOwnerUnlocked(false);
+
     const params = new URLSearchParams(window.location.search);
     const ownerKey = params.get("ownerKey")?.trim();
     if (!ownerKey) return;
@@ -173,7 +176,7 @@ export default function SchoolAuthPage() {
         </div>
 
         <div className="auth-card">
-          {registrationAllowed ? (
+          {showRegisterSchool ? (
             <div className="mb-6 flex gap-1 rounded-lg bg-slate-100 p-1">
               <button
                 onClick={() => setMode("select")}
@@ -198,7 +201,7 @@ export default function SchoolAuthPage() {
             </div>
           ) : null}
 
-          {!registrationAllowed || mode === "select" ? (
+          {!showRegisterSchool || mode === "select" ? (
             <div className="space-y-4">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">Select your school</h2>
@@ -209,7 +212,7 @@ export default function SchoolAuthPage() {
                 <div className="py-10 text-center">
                   <Building2 className="mx-auto mb-4 h-14 w-14 text-slate-300" />
                   <p className="mb-4 text-slate-500">No schools registered yet</p>
-                  {registrationAllowed ? (
+                  {showRegisterSchool ? (
                     <button onClick={() => setMode("register")} className="btn-primary">
                       Register Your School
                     </button>

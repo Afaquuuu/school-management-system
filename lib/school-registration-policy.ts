@@ -12,7 +12,7 @@ export function isPublicSchoolRegistrationAllowed(): boolean {
     readRegistrationFlag(process.env.NEXT_PUBLIC_ALLOW_PUBLIC_SCHOOL_REGISTRATION);
 
   if (explicit !== null) return explicit;
-  return process.env.NODE_ENV !== "production";
+  return false;
 }
 
 export function getSchoolRegistrationSecret(): string | null {

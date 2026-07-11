@@ -13,6 +13,7 @@ import {
   removeCachedScopedItem,
   setCachedScopedItem,
 } from "@/lib/tenant-storage-cache";
+import { performAppSignOut } from "@/lib/app-sign-out";
 import { getOwnerRegistrationKeyForApi } from "@/lib/school-registration-access";
 
 type School = {
@@ -312,8 +313,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    performAppSignOut({ clearSelectedSchool: true });
     setCurrentSchoolState(null);
-    localStorage.removeItem("saas_current_school_id");
   };
 
   return (

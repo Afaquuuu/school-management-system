@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ChevronDown, LogOut, User } from "lucide-react";
+import { performAppSignOut } from "@/lib/app-sign-out";
 import {
   clearUserSession,
   getUserSession,
@@ -58,7 +59,7 @@ export function HeaderProfile() {
 
   const handleLogout = () => {
     setOpen(false);
-    clearUserSession();
+    performAppSignOut({ clearSelectedSchool: false });
     setUserSession(null);
     redirectToLogin();
   };

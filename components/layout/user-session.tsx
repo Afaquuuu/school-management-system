@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { User, LogOut, ChevronDown } from "lucide-react";
+import { performAppSignOut } from "@/lib/app-sign-out";
 import { clearUserSession, getUserSession, redirectToLogin, type UserSession } from "@/lib/teacher-check-in";
 
 export function UserSession() {
@@ -26,6 +27,7 @@ export function UserSession() {
 
   const handleLogout = () => {
     setShowDropdown(false);
+    performAppSignOut({ clearSelectedSchool: false });
     setUserSession(null);
     redirectToLogin();
   };
