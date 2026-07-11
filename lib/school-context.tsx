@@ -8,6 +8,7 @@ import { isClientDatabaseMode } from "@/lib/storage-mode";
 import {
   clearCachedSchoolStorage,
   getCachedScopedItem,
+  hydrateAuthStorageFromServer,
   hydrateSchoolStorageFromServer,
   removeCachedScopedItem,
   setCachedScopedItem,
@@ -28,6 +29,7 @@ type SchoolContextType = {
   schools: School[];
   isLoading: boolean;
   isStorageReady: boolean;
+  isAuthStorageReady: boolean;
   setCurrentSchool: (school: School) => void;
   addSchool: (school: Omit<School, "id" | "createdAt">) => School;
   updateSchool: (id: string, updates: Partial<School>) => void;
@@ -49,6 +51,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [schools, setSchools] = useState<School[]>([]);
   const [isLoading, setIsLoading] = useState(databaseMode);
   const [isStorageReady, setIsStorageReady] = useState(!databaseMode);
+  const [isAuthStorageReady, setIsAuthStorageReady] = useState(!databaseMode);
 
   useEffect(() => {
     if (!databaseMode) {
@@ -111,6 +114,42 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!databaseMode) {
+      setIsStorageReady(true);
+      setIsAuthStorageReady(true);
+      return;
+    }
+
+    if (!currentSchool) {
+      setIsStorageReady(true);
+      setIsAuthStorageReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    setIsAuthStorageReady(false);
+
+    (async () => {
+      try {
+        await hydrateAuthStorageFromServer(currentSchool.id);
+        if (!cancelled) {
+          runSchoolMigrations(currentSchool.id);
+          setIsAuthStorageReady(true);
+        }
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) {
+          setIsAuthStorageReady(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSchool?.id]);
 
   useEffect(() => {
     if (!databaseMode) {
@@ -279,6 +318,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         schools,
         isLoading,
         isStorageReady,
+        isAuthStorageReady,
         setCurrentSchool,
         addSchool,
         updateSchool,

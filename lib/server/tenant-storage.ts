@@ -70,7 +70,9 @@ async function getTenantClientForSchool(schoolId: string) {
   return getTenantPrisma(databaseName);
 }
 
-async function ensureRelationalDataMigrated(schoolId: string): Promise<void> {
+const migrationInflight = new Map<string, Promise<void>>();
+
+async function runRelationalMigrations(schoolId: string): Promise<void> {
   await migrateLegacyStudentsIfNeeded(schoolId);
   await migrateLegacyClassesIfNeeded(schoolId);
   await migrateLegacyStaffIfNeeded(schoolId);
@@ -79,6 +81,17 @@ async function ensureRelationalDataMigrated(schoolId: string): Promise<void> {
   await migrateLegacyAnnouncementsIfNeeded(schoolId);
   await migrateLegacySubjectsIfNeeded(schoolId);
   await migrateAllStructuredDomainsIfNeeded(schoolId);
+}
+
+async function ensureRelationalDataMigrated(schoolId: string): Promise<void> {
+  let inflight = migrationInflight.get(schoolId);
+  if (!inflight) {
+    inflight = runRelationalMigrations(schoolId).finally(() => {
+      migrationInflight.delete(schoolId);
+    });
+    migrationInflight.set(schoolId, inflight);
+  }
+  await inflight;
 }
 
 async function getCoreRelationalJson(schoolId: string, key: string): Promise<string | null> {
@@ -238,9 +251,15 @@ export async function getAllTenantStorage(schoolId: string): Promise<Record<stri
   await ensureRelationalDataMigrated(schoolId);
 
   const entries: Record<string, string> = {};
+  const structuredKeys = [...STRUCTURED_STORAGE_KEYS];
+  const structuredEntries = await Promise.all(
+    structuredKeys.map(async (key) => {
+      const value = await getTenantStorageItem(schoolId, key);
+      return [key, value] as const;
+    }),
+  );
 
-  for (const key of STRUCTURED_STORAGE_KEYS) {
-    const value = await getTenantStorageItem(schoolId, key);
+  for (const [key, value] of structuredEntries) {
     if (value) entries[key] = value;
   }
 

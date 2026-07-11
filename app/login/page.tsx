@@ -30,7 +30,7 @@ import {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { currentSchool, schools } = useSchool();
+  const { currentSchool, schools, isAuthStorageReady } = useSchool();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -47,7 +47,8 @@ export default function LoginPage() {
   const [verificationCode, setVerificationCode] = useState("");
   const [twoFactorNotice, setTwoFactorNotice] = useState("");
   const [isResendingCode, setIsResendingCode] = useState(false);
-  const schoolHasUsers = currentSchool ? hasSystemUsers(currentSchool.id) : false;
+  const schoolHasUsers =
+    currentSchool && isAuthStorageReady ? hasSystemUsers(currentSchool.id) : false;
   const passwordMinLength = currentSchool ? getPasswordMinLength(currentSchool.id) : 8;
 
   // Redirect if no school is selected
@@ -318,6 +319,17 @@ export default function LoginPage() {
         <div className="text-center">
           <School className="mx-auto mb-4 h-16 w-16 text-slate-300" />
           <p className="text-slate-500">Redirecting to school selection...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthStorageReady) {
+    return (
+      <div className="auth-shell flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <p className="text-slate-500">Preparing sign in...</p>
         </div>
       </div>
     );

@@ -105,6 +105,26 @@ function schedulePersist(schoolId: string, key: string, value: string): void {
   });
 }
 
+const AUTH_STORAGE_KEYS = ["system_users"] as const;
+
+export async function hydrateAuthStorageFromServer(schoolId: string): Promise<void> {
+  const cache = getSchoolCache(schoolId);
+
+  await Promise.all(
+    AUTH_STORAGE_KEYS.map(async (key) => {
+      const response = await fetch(
+        `/api/tenant-storage?schoolId=${encodeURIComponent(schoolId)}&key=${encodeURIComponent(key)}`,
+      );
+      if (!response.ok) return;
+
+      const payload = (await response.json()) as { value?: string | null };
+      if (typeof payload.value === "string") {
+        cache.set(key, payload.value);
+      }
+    }),
+  );
+}
+
 export async function hydrateSchoolStorageFromServer(schoolId: string): Promise<void> {
   const existing = hydrationPromises.get(schoolId);
   if (existing) return existing;
