@@ -127,6 +127,7 @@ model AcademicYear {
 
 model SchoolClass {
   id               String           @id @default(cuid())
+  legacyId         String?          @unique
   academicYearId   String
   name             String
   gradeLevel       String
@@ -134,6 +135,10 @@ model SchoolClass {
   capacity         Int              @default(40)
   classTeacherId   String?
   roomCode         String?
+  inChargeName     String           @default("")
+  studentCount     Int              @default(0)
+  isManual         Boolean          @default(false)
+  metadata         Json?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -193,9 +198,19 @@ model StudentProfile {
 model StaffProfile {
   id              String         @id @default(cuid())
   userId          String         @unique
+  legacyId        String?        @unique
   employeeNo      String         @unique
   jobTitle        String
   department      String?
+  staffRole       String         @default("teacher")
+  staffStatus     String         @default("active")
+  address         String?
+  qualification   String?
+  experience      String?
+  salary          String?
+  emergencyContact String?
+  emergencyPhone  String?
+  metadata        Json?
   hireDate        DateTime       @default(now())
   dateOfBirth     DateTime?
   gender          Gender?
@@ -779,6 +794,26 @@ model PerformanceAlert {
   @@index([severity, generatedAt])
 }
 
+
+/// Login accounts for all roles (admin, teacher, parent, student, etc.).
+model SystemAccount {
+  id                  String    @id
+  name                String
+  email               String
+  phone               String    @default("")
+  role                String
+  classDepartment     String    @default("")
+  linkedStudentIds    Json?
+  status              String    @default("Active")
+  password            String
+  createdAt           DateTime  @default(now())
+  lastLoginAt         DateTime?
+  credentialsIssuedAt DateTime?
+  updatedAt           DateTime  @updatedAt
+
+  @@index([role])
+  @@index([email])
+}
 
 /// Transitional per-tenant key store (removed as domains move to relational tables).
 model AppStorage {

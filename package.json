@@ -15,6 +15,7 @@
     "db:migrate:legacy": "tsx scripts/migrate-legacy-to-multi-db.ts",
     "db:backups:run": "tsx scripts/run-scheduled-backups.ts",
     "db:migrate:students": "tsx scripts/migrate-students-to-relational.ts",
+    "db:migrate:core": "tsx scripts/migrate-core-to-relational.ts",
     "db:studio": "prisma studio --schema prisma/catalog/schema.prisma",
     "db:studio:tenant": "prisma studio --schema prisma/tenant/schema.prisma",
     "db:seed": "prisma db seed"
