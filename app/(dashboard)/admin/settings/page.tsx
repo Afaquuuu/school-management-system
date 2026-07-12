@@ -29,6 +29,8 @@ import {
 import { BACKUP_FREQUENCIES } from "@/lib/backup-frequency";
 import {
   getLastBackupTimestamp,
+  isAdminTwoFactorRequired,
+  shouldEnforceAdminTwoFactor,
   validateSecuritySettingsInput,
 } from "@/lib/school-security";
 import { formatEmailResultMessage, GMAIL_PERSONAL_BLOCK_WARNING, sendTestEmail } from "@/lib/email-client";
@@ -815,6 +817,22 @@ export default function SettingsPage() {
           <p className="text-xs leading-relaxed text-slate-500 md:col-span-2">
             Admin 2FA sends a 6-digit verification code by email after the password is entered.
             Configure Brevo SMTP under Communication Settings for reliable delivery.
+            {security.require2faForAdmins ? (
+              shouldEnforceAdminTwoFactor(currentSchool?.id ?? "", "admin") ? (
+                <span className="mt-1 block font-medium text-emerald-700">
+                  2FA is active — admins must enter an email code at sign-in.
+                </span>
+              ) : (
+                <span className="mt-1 block font-medium text-amber-700">
+                  2FA is enabled but SMTP is not ready — save Communication Settings with a valid
+                  Brevo SMTP login and password, or admins cannot sign in.
+                </span>
+              )
+            ) : (
+              <span className="mt-1 block text-slate-500">
+                2FA is off — admins sign in with password only.
+              </span>
+            )}
           </p>
           <div className="md:col-span-2 space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
             <div className="text-sm text-slate-600">

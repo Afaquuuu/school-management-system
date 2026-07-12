@@ -21,8 +21,8 @@ import {
   getPasswordMinLength,
   getPendingAdminTwoFactor,
   clearPendingAdminTwoFactor,
+  getAdminTwoFactorBlockMessage,
   isAdminTwoFactorRequired,
-  shouldEnforceAdminTwoFactor,
   recordFailedLogin,
   validatePasswordPolicy,
   verifyPendingAdminTwoFactor,
@@ -255,7 +255,13 @@ export default function LoginPage() {
 
       clearLoginAttempts(currentSchool.id, normalizedEmail);
 
-      if (shouldEnforceAdminTwoFactor(currentSchool.id, user.role)) {
+      if (isAdminTwoFactorRequired(currentSchool.id, user.role)) {
+        const setupMessage = getAdminTwoFactorBlockMessage(currentSchool.id, user.role);
+        if (setupMessage) {
+          setError(setupMessage);
+          return;
+        }
+
         const started = await beginAdminTwoFactor(user);
         if (started) {
           redirecting = false;
@@ -263,16 +269,10 @@ export default function LoginPage() {
         }
 
         clearPendingAdminTwoFactor();
-        setError("");
-        sessionStorage.setItem(
-          "admin_email_setup_required",
-          "2FA email could not be sent (fix Brevo SMTP in Communication Settings: SMTP login xxx@smtp-brevo.com + key xsmtpsib-...). You are signed in without 2FA until email works.",
+        setError(
+          "Could not send the verification email. Check Brevo SMTP in Admin → Communication Settings (SMTP login xxx@smtp-brevo.com and key xsmtpsib-...).",
         );
-      } else if (isAdminTwoFactorRequired(currentSchool.id, user.role)) {
-        sessionStorage.setItem(
-          "admin_email_setup_required",
-          "Configure SMTP in Admin → System Settings → Communication Settings to enable email 2FA.",
-        );
+        return;
       }
 
       finishLogin(user);

@@ -88,6 +88,26 @@ export function shouldEnforceAdminTwoFactor(schoolId: string, role: string): boo
   return isEmailDeliveryConfigured(communication);
 }
 
+export function getAdminTwoFactorBlockMessage(schoolId: string, role: string): string | null {
+  if (!isAdminTwoFactorRequired(schoolId, role)) return null;
+  if (shouldEnforceAdminTwoFactor(schoolId, role)) return null;
+
+  const communication = loadSchoolSystemSettings(schoolId).communication;
+  if (!communication.emailNotifications) {
+    return "Admin 2FA is enabled. Turn on email notifications under Communication Settings.";
+  }
+
+  if (!communication.smtpPassword.trim()) {
+    return "Admin 2FA is enabled. Add your Brevo SMTP username and password under Communication Settings.";
+  }
+
+  if (communication.emailProvider === "brevo" && !communication.smtpUser.trim()) {
+    return "Admin 2FA is enabled. Add your Brevo SMTP login (xxx@smtp-brevo.com) under Communication Settings.";
+  }
+
+  return "Admin 2FA is enabled. Complete SMTP setup under Communication Settings before admins can sign in.";
+}
+
 export function validateSecuritySettingsInput(
   security: SecuritySettings,
 ): string | null {

@@ -105,7 +105,7 @@ function schedulePersist(schoolId: string, key: string, value: string): void {
   });
 }
 
-const AUTH_STORAGE_KEYS = ["system_users"] as const;
+const AUTH_STORAGE_KEYS = ["system_users", "school_system_settings"] as const;
 
 export async function hydrateAuthStorageFromServer(schoolId: string): Promise<void> {
   const cache = getSchoolCache(schoolId);
