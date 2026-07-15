@@ -125,6 +125,47 @@ export async function hydrateAuthStorageFromServer(schoolId: string): Promise<vo
   );
 }
 
+function mergeSchoolSystemSettingsCacheValue(
+  incoming: string,
+  current: string | undefined,
+): string {
+  if (!current) return incoming;
+
+  try {
+    const next = JSON.parse(incoming) as {
+      communication?: { smtpUser?: string; smtpPassword?: string; senderEmail?: string };
+    };
+    const prev = JSON.parse(current) as {
+      communication?: { smtpUser?: string; smtpPassword?: string; senderEmail?: string };
+    };
+
+    if (!next.communication) return incoming;
+
+    const nextPassword = next.communication.smtpPassword?.trim() ?? "";
+    const prevPassword = prev.communication?.smtpPassword?.trim() ?? "";
+    const nextUser = next.communication.smtpUser?.trim() ?? "";
+    const prevUser = prev.communication?.smtpUser?.trim() ?? "";
+
+    // Never let a blank/partial server snapshot wipe credentials already in memory.
+    if ((!nextPassword && prevPassword) || (!nextUser && prevUser)) {
+      next.communication = {
+        ...next.communication,
+        smtpPassword: nextPassword || prevPassword,
+        smtpUser: nextUser || prevUser,
+        senderEmail:
+          next.communication.senderEmail?.trim() ||
+          prev.communication?.senderEmail ||
+          next.communication.senderEmail,
+      };
+      return JSON.stringify(next);
+    }
+  } catch {
+    return incoming;
+  }
+
+  return incoming;
+}
+
 export async function hydrateSchoolStorageFromServer(schoolId: string): Promise<void> {
   const existing = hydrationPromises.get(schoolId);
   if (existing) return existing;
@@ -137,9 +178,20 @@ export async function hydrateSchoolStorageFromServer(schoolId: string): Promise<
 
     const payload = (await response.json()) as { entries?: Record<string, string> };
     const cache = getSchoolCache(schoolId);
-    cache.clear();
+    const previousSettings = cache.get("school_system_settings");
 
+    // Merge into existing cache — never clear auth/settings keys mid-session.
+    // A full clear was wiping Brevo SMTP credentials, then later saves wrote blanks to the DB.
     for (const [key, value] of Object.entries(payload.entries ?? {})) {
+      if (pendingWrites.has(writeKey(schoolId, key))) {
+        continue;
+      }
+
+      if (key === "school_system_settings") {
+        cache.set(key, mergeSchoolSystemSettingsCacheValue(value, previousSettings));
+        continue;
+      }
+
       cache.set(
         key,
         key === STUDENT_DOCUMENTS_STORAGE_KEY ? compactStudentDocumentsCacheValue(value) : value,

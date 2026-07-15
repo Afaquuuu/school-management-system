@@ -190,11 +190,42 @@ export function getGmailCommunicationPreset(senderEmail: string): CommunicationS
   };
 }
 
+/** Keep saved SMTP secrets when a save payload leaves them blank (common UI / race issue). */
+export function preserveSmtpSecrets(
+  incoming: CommunicationSettings,
+  existing?: CommunicationSettings | null,
+): CommunicationSettings {
+  if (!existing) return incoming;
+
+  return {
+    ...incoming,
+    smtpUser: incoming.smtpUser.trim() || existing.smtpUser,
+    smtpPassword: incoming.smtpPassword.trim() || existing.smtpPassword,
+    senderEmail: incoming.senderEmail.trim() || existing.senderEmail,
+  };
+}
+
 export function saveSchoolSystemSettings(
   schoolId: string,
   settings: SchoolSystemSettings,
 ): void {
-  setScopedItem(schoolId, STORAGE_KEY, JSON.stringify(settings));
+  const previous = parseJson<Partial<SchoolSystemSettings>>(
+    getScopedItem(schoolId, STORAGE_KEY),
+    {},
+  );
+  const next: SchoolSystemSettings = {
+    ...settings,
+    communication: preserveSmtpSecrets(
+      settings.communication,
+      previous.communication
+        ? normalizeCommunicationSettings({
+            ...defaultSchoolSystemSettings().communication,
+            ...previous.communication,
+          })
+        : null,
+    ),
+  };
+  setScopedItem(schoolId, STORAGE_KEY, JSON.stringify(next));
 }
 
 export function migrateCommunicationSettings(schoolId: string): void {

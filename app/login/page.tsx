@@ -258,7 +258,10 @@ export default function LoginPage() {
       if (isAdminTwoFactorRequired(currentSchool.id, user.role)) {
         const setupMessage = getAdminTwoFactorBlockMessage(currentSchool.id, user.role);
         if (setupMessage) {
-          setError(setupMessage);
+          // Allow sign-in so admins are never locked out if SMTP settings were lost.
+          sessionStorage.setItem("admin_email_setup_required", setupMessage);
+          finishLogin(user);
+          redirecting = true;
           return;
         }
 
@@ -269,9 +272,12 @@ export default function LoginPage() {
         }
 
         clearPendingAdminTwoFactor();
-        setError(
-          "Could not send the verification email. Check Brevo SMTP in Admin → Communication Settings (SMTP login xxx@smtp-brevo.com and key xsmtpsib-...).",
+        sessionStorage.setItem(
+          "admin_email_setup_required",
+          "Could not send the 2FA email. Re-check Brevo SMTP in Admin → Communication Settings, then sign in again.",
         );
+        finishLogin(user);
+        redirecting = true;
         return;
       }
 

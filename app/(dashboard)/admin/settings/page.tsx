@@ -190,7 +190,15 @@ export default function SettingsPage() {
 
     if (section === "Communication Settings") {
       const current = loadSchoolSystemSettings(currentSchool.id);
-      persistSettings({ ...current, communication });
+      persistSettings({
+        ...current,
+        communication: {
+          ...communication,
+          // Blank password field means "keep existing secret", not "erase Brevo key".
+          smtpPassword: communication.smtpPassword.trim() || current.communication.smtpPassword,
+          smtpUser: communication.smtpUser.trim() || current.communication.smtpUser,
+        },
+      });
     }
 
     if (section === "System Security") {
@@ -574,12 +582,18 @@ export default function SettingsPage() {
               value={communication.smtpPassword}
               onChange={(e) => persistCommunicationFields({ smtpPassword: e.target.value })}
               placeholder={
-                communication.emailProvider === "brevo"
-                  ? "SMTP key (starts with xsmtpsib-)"
-                  : "Gmail app password"
+                communication.smtpPassword
+                  ? "Saved — type a new key only to replace it"
+                  : communication.emailProvider === "brevo"
+                    ? "SMTP key (starts with xsmtpsib-)"
+                    : "Gmail app password"
               }
               className="input-field"
+              autoComplete="new-password"
             />
+            <p className="mt-1.5 text-xs text-slate-500">
+              Leaving this blank when saving other fields will keep your existing Brevo/SMTP key.
+            </p>
           </div>
           <div className="md:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
