@@ -1132,38 +1132,6 @@ export default function ExamsPage() {
               </p>
             </div>
 
-            {/* Debug Info */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
-              <details className="cursor-pointer">
-                <summary className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-2">
-                  Debug Info (Click to expand)
-                </summary>
-                <div className="space-y-2 text-xs font-mono text-amber-900 dark:text-amber-100">
-                  <p>• Cycles: {cycles.length} - {cycles.map(c => c.name).join(', ')}</p>
-                  <p>• Students: {students.length}</p>
-                  <p>• Schedules: {schedules.length}</p>
-                  <p>• Marks: {marks.length}</p>
-                  {marksFilter.cycleId && (
-                    <p>• Classes with exams in selected cycle: [{classesForMarksEntry.join(', ') || 'none'}]</p>
-                  )}
-                  {marksFilter.className && (
-                    <>
-                      <p>• Sections for {marksFilter.className}: [{uniqueSections.join(', ') || 'none found'}]</p>
-                      <p>• Students in {marksFilter.className}: {students.filter(s => s.class === marksFilter.className).length}</p>
-                      <p>• Student sections: {JSON.stringify(
-                        students
-                          .filter(s => s.class === marksFilter.className)
-                          .map(s => `${s.firstName} ${s.lastName}: section="${s.section}"`)
-                      )}</p>
-                    </>
-                  )}
-                  {marksFilter.cycleId && marksFilter.className && (
-                    <p>• Available Subjects: {availableSubjectsForMarks.map(s => s.name).join(', ') || 'none'}</p>
-                  )}
-                </div>
-              </details>
-            </div>
-
             {/* Selection Filters */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-4">Select Exam Details</h3>
