@@ -82,6 +82,7 @@ export const navigationGroups: NavigationGroup[] = [
       { label: "Overview", href: "/academics" },
       { label: "Timetable", href: "/academics?view=timetable" },
       { label: "Subjects & Classes", href: "/academics?view=subjects" },
+      { label: "Exam Marks", href: "/admin/exams?tab=marks", roles: ["teacher"] },
     ],
   },
   {

@@ -1,12 +1,68 @@
 ﻿"use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Edit, Trash2, Calendar, X, BookOpen, Award, Target, FileText, Users, Clock, CheckCircle, ChevronDown } from "lucide-react";
-import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
+import { useSchool, getScopedItem, setScopedItem, getSchoolClasses, type SchoolClass } from "@/lib/school-context";
 import { getExamSubjects } from "@/lib/school-subjects";
 import { addDaysToIsoDate, formatDate, getTodayIsoDate, isIsoDateAfter } from "@/lib/date-format";
 import { DateInput } from "@/components/ui/date-input";
-import { loadSchoolResources, type SchoolResource } from "@/lib/timetable";
+import { getClassNameWithoutSection, normalizeClassLabel, normalizeSection } from "@/lib/class-labels";
+import { getUserSession } from "@/lib/teacher-check-in";
+import {
+  getClassesWhereTeacherIsInCharge,
+  isSameTeacherName,
+  loadClassAssignments,
+  loadSchoolResources,
+  type ClassAssignment,
+  type SchoolResource,
+} from "@/lib/timetable";
+
+function getTeacherInChargeClassSections(
+  schoolClasses: SchoolClass[],
+  assignmentsByClass: Record<string, ClassAssignment[]>,
+  teacherName: string,
+): Array<{ className: string; section: string }> {
+  if (!teacherName.trim()) return [];
+
+  const fromAssignments = getClassesWhereTeacherIsInCharge(
+    schoolClasses,
+    assignmentsByClass,
+    teacherName,
+  );
+
+  const fromClassRecord = schoolClasses.filter((cls) => {
+    const inCharge = (cls.inCharge ?? "").trim();
+    if (!inCharge || /^not assigned$/i.test(inCharge)) return false;
+    return isSameTeacherName(inCharge, teacherName);
+  });
+
+  const merged = new Map<string, { className: string; section: string }>();
+  for (const cls of [...fromAssignments, ...fromClassRecord]) {
+    const className = getClassNameWithoutSection(cls.name, cls.section);
+    const section = normalizeSection(cls.section);
+    if (!className || !section) continue;
+    merged.set(`${normalizeClassLabel(className)}::${section}`, { className, section });
+  }
+
+  return Array.from(merged.values()).sort((a, b) =>
+    `${a.className} ${a.section}`.localeCompare(`${b.className} ${b.section}`),
+  );
+}
+
+function isTeacherInChargeOfClassSection(
+  schoolClasses: SchoolClass[],
+  assignmentsByClass: Record<string, ClassAssignment[]>,
+  teacherName: string,
+  className: string,
+  section: string,
+): boolean {
+  return getTeacherInChargeClassSections(schoolClasses, assignmentsByClass, teacherName).some(
+    (entry) =>
+      normalizeClassLabel(entry.className) === normalizeClassLabel(className) &&
+      normalizeSection(entry.section) === normalizeSection(section),
+  );
+}
 
 type ExamCycle = {
   id: string;
@@ -161,6 +217,8 @@ const defaultSubjects: Subject[] = [];
 
 export default function ExamsPage() {
   const { currentSchool } = useSchool();
+  const searchParams = useSearchParams();
+  const [session, setSession] = useState<ReturnType<typeof getUserSession>>(null);
   const [selectedTab, setSelectedTab] = useState<"cycles" | "schedule" | "marks">("cycles");
   const [cycles, setCycles] = useState<ExamCycle[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>(defaultSubjects);
@@ -168,6 +226,8 @@ export default function ExamsPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [marks, setMarks] = useState<Mark[]>([]);
   const [resources, setResources] = useState<SchoolResource[]>([]);
+  const [schoolClasses, setSchoolClasses] = useState<SchoolClass[]>([]);
+  const [classAssignments, setClassAssignments] = useState<Record<string, ClassAssignment[]>>({});
   
   const [showCycleModal, setShowCycleModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -211,6 +271,18 @@ export default function ExamsPage() {
   };
 
   useEffect(() => {
+    const userSession = getUserSession();
+    setSession(userSession);
+
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "cycles" || tabParam === "schedule" || tabParam === "marks") {
+      setSelectedTab(tabParam);
+    } else if (userSession?.role === "teacher") {
+      setSelectedTab("marks");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (typeof window !== 'undefined' && currentSchool) {
       setSubjects(getExamSubjects(currentSchool.id));
 
@@ -234,18 +306,33 @@ export default function ExamsPage() {
       if (storedStudents) setStudents(JSON.parse(storedStudents));
       if (storedMarks) setMarks(JSON.parse(storedMarks));
       setResources(loadSchoolResources(currentSchool.id));
+      setSchoolClasses(getSchoolClasses(currentSchool.id));
+      setClassAssignments(loadClassAssignments(currentSchool.id));
     }
   }, [currentSchool]);
 
+  const isAdmin = session?.role === "admin";
+  const isTeacher = session?.role === "teacher";
+  const canManageExamSetup = isAdmin;
+  const teacherName = session?.name?.trim() ?? "";
+
+  const teacherInChargeClassSections = useMemo(
+    () =>
+      isTeacher
+        ? getTeacherInChargeClassSections(schoolClasses, classAssignments, teacherName)
+        : [],
+    [isTeacher, schoolClasses, classAssignments, teacherName],
+  );
+
   const saveCycles = (newCycles: ExamCycle[]) => {
-    if (!currentSchool) return;
+    if (!currentSchool || !canManageExamSetup) return;
     const normalized = normalizeExamCycles(newCycles);
     setCycles(normalized);
     setScopedItem(currentSchool.id, "exam_cycles", JSON.stringify(normalized));
   };
 
   const saveSchedules = (newSchedules: ExamSchedule[]) => {
-    if (!currentSchool) return;
+    if (!currentSchool || !canManageExamSetup) return;
     setSchedules(newSchedules);
     setScopedItem(currentSchool.id, 'exam_schedules', JSON.stringify(newSchedules));
   };
@@ -295,8 +382,36 @@ export default function ExamsPage() {
         .filter(s => s.class === marksFilter.className)
         .map(s => s.section)
     );
-    return Array.from(sections).sort();
-  }, [students, marksFilter.className]);
+    let list = Array.from(sections).sort();
+    if (isTeacher) {
+      const allowed = new Set(
+        teacherInChargeClassSections
+          .filter((entry) => normalizeClassLabel(entry.className) === normalizeClassLabel(marksFilter.className))
+          .map((entry) => normalizeSection(entry.section)),
+      );
+      list = list.filter((section) => allowed.has(normalizeSection(section)));
+    }
+    return list;
+  }, [students, marksFilter.className, isTeacher, teacherInChargeClassSections]);
+
+  const canEditMarks = useMemo(() => {
+    if (!isTeacher || !teacherName) return false;
+    if (!marksFilter.className || !marksFilter.section) return false;
+    return isTeacherInChargeOfClassSection(
+      schoolClasses,
+      classAssignments,
+      teacherName,
+      marksFilter.className,
+      marksFilter.section,
+    );
+  }, [
+    isTeacher,
+    teacherName,
+    marksFilter.className,
+    marksFilter.section,
+    schoolClasses,
+    classAssignments,
+  ]);
 
   // Get available subjects for marks entry (only scheduled subjects)
   const availableSubjectsForMarks = useMemo(() => {
@@ -349,6 +464,8 @@ export default function ExamsPage() {
 
   // Update student marks
   const updateStudentMarks = (studentId: string, field: 'marksObtained' | 'remarks', value: number | string) => {
+    if (!canEditMarks) return;
+
     const existingMarkIndex = marks.findIndex(
       m => m.studentId === studentId && 
            m.cycleId === marksFilter.cycleId && 
@@ -364,6 +481,7 @@ export default function ExamsPage() {
       newMarks[existingMarkIndex] = {
         ...newMarks[existingMarkIndex],
         [field]: value,
+        enteredBy: teacherName || newMarks[existingMarkIndex].enteredBy,
         enteredAt: new Date().toISOString(),
       };
     } else {
@@ -377,7 +495,7 @@ export default function ExamsPage() {
         subjectId: marksFilter.subjectId,
         marksObtained: field === 'marksObtained' ? (value as number) : 0,
         remarks: field === 'remarks' ? (value as string) : '',
-        enteredBy: 'Admin',
+        enteredBy: teacherName || 'Class In-charge',
         enteredAt: new Date().toISOString(),
       };
       newMarks.push(newMark);
@@ -388,6 +506,10 @@ export default function ExamsPage() {
 
   // Save all marks
   const handleSaveMarks = () => {
+    if (!canEditMarks) {
+      alert('Only the class in-charge teacher can enter or update exam marks.');
+      return;
+    }
     alert('All marks have been saved successfully!');
   };
 
@@ -620,8 +742,27 @@ export default function ExamsPage() {
         .map(s => s.className)
     );
     
-    return Array.from(scheduledClasses).sort();
-  }, [schedules, marksFilter.cycleId]);
+    let list = Array.from(scheduledClasses).sort();
+    if (isTeacher) {
+      const allowed = new Set(
+        teacherInChargeClassSections.map((entry) => normalizeClassLabel(entry.className)),
+      );
+      list = list.filter((className) => allowed.has(normalizeClassLabel(className)));
+    }
+    return list;
+  }, [schedules, marksFilter.cycleId, isTeacher, teacherInChargeClassSections]);
+
+  useEffect(() => {
+    if (!isTeacher || teacherInChargeClassSections.length === 0) return;
+    if (marksFilter.className && marksFilter.section) return;
+
+    const preferred = teacherInChargeClassSections[0];
+    setMarksFilter((prev) => ({
+      ...prev,
+      className: prev.className || preferred.className,
+      section: prev.section || preferred.section,
+    }));
+  }, [isTeacher, teacherInChargeClassSections, marksFilter.className, marksFilter.section]);
 
   const stats = useMemo(() => ({
     totalCycles: cycles.length,
@@ -651,7 +792,9 @@ export default function ExamsPage() {
             <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Exam Management</h1>
           </div>
           <p className="text-slate-600 dark:text-slate-400 ml-14">
-            Create exam cycles, schedule exams by class and subject, and manage marks
+            {isAdmin
+              ? "Create exam cycles, schedule exams, and view marks entered by class in-charge teachers"
+              : "Enter exam marks for your in-charge class, or view scheduled exams"}
           </p>
         </div>
 
@@ -709,6 +852,7 @@ export default function ExamsPage() {
 
         {selectedTab === "cycles" && (
           <div className="space-y-4">
+            {canManageExamSetup && (
             <div className="flex justify-end">
               <button
                 onClick={() => {
@@ -722,18 +866,21 @@ export default function ExamsPage() {
                 New Term / Assessment
               </button>
             </div>
+            )}
 
             {cycles.length === 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-12 text-center">
                 <Calendar className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-2">No exam cycles yet</h3>
                 <p className="text-slate-600 dark:text-slate-400 mb-4">Create your first term or assessment cycle</p>
+                {canManageExamSetup && (
                 <button
                   onClick={() => setShowCycleModal(true)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Create Cycle
                 </button>
+                )}
               </div>
             ) : (
               <div className="grid gap-4">
@@ -771,6 +918,7 @@ export default function ExamsPage() {
                       <p className="text-sm text-slate-600 dark:text-slate-400">
                         {schedules.filter(s => s.cycleId === cycle.id).length} exams scheduled
                       </p>
+                      {canManageExamSetup && (
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEditCycle(cycle)}
@@ -785,6 +933,7 @@ export default function ExamsPage() {
                           <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                         </button>
                       </div>
+                      )}
                     </div>
                   </div>
                   );
@@ -802,6 +951,7 @@ export default function ExamsPage() {
               </p>
             </div>
 
+            {canManageExamSetup && (
             <div className="flex justify-end">
               <button
                 onClick={() => {
@@ -823,6 +973,7 @@ export default function ExamsPage() {
                 Schedule Exam
               </button>
             </div>
+            )}
 
             {schedules.length === 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-12 text-center">
@@ -833,14 +984,14 @@ export default function ExamsPage() {
                   <p className="text-sm text-amber-600 dark:text-amber-400">Please create an exam cycle first</p>
                 ) : uniqueClasses.length === 0 ? (
                   <p className="text-sm text-amber-600 dark:text-amber-400">Please add students first</p>
-                ) : (
+                ) : canManageExamSetup ? (
                   <button
                     onClick={() => setShowScheduleModal(true)}
                     className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
                   >
                     Schedule Exam
                   </button>
-                )}
+                ) : null}
               </div>
             ) : (
               <div className="space-y-6">
@@ -934,6 +1085,8 @@ export default function ExamsPage() {
                                       )}
                                     </div>
                                     <div className="flex gap-2 ml-4">
+                                      {canManageExamSetup && (
+                                        <>
                                       <button
                                         onClick={() => handleEditSchedule(schedule)}
                                         className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
@@ -946,6 +1099,8 @@ export default function ExamsPage() {
                                       >
                                         <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                                       </button>
+                                        </>
+                                      )}
                                     </div>
                                   </div>
                                 );
@@ -967,7 +1122,13 @@ export default function ExamsPage() {
           <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4">
               <p className="text-sm text-blue-800 dark:text-blue-200">
-                ℹ️ Select cycle, class, section, and subject to enter marks for students. Marks are saved automatically.
+                {isAdmin
+                  ? "View-only: exam marks are entered by the class in-charge teacher. Select cycle, class, section, and subject to review results."
+                  : canEditMarks
+                    ? "You are the class in-charge for this selection. Enter marks for students — changes save automatically."
+                    : isTeacher && teacherInChargeClassSections.length === 0
+                      ? "You are not assigned as class in-charge for any class. Ask the principal to set you as lead teacher for your class before entering marks."
+                      : "Select your in-charge class, section, and subject to enter marks. Only class in-charge teachers can edit marks."}
               </p>
             </div>
 
@@ -1084,8 +1245,10 @@ export default function ExamsPage() {
                       </h3>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         {cycles.find(c => c.id === marksFilter.cycleId)?.name} • Max Marks: {selectedSchedule?.maxMarks || 100}
+                        {isAdmin ? " • View only" : canEditMarks ? " • Editable by class in-charge" : " • View only"}
                       </p>
                     </div>
+                    {canEditMarks && (
                     <button
                       onClick={handleSaveMarks}
                       className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-green-500/30"
@@ -1093,6 +1256,7 @@ export default function ExamsPage() {
                       <CheckCircle className="w-4 h-4" />
                       Save All Marks
                     </button>
+                    )}
                   </div>
                 </div>
 
@@ -1145,14 +1309,20 @@ export default function ExamsPage() {
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-2">
-                                  <input
-                                    type="number"
-                                    value={marksObtained}
-                                    onChange={(e) => updateStudentMarks(student.id, 'marksObtained', parseFloat(e.target.value) || 0)}
-                                    min="0"
-                                    max={maxMarks}
-                                    className="w-24 px-3 py-2 border-2 border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 font-semibold text-center"
-                                  />
+                                  {canEditMarks ? (
+                                    <input
+                                      type="number"
+                                      value={marksObtained}
+                                      onChange={(e) => updateStudentMarks(student.id, 'marksObtained', parseFloat(e.target.value) || 0)}
+                                      min="0"
+                                      max={maxMarks}
+                                      className="w-24 px-3 py-2 border-2 border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 font-semibold text-center"
+                                    />
+                                  ) : (
+                                    <span className="w-24 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700/60 text-slate-900 dark:text-slate-50 font-semibold text-center inline-block">
+                                      {marksObtained}
+                                    </span>
+                                  )}
                                   <span className="text-slate-600 dark:text-slate-400">/ {maxMarks}</span>
                                 </div>
                               </td>
@@ -1167,13 +1337,19 @@ export default function ExamsPage() {
                                 </span>
                               </td>
                               <td className="px-6 py-4">
-                                <input
-                                  type="text"
-                                  value={studentMark?.remarks || ''}
-                                  onChange={(e) => updateStudentMarks(student.id, 'remarks', e.target.value)}
-                                  placeholder="Optional remarks"
-                                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 text-sm"
-                                />
+                                {canEditMarks ? (
+                                  <input
+                                    type="text"
+                                    value={studentMark?.remarks || ''}
+                                    onChange={(e) => updateStudentMarks(student.id, 'remarks', e.target.value)}
+                                    placeholder="Optional remarks"
+                                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-sm text-slate-700 dark:text-slate-300">
+                                    {studentMark?.remarks?.trim() ? studentMark.remarks : "—"}
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -1216,7 +1392,11 @@ export default function ExamsPage() {
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-12 text-center">
                 <FileText className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-2">Select Exam Details</h3>
-                <p className="text-slate-600 dark:text-slate-400">Choose cycle, class, section, and subject to enter marks</p>
+                <p className="text-slate-600 dark:text-slate-400">
+                  {isAdmin
+                    ? "Choose cycle, class, section, and subject to view marks"
+                    : "Choose cycle, class, section, and subject to enter marks"}
+                </p>
               </div>
             )}
           </div>
