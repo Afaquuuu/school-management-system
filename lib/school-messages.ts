@@ -551,7 +551,10 @@ export function getComposeRecipientOptions(
   const options: ComposeRecipientOption[] = [{ value: "", label: "Select recipient..." }];
   const admin = loadSystemUsers(schoolId).find((user) => user.role.toLowerCase() === "admin");
 
-  options.push({ value: "all_teachers", label: "All Teachers" });
+  // School-wide teacher broadcast is for principal/admin — not peer teachers.
+  if (role !== "teacher") {
+    options.push({ value: "all_teachers", label: "All Teachers" });
+  }
   options.push({ value: "all_parents", label: "All Parents" });
   options.push({ value: "all_students", label: "All Students" });
 
@@ -711,8 +714,18 @@ export function sendSchoolMessage(input: {
   body: string;
 }): { sentCount: number; recipientLabel: string; errorReason?: string } {
   const trimmedBody = input.body.trim();
+  const senderRole = input.sender.role.toLowerCase();
+
+  if (senderRole === "teacher" && input.recipientValue === "all_teachers") {
+    return {
+      sentCount: 0,
+      recipientLabel: "",
+      errorReason: "Teachers cannot message all teachers. Choose the principal, a class, or another recipient.",
+    };
+  }
+
   const classContext =
-    input.sender.role.toLowerCase() === "student"
+    senderRole === "student"
       ? getStudentClassContext(input.schoolId, input.sender)
       : null;
 
