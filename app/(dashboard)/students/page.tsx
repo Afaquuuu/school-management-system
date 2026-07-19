@@ -25,7 +25,7 @@ import {
   AlertCircle,
   UserCheck,
 } from "lucide-react";
-import { formatStudentClassLabel, getUniqueClassLabels, getUniqueSchoolClassesByName, findStudentWithRollNumberInClassSection, formatRollNumberConflictMessage } from "@/lib/class-labels";
+import { formatStudentClassLabel, getClassNameWithoutSection, getUniqueClassLabels, getUniqueSchoolClassesByName, findStudentWithRollNumberInClassSection, formatRollNumberConflictMessage, normalizeClassLabel, normalizeSection } from "@/lib/class-labels";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
 import { ensureSchoolClassesFromStudents } from "@/lib/school-classes-sync";
 import {
@@ -198,8 +198,15 @@ export default function StudentsPage() {
   const filteredStudents = useMemo(() => 
     students.filter((student) => {
       const matchesSearch = studentMatchesSearch(student, searchTerm);
-      const matchesClass = filterClass === "all" || student.class === filterClass;
-      const matchesSection = filterSection === "all" || student.section === filterSection;
+      const studentClassOnly = getClassNameWithoutSection(student.class, student.section);
+      const matchesClass = filterClass === "all" || studentClassOnly === filterClass;
+      const studentSection =
+        normalizeSection(student.section) ||
+        normalizeSection(
+          normalizeClassLabel(student.class).match(/^(Grade\s+\d+)\s*([A-Za-z0-9]+)$/i)?.[2] || "",
+        );
+      const matchesSection =
+        filterSection === "all" || studentSection === normalizeSection(filterSection);
       const matchesStatus = filterStatus === "all" || student.status === filterStatus;
       return matchesSearch && matchesClass && matchesSection && matchesStatus;
     }),
@@ -383,14 +390,33 @@ export default function StudentsPage() {
   }), [students]);
 
   const classes = useMemo(
-    () => getUniqueClassLabels(students.map((s) => formatStudentClassLabel(s.class, s.section))),
+    () =>
+      getUniqueClassLabels(
+        students.map((s) => getClassNameWithoutSection(s.class, s.section)),
+      ),
     [students],
   );
 
-  const sections = useMemo(() => 
-    Array.from(new Set(students.map(s => s.section))).sort(),
-    [students]
-  );
+  const sections = useMemo(() => {
+    const relevantStudents =
+      filterClass === "all"
+        ? students
+        : students.filter(
+            (s) => getClassNameWithoutSection(s.class, s.section) === filterClass,
+          );
+    return Array.from(
+      new Set(
+        relevantStudents
+          .map((s) => {
+            const embedded = normalizeClassLabel(s.class).match(
+              /^(Grade\s+\d+)\s*([A-Za-z0-9]+)$/i,
+            );
+            return normalizeSection(s.section || embedded?.[2] || "");
+          })
+          .filter(Boolean),
+      ),
+    ).sort();
+  }, [students, filterClass]);
 
   const handleAddStudent = () => {
     if (
@@ -921,7 +947,10 @@ export default function StudentsPage() {
             <div className="flex gap-3">
               <select
                 value={filterClass}
-                onChange={(e) => setFilterClass(e.target.value)}
+                onChange={(e) => {
+                  setFilterClass(e.target.value);
+                  setFilterSection("all");
+                }}
                 className="px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
               >
                 <option value="all">All Classes</option>
