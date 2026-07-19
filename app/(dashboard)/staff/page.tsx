@@ -141,11 +141,24 @@ export default function StaffPage() {
 
   const filteredStaff = useMemo(() => 
     staff.filter((member) => {
-      const matchesSearch = 
-        member.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.staffId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const query = searchTerm.trim().toLowerCase();
+      const fullName = `${member.firstName} ${member.lastName}`.trim().toLowerCase();
+      const haystack = [
+        fullName,
+        member.firstName,
+        member.lastName,
+        member.staffId,
+        member.email,
+        member.phone,
+        member.department,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch =
+        !query ||
+        haystack.includes(query) ||
+        query.split(/\s+/).filter(Boolean).every((word) => haystack.includes(word));
       const matchesRole = filterRole === "all" || member.role === filterRole;
       const matchesDepartment = filterDepartment === "all" || member.department === filterDepartment;
       const matchesStatus = filterStatus === "all" || member.status === filterStatus;
