@@ -6,6 +6,7 @@ import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
 import { getExamSubjects } from "@/lib/school-subjects";
 import { addDaysToIsoDate, formatDate, getTodayIsoDate, isIsoDateAfter } from "@/lib/date-format";
 import { DateInput } from "@/components/ui/date-input";
+import { loadSchoolResources, type SchoolResource } from "@/lib/timetable";
 
 type ExamCycle = {
   id: string;
@@ -69,6 +70,80 @@ type ExamSchedule = {
   venue: string;
 };
 
+function parseExamTimeToMinutes(time: string): number | null {
+  const trimmed = time.trim();
+  if (!trimmed) return null;
+
+  const ampm = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (ampm) {
+    let hours = Number.parseInt(ampm[1], 10);
+    const minutes = Number.parseInt(ampm[2], 10);
+    const period = ampm[3].toUpperCase();
+    if (period === "PM" && hours < 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  }
+
+  const twentyFour = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFour) {
+    return Number.parseInt(twentyFour[1], 10) * 60 + Number.parseInt(twentyFour[2], 10);
+  }
+
+  return null;
+}
+
+function examSchedulesOverlap(
+  first: Pick<ExamSchedule, "examDate" | "examTime" | "duration">,
+  second: Pick<ExamSchedule, "examDate" | "examTime" | "duration">,
+): boolean {
+  if (first.examDate !== second.examDate) return false;
+
+  const firstStart = parseExamTimeToMinutes(first.examTime);
+  const secondStart = parseExamTimeToMinutes(second.examTime);
+
+  if (firstStart == null || secondStart == null) {
+    return first.examTime.trim() === second.examTime.trim();
+  }
+
+  const firstEnd = firstStart + Math.max(first.duration || 0, 1);
+  const secondEnd = secondStart + Math.max(second.duration || 0, 1);
+  return firstStart < secondEnd && secondStart < firstEnd;
+}
+
+function normalizeVenueLabel(venue: string): string {
+  return venue.trim().toLowerCase();
+}
+
+function venuesMatch(left: string, right: string): boolean {
+  const a = normalizeVenueLabel(left);
+  const b = normalizeVenueLabel(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+
+  const aCode = a.split("—")[0]?.trim() || a.split("-")[0]?.trim() || a;
+  const bCode = b.split("—")[0]?.trim() || b.split("-")[0]?.trim() || b;
+  return Boolean(aCode && bCode && aCode === bCode);
+}
+
+function formatResourceVenueLabel(resource: { code: string; name: string }): string {
+  return `${resource.code} — ${resource.name}`;
+}
+
+function findVenueConflict(
+  candidate: Pick<ExamSchedule, "examDate" | "examTime" | "duration" | "venue">,
+  schedules: ExamSchedule[],
+  excludeId?: string,
+): ExamSchedule | undefined {
+  if (!candidate.venue.trim() || !candidate.examDate || !candidate.examTime) return undefined;
+
+  return schedules.find(
+    (schedule) =>
+      schedule.id !== excludeId &&
+      venuesMatch(schedule.venue, candidate.venue) &&
+      examSchedulesOverlap(candidate, schedule),
+  );
+}
+
 type Mark = {
   id: string;
   studentId: string;
@@ -92,6 +167,7 @@ export default function ExamsPage() {
   const [schedules, setSchedules] = useState<ExamSchedule[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [marks, setMarks] = useState<Mark[]>([]);
+  const [resources, setResources] = useState<SchoolResource[]>([]);
   
   const [showCycleModal, setShowCycleModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -157,6 +233,7 @@ export default function ExamsPage() {
       if (storedSchedules) setSchedules(JSON.parse(storedSchedules));
       if (storedStudents) setStudents(JSON.parse(storedStudents));
       if (storedMarks) setMarks(JSON.parse(storedMarks));
+      setResources(loadSchoolResources(currentSchool.id));
     }
   }, [currentSchool]);
 
@@ -398,6 +475,30 @@ export default function ExamsPage() {
       }
     }
 
+    if (!scheduleForm.venue.trim()) {
+      alert("Please select a venue (room) from Resources.");
+      return;
+    }
+
+    if (!scheduleForm.examTime.trim()) {
+      alert("Please select an exam time before assigning a venue.");
+      return;
+    }
+
+    const venueConflict = findVenueConflict(
+      scheduleForm,
+      schedules,
+      editingSchedule?.id,
+    );
+    if (venueConflict) {
+      const conflictSubject = subjects.find((subject) => subject.id === venueConflict.subjectId);
+      alert(
+        `${scheduleForm.venue} is already booked for ${venueConflict.className}` +
+          `${conflictSubject ? ` (${conflictSubject.name})` : ""} on ${formatDate(venueConflict.examDate)} at ${venueConflict.examTime}. Choose another room or time.`,
+      );
+      return;
+    }
+
     if (editingSchedule) {
       saveSchedules(schedules.map(s => s.id === editingSchedule.id ? { ...editingSchedule, ...scheduleForm } : s));
     } else {
@@ -438,6 +539,76 @@ export default function ExamsPage() {
     const classes = new Set(students.map(s => s.class));
     return Array.from(classes).sort();
   }, [students]);
+
+  const venueRoomOptions = useMemo(() => {
+    const typedRooms = resources.filter(
+      (resource) =>
+        resource.available !== false &&
+        /classroom|lab|facility|room|hall/i.test(resource.type || ""),
+    );
+    const pool =
+      typedRooms.length > 0
+        ? typedRooms
+        : resources.filter((resource) => resource.available !== false);
+
+    return [...pool].sort((a, b) => a.code.localeCompare(b.code));
+  }, [resources]);
+
+  const availableVenueOptions = useMemo(() => {
+    if (!scheduleForm.examDate || !scheduleForm.examTime) {
+      return venueRoomOptions;
+    }
+
+    return venueRoomOptions.filter((resource) => {
+      const label = formatResourceVenueLabel(resource);
+      const conflict = findVenueConflict(
+        {
+          examDate: scheduleForm.examDate,
+          examTime: scheduleForm.examTime,
+          duration: scheduleForm.duration || 60,
+          venue: label,
+        },
+        schedules,
+        editingSchedule?.id,
+      );
+      return !conflict;
+    });
+  }, [
+    venueRoomOptions,
+    scheduleForm.examDate,
+    scheduleForm.examTime,
+    scheduleForm.duration,
+    schedules,
+    editingSchedule?.id,
+  ]);
+
+  const venueSelectOptions = useMemo(() => {
+    const options = availableVenueOptions.map((resource) => formatResourceVenueLabel(resource));
+    if (
+      scheduleForm.venue &&
+      !options.some((option) => venuesMatch(option, scheduleForm.venue))
+    ) {
+      return [scheduleForm.venue, ...options];
+    }
+    return options;
+  }, [availableVenueOptions, scheduleForm.venue]);
+
+  useEffect(() => {
+    if (!scheduleForm.venue || !scheduleForm.examDate || !scheduleForm.examTime) return;
+
+    const stillAvailable = availableVenueOptions.some((resource) =>
+      venuesMatch(formatResourceVenueLabel(resource), scheduleForm.venue),
+    );
+    if (!stillAvailable && !editingSchedule) {
+      setScheduleForm((current) => ({ ...current, venue: "" }));
+    }
+  }, [
+    availableVenueOptions,
+    scheduleForm.venue,
+    scheduleForm.examDate,
+    scheduleForm.examTime,
+    editingSchedule,
+  ]);
 
   // Get classes that have scheduled exams for the selected cycle (for marks entry)
   const classesForMarksEntry = useMemo(() => {
@@ -1312,14 +1483,45 @@ export default function ExamsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Venue</label>
-                  <input
-                    type="text"
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    Venue *
+                  </label>
+                  <select
                     value={scheduleForm.venue}
-                    onChange={(e) => setScheduleForm({...scheduleForm, venue: e.target.value})}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, venue: e.target.value })}
                     className="w-full px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50"
-                    placeholder="e.g., Room 101, Main Hall"
-                  />
+                    disabled={!scheduleForm.examDate || !scheduleForm.examTime}
+                  >
+                    <option value="">
+                      {!scheduleForm.examDate || !scheduleForm.examTime
+                        ? "Select exam date and time first"
+                        : venueSelectOptions.length === 0
+                          ? "No free rooms for this time"
+                          : "Select a room from Resources"}
+                    </option>
+                    {venueSelectOptions.map((venue) => (
+                      <option key={venue} value={venue}>
+                        {venue}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Rooms already booked for an overlapping exam time are hidden. Manage rooms in
+                    Admin → Resources.
+                  </p>
+                  {scheduleForm.examDate &&
+                  scheduleForm.examTime &&
+                  venueRoomOptions.length > 0 &&
+                  availableVenueOptions.length === 0 ? (
+                    <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                      All rooms are booked at this time. Pick another time or free a room.
+                    </p>
+                  ) : null}
+                  {resources.length === 0 ? (
+                    <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-400">
+                      No rooms found. Add classrooms/labs under Admin → Resources first.
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3 sticky bottom-0 bg-white dark:bg-slate-800">
