@@ -44,6 +44,7 @@ import {
 } from "@/lib/system-users";
 import { formatDate, getTodayIsoDate } from "@/lib/date-format";
 import { DateInput } from "@/components/ui/date-input";
+import { getUserSession } from "@/lib/teacher-check-in";
 import {
   RecordFormSection,
   RecordFormShell,
@@ -111,12 +112,18 @@ export default function StudentsPage() {
   const searchParams = useSearchParams();
   const isAddMode = searchParams.get("action") === "add";
   const { currentSchool } = useSchool();
+  const [session, setSession] = useState<ReturnType<typeof getUserSession>>(null);
+  const canManageStudents = session?.role === "admin";
   
   // Load manually created classes
   const [availableClasses, setAvailableClasses] = useState<ReturnType<typeof getSchoolClasses>>([]);
   
   // Load students from scoped localStorage when the school is available
   const [students, setStudents] = useState<Student[]>([]);
+
+  useEffect(() => {
+    setSession(getUserSession());
+  }, []);
 
   useEffect(() => {
     if (!currentSchool) {
@@ -505,6 +512,10 @@ export default function StudentsPage() {
   };
 
   const handleEditStudent = () => {
+    if (!canManageStudents) {
+      alert("Only the principal (admin) can edit student records.");
+      return;
+    }
     if (
       !selectedStudent ||
       !formData.firstName ||
@@ -587,6 +598,10 @@ export default function StudentsPage() {
   };
 
   const handleDeleteStudent = (studentId: string) => {
+    if (!canManageStudents) {
+      alert("Only the principal (admin) can delete student records.");
+      return;
+    }
     if (confirm("Are you sure you want to delete this student?")) {
       updateStudents(students.filter(s => s.id !== studentId));
       alert("Student deleted successfully!");
@@ -599,6 +614,10 @@ export default function StudentsPage() {
   };
 
   const handleEditClick = (student: Student) => {
+    if (!canManageStudents) {
+      alert("Only the principal (admin) can edit student records.");
+      return;
+    }
     setSelectedStudent(student);
     setFormData(student);
     setShowEditStudent(true);
@@ -1063,20 +1082,24 @@ export default function StudentsPage() {
                           >
                             <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                           </button>
-                          <button
-                            onClick={() => handleEditClick(student)}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
-                            title="Edit"
-                          >
-                            <Edit className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteStudent(student.id)}
-                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                          </button>
+                          {canManageStudents && (
+                            <>
+                              <button
+                                onClick={() => handleEditClick(student)}
+                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
+                                title="Edit"
+                              >
+                                <Edit className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteStudent(student.id)}
+                                className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1088,7 +1111,7 @@ export default function StudentsPage() {
         </div>
 
         {/* Edit Student Modal */}
-        {showEditStudent && selectedStudent && (
+        {showEditStudent && selectedStudent && canManageStudents && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
             <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900">
               <div className="h-1.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600" />
@@ -1487,15 +1510,17 @@ export default function StudentsPage() {
                 </div>
               </div>
               <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex gap-3">
-                <button 
-                  onClick={() => { handleEditClick(selectedStudent); setShowViewStudent(false); }}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-blue-500/30"
-                >
-                  Edit Student
-                </button>
+                {canManageStudents && (
+                  <button 
+                    onClick={() => { handleEditClick(selectedStudent); setShowViewStudent(false); }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all font-bold shadow-lg shadow-blue-500/30"
+                  >
+                    Edit Student
+                  </button>
+                )}
                 <button 
                   onClick={() => { setShowViewStudent(false); setSelectedStudent(null); }}
-                  className="px-6 py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold"
+                  className={`${canManageStudents ? "px-6" : "flex-1 px-6"} py-3 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all font-semibold`}
                 >
                   Close
                 </button>
