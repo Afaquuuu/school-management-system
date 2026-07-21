@@ -66,6 +66,12 @@ export default function LoginPage() {
     }
   }, [schools, currentSchool, router]);
 
+  useEffect(() => {
+    if (currentSchool?.email) {
+      setEmail((current) => current || currentSchool.email);
+    }
+  }, [currentSchool]);
+
   const finishLogin = (user: SystemUser) => {
     if (!currentSchool) return;
 
@@ -579,8 +585,8 @@ export default function LoginPage() {
                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   ) : (
                     <>
+                      Unlock Administrator Access
                       <ArrowRight className="h-4 w-4" />
-                      Sign In
                     </>
                   )}
                 </button>

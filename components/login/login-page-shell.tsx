@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { School } from "lucide-react";
 import { getSchoolInitials, LoginBackground } from "@/components/login/login-background";
 
 type LoginPageShellProps = {
@@ -37,7 +36,8 @@ export function LoginPageShell({ schoolName, children }: LoginPageShellProps) {
         <div className="login-page-main">
           <div className="login-page-content">
             <div className="login-brand-icon">
-              <School className="h-9 w-9 text-white" strokeWidth={1.8} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/favicon.png" alt="" className="login-brand-icon-image" />
             </div>
 
             <p className="login-brand-kicker">School Management System</p>
