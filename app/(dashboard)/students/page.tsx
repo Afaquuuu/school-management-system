@@ -36,11 +36,11 @@ import {
   parseStudentStatus,
   pickCsvFile,
 } from "@/lib/import-data";
-import { useSchool, getScopedItem, setScopedItem, getSchoolClasses, getUniqueClassNames, getUniqueSections, getSectionsForClass } from "@/lib/school-context";
+import { useSchool, getScopedItem, setScopedItem, persistScopedItem, getSchoolClasses, getUniqueClassNames, getUniqueSections, getSectionsForClass } from "@/lib/school-context";
 import {
   formatCredentialsText,
   isValidLoginEmail,
-  syncStudentsToSystemUsers,
+  syncStudentsToSystemUsersPersisted,
 } from "@/lib/system-users";
 import { formatDate, getTodayIsoDate } from "@/lib/date-format";
 import { DateInput } from "@/components/ui/date-input";
@@ -111,7 +111,7 @@ export default function StudentsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isAddMode = searchParams.get("action") === "add";
-  const { currentSchool } = useSchool();
+  const { currentSchool, isStorageReady } = useSchool();
   const [session, setSession] = useState<ReturnType<typeof getUserSession>>(null);
   const canManageStudents = session?.role === "admin";
   
@@ -126,8 +126,8 @@ export default function StudentsPage() {
   }, []);
 
   useEffect(() => {
-    if (!currentSchool) {
-      setStudents([]);
+    if (!currentSchool || !isStorageReady) {
+      if (!currentSchool) setStudents([]);
       return;
     }
 
@@ -135,10 +135,10 @@ export default function StudentsPage() {
       const stored = getScopedItem(currentSchool.id, "school_students");
       setStudents(stored ? JSON.parse(stored) : []);
     } catch (error) {
-      console.error("Error loading students from localStorage:", error);
+      console.error("Error loading students from storage:", error);
       setStudents([]);
     }
-  }, [currentSchool]);
+  }, [currentSchool, isStorageReady]);
   
   // Load classes on mount and auto-create any missing class/section pairs from enrolled students
   useEffect(() => {
@@ -197,18 +197,25 @@ export default function StudentsPage() {
     ? formData.rollNumber
     : suggestedRollNumber;
 
-  // Save students to scoped localStorage whenever they change
-  const updateStudents = (newStudents: Student[]) => {
+  // Save students to storage/database whenever they change
+  const updateStudents = async (newStudents: Student[]) => {
+    const previousStudents = students;
     setStudents(newStudents);
-    if (typeof window !== 'undefined' && currentSchool) {
-      try {
-        setScopedItem(currentSchool.id, 'school_students', JSON.stringify(newStudents));
-        return syncStudentsToSystemUsers(currentSchool.id);
-      } catch (error) {
-        console.error('Error saving students to localStorage:', error);
-      }
+    if (typeof window === "undefined" || !currentSchool) {
+      return { users: [], newlyIssued: [] as Awaited<ReturnType<typeof syncStudentsToSystemUsersPersisted>>["newlyIssued"] };
     }
-    return { users: [], newlyIssued: [] as ReturnType<typeof syncStudentsToSystemUsers>["newlyIssued"] };
+
+    try {
+      await persistScopedItem(
+        currentSchool.id,
+        "school_students",
+        JSON.stringify(newStudents),
+      );
+      return await syncStudentsToSystemUsersPersisted(currentSchool.id);
+    } catch (error) {
+      setStudents(previousStudents);
+      throw error;
+    }
   };
 
   const filteredStudents = useMemo(() => 
@@ -361,7 +368,16 @@ export default function StudentsPage() {
     }
 
     if (imported.length > 0) {
-      updateStudents([...students, ...imported]);
+      try {
+        await updateStudents([...students, ...imported]);
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? `Failed to import students: ${error.message}`
+            : "Failed to import students. Please try again.",
+        );
+        return;
+      }
 
       let classesCreated: string[] = [];
       if (currentSchool) {
@@ -434,7 +450,7 @@ export default function StudentsPage() {
     ).sort();
   }, [students, filterClass]);
 
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     if (
       !formData.firstName ||
       !formData.lastName ||
@@ -500,31 +516,39 @@ export default function StudentsPage() {
     };
 
     let successMessage = "Student added successfully!";
-    const syncResult = updateStudents([...students, newStudent]);
-    if (currentSchool && newStudent.class && newStudent.section) {
-      ensureSchoolClassesFromStudents(currentSchool.id);
-      setAvailableClasses(
-        getUniqueSchoolClassesByName(getSchoolClasses(currentSchool.id)),
+    try {
+      const syncResult = await updateStudents([...students, newStudent]);
+      if (currentSchool && newStudent.class && newStudent.section) {
+        ensureSchoolClassesFromStudents(currentSchool.id);
+        setAvailableClasses(
+          getUniqueSchoolClassesByName(getSchoolClasses(currentSchool.id)),
+        );
+      }
+      const parentUser = syncResult.newlyIssued.find(
+        (user) =>
+          user.role === "Parent" &&
+          user.email.toLowerCase() === newStudent.guardianEmail.toLowerCase(),
+      );
+      if (parentUser && currentSchool) {
+        successMessage += `\n\nParent login credentials:\n${formatCredentialsText(parentUser, currentSchool.name)}`;
+      } else if (currentSchool) {
+        successMessage +=
+          "\n\nA parent account already exists for this guardian email. The existing password was kept unchanged.";
+      }
+
+      setFormData({});
+      alert(successMessage);
+      router.push("/students");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? `Failed to save student: ${error.message}`
+          : "Failed to save student. Please try again.",
       );
     }
-    const parentUser = syncResult.newlyIssued.find(
-      (user) =>
-        user.role === "Parent" &&
-        user.email.toLowerCase() === newStudent.guardianEmail.toLowerCase(),
-    );
-    if (parentUser && currentSchool) {
-      successMessage += `\n\nParent login credentials:\n${formatCredentialsText(parentUser, currentSchool.name)}`;
-    } else if (currentSchool) {
-      successMessage +=
-        "\n\nA parent account already exists for this guardian email. The existing password was kept unchanged.";
-    }
-
-    setFormData({});
-    alert(successMessage);
-    router.push("/students");
   };
 
-  const handleEditStudent = () => {
+  const handleEditStudent = async () => {
     if (!canManageStudents) {
       alert("Only the principal (admin) can edit student records.");
       return;
@@ -577,47 +601,63 @@ export default function StudentsPage() {
       return;
     }
 
-    updateStudents(students.map(s => 
-      s.id === selectedStudent.id ? updatedStudent : s
-    ));
+    try {
+      await updateStudents(students.map(s => 
+        s.id === selectedStudent.id ? updatedStudent : s
+      ));
 
-    if (currentSchool) {
-      const storedAttendance = getScopedItem(currentSchool.id, "attendance_records");
-      if (storedAttendance) {
-        try {
-          const records = JSON.parse(storedAttendance) as Array<{
-            studentId: string;
-            studentName: string;
-          }>;
-          const fullName = `${updatedStudent.firstName} ${updatedStudent.lastName}`.trim();
-          const syncedRecords = records.map((record) =>
-            record.studentId === updatedStudent.id
-              ? { ...record, studentName: fullName }
-              : record,
-          );
-          setScopedItem(
-            currentSchool.id,
-            "attendance_records",
-            JSON.stringify(syncedRecords),
-          );
-        } catch (error) {
-          console.error("Error syncing attendance student names:", error);
+      if (currentSchool) {
+        const storedAttendance = getScopedItem(currentSchool.id, "attendance_records");
+        if (storedAttendance) {
+          try {
+            const records = JSON.parse(storedAttendance) as Array<{
+              studentId: string;
+              studentName: string;
+            }>;
+            const fullName = `${updatedStudent.firstName} ${updatedStudent.lastName}`.trim();
+            const syncedRecords = records.map((record) =>
+              record.studentId === updatedStudent.id
+                ? { ...record, studentName: fullName }
+                : record,
+            );
+            setScopedItem(
+              currentSchool.id,
+              "attendance_records",
+              JSON.stringify(syncedRecords),
+            );
+          } catch (error) {
+            console.error("Error syncing attendance student names:", error);
+          }
         }
       }
-    }
 
-    closeEditForm();
-    alert("Student updated successfully!");
+      closeEditForm();
+      alert("Student updated successfully!");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? `Failed to update student: ${error.message}`
+          : "Failed to update student. Please try again.",
+      );
+    }
   };
 
-  const handleDeleteStudent = (studentId: string) => {
+  const handleDeleteStudent = async (studentId: string) => {
     if (!canManageStudents) {
       alert("Only the principal (admin) can delete student records.");
       return;
     }
     if (confirm("Are you sure you want to delete this student?")) {
-      updateStudents(students.filter(s => s.id !== studentId));
-      alert("Student deleted successfully!");
+      try {
+        await updateStudents(students.filter(s => s.id !== studentId));
+        alert("Student deleted successfully!");
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? `Failed to delete student: ${error.message}`
+            : "Failed to delete student. Please try again.",
+        );
+      }
     }
   };
 

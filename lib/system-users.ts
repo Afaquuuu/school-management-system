@@ -1,4 +1,4 @@
-import { getScopedItem, setScopedItem } from "@/lib/school-context";
+import { getScopedItem, setScopedItem, persistScopedItem } from "@/lib/school-context";
 import { formatLinkedChildLabel } from "@/lib/parent-student-links";
 
 export type SystemUserRole =
@@ -108,6 +108,13 @@ export function loadSystemUsers(schoolId: string): SystemUser[] {
 
 export function saveSystemUsers(schoolId: string, users: SystemUser[]): void {
   setScopedItem(schoolId, STORAGE_KEY, JSON.stringify(users));
+}
+
+export async function saveSystemUsersPersisted(
+  schoolId: string,
+  users: SystemUser[],
+): Promise<void> {
+  await persistScopedItem(schoolId, STORAGE_KEY, JSON.stringify(users));
 }
 
 export function hasSystemUsers(schoolId: string): boolean {
@@ -238,6 +245,12 @@ export function syncStaffToSystemUsers(schoolId: string): SystemUser[] {
 
   saveSystemUsers(schoolId, updatedUsers);
   return updatedUsers;
+}
+
+export async function syncStaffToSystemUsersPersisted(schoolId: string): Promise<SystemUser[]> {
+  const users = syncStaffToSystemUsers(schoolId);
+  await saveSystemUsersPersisted(schoolId, users);
+  return users;
 }
 
 type StudentRecord = {
@@ -459,6 +472,15 @@ export function syncStudentsToSystemUsers(schoolId: string): {
 
   saveSystemUsers(schoolId, updatedUsers);
   return { users: updatedUsers, newlyIssued };
+}
+
+export async function syncStudentsToSystemUsersPersisted(schoolId: string): Promise<{
+  users: SystemUser[];
+  newlyIssued: SystemUser[];
+}> {
+  const result = syncStudentsToSystemUsers(schoolId);
+  await saveSystemUsersPersisted(schoolId, result.users);
+  return result;
 }
 
 export function isValidLoginEmail(email: string): boolean {

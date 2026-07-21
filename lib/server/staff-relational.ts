@@ -1,4 +1,5 @@
 import type { Gender, PrismaClient } from "@prisma/tenant-client";
+import { Prisma } from "@prisma/tenant-client";
 
 import { getTenantPrisma } from "@/lib/tenant-prisma";
 import { getSchoolDatabaseName } from "@/lib/server/schools";
@@ -214,7 +215,14 @@ export async function setRelationalStaffJson(schoolId: string, rawValue: string)
   }
 
   const tenant = getTenantPrisma(databaseName);
-  await saveStaffToRelationalStore(tenant, staffMembers);
+  try {
+    await saveStaffToRelationalStore(tenant, staffMembers);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new Error("A staff member with this email already exists in the school records.");
+    }
+    throw error;
+  }
   await tenant.appStorage.deleteMany({ where: { key: STAFF_STORAGE_KEY } });
 }
 

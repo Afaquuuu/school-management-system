@@ -35,8 +35,32 @@ async function persistToServer(schoolId: string, key: string, value: string): Pr
   });
 
   if (!response.ok) {
-    throw new Error("Failed to persist tenant storage item.");
+    let message = "Failed to persist tenant storage item.";
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload.error) message = payload.error;
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(message);
   }
+}
+
+export async function persistScopedItemNow(
+  schoolId: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  getSchoolCache(schoolId).set(key, value);
+
+  const pendingKey = writeKey(schoolId, key);
+  const existing = pendingWrites.get(pendingKey);
+  if (existing) {
+    clearTimeout(existing.timer);
+    pendingWrites.delete(pendingKey);
+  }
+
+  await persistToServer(schoolId, key, value);
 }
 
 export function getCachedScopedItem(schoolId: string, key: string): string | null {

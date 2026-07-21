@@ -1,4 +1,5 @@
 import type { Gender, PrismaClient } from "@prisma/tenant-client";
+import { Prisma } from "@prisma/tenant-client";
 
 import { getTenantPrisma } from "@/lib/tenant-prisma";
 import { getSchoolDatabaseName } from "@/lib/server/schools";
@@ -246,7 +247,14 @@ export async function setRelationalStudentsJson(
   }
 
   const tenant = getTenantPrisma(databaseName);
-  await saveStudentsToRelationalStore(tenant, students);
+  try {
+    await saveStudentsToRelationalStore(tenant, students);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new Error("A student with this email already exists in the school records.");
+    }
+    throw error;
+  }
 
   await tenant.appStorage.deleteMany({
     where: { key: STUDENTS_STORAGE_KEY },

@@ -7,9 +7,11 @@ import { migrateCommunicationSettings } from "@/lib/school-settings";
 import { isClientDatabaseMode } from "@/lib/storage-mode";
 import {
   clearCachedSchoolStorage,
+  flushPendingStorageWrites,
   getCachedScopedItem,
   hydrateAuthStorageFromServer,
   hydrateSchoolStorageFromServer,
+  persistScopedItemNow,
   removeCachedScopedItem,
   setCachedScopedItem,
 } from "@/lib/tenant-storage-cache";
@@ -186,6 +188,19 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [currentSchool?.id]);
+
+  useEffect(() => {
+    if (!databaseMode || typeof window === "undefined") return;
+
+    const flushOnExit = () => {
+      void flushPendingStorageWrites();
+    };
+
+    window.addEventListener("beforeunload", flushOnExit);
+    return () => {
+      window.removeEventListener("beforeunload", flushOnExit);
+    };
+  }, []);
 
   const setCurrentSchool = (school: School) => {
     setCurrentSchoolState(school);
@@ -365,6 +380,22 @@ export function setScopedItem(schoolId: string, key: string, value: string): voi
 
   if (databaseMode) {
     setCachedScopedItem(schoolId, key, value);
+    return;
+  }
+
+  localStorage.setItem(getScopedKey(schoolId, key), value);
+}
+
+/** Persist immediately to the server/database — use for critical records like students and staff. */
+export async function persistScopedItem(
+  schoolId: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  if (databaseMode) {
+    await persistScopedItemNow(schoolId, key, value);
     return;
   }
 

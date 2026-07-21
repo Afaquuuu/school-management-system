@@ -22,8 +22,8 @@ import {
   Shield,
   DollarSign,
 } from "lucide-react";
-import { useSchool, getScopedItem, setScopedItem } from "@/lib/school-context";
-import { syncStaffToSystemUsers } from "@/lib/system-users";
+import { useSchool, getScopedItem, persistScopedItem } from "@/lib/school-context";
+import { syncStaffToSystemUsersPersisted } from "@/lib/system-users";
 import { getUserSession } from "@/lib/teacher-check-in";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
 import {
@@ -88,7 +88,7 @@ const roleConfig: Record<StaffRole, { color: string; label: string; icon: any }>
 export default function StaffPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentSchool } = useSchool();
+  const { currentSchool, isStorageReady } = useSchool();
   const isAddMode = searchParams.get("action") === "add";
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   
@@ -96,8 +96,8 @@ export default function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
 
   useEffect(() => {
-    if (!currentSchool) {
-      setStaff([]);
+    if (!currentSchool || !isStorageReady) {
+      if (!currentSchool) setStaff([]);
       return;
     }
 
@@ -105,10 +105,10 @@ export default function StaffPage() {
       const stored = getScopedItem(currentSchool.id, "school_staff");
       setStaff(stored ? JSON.parse(stored) : []);
     } catch (error) {
-      console.error("Error loading staff from localStorage:", error);
+      console.error("Error loading staff from storage:", error);
       setStaff([]);
     }
-  }, [currentSchool]);
+  }, [currentSchool, isStorageReady]);
   
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("all");
@@ -126,15 +126,17 @@ export default function StaffPage() {
     router.push("/staff?action=add");
   };
 
-  // Save staff to scoped localStorage whenever they change
-  const updateStaff = (newStaff: Staff[]) => {
+  // Save staff to storage/database whenever they change
+  const updateStaff = async (newStaff: Staff[]) => {
+    const previousStaff = staff;
     setStaff(newStaff);
-    if (typeof window !== 'undefined' && currentSchool) {
+    if (typeof window !== "undefined" && currentSchool) {
       try {
-        setScopedItem(currentSchool.id, 'school_staff', JSON.stringify(newStaff));
-        syncStaffToSystemUsers(currentSchool.id);
+        await persistScopedItem(currentSchool.id, "school_staff", JSON.stringify(newStaff));
+        await syncStaffToSystemUsersPersisted(currentSchool.id);
       } catch (error) {
-        console.error('Error saving staff to localStorage:', error);
+        setStaff(previousStaff);
+        throw error;
       }
     }
   };
@@ -266,7 +268,16 @@ export default function StaffPage() {
     }
 
     if (imported.length > 0) {
-      updateStaff([...staff, ...imported]);
+      try {
+        await updateStaff([...staff, ...imported]);
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? `Failed to import staff: ${error.message}`
+            : "Failed to import staff. Please try again.",
+        );
+        return;
+      }
     }
 
     alert(
@@ -294,7 +305,7 @@ export default function StaffPage() {
     setIsAdmin(session?.role === "admin");
   }, []);
 
-  const handleAddStaff = () => {
+  const handleAddStaff = async () => {
     if (!formData.firstName || !formData.lastName || !formData.email) {
       alert("Please fill in all required fields");
       return;
@@ -321,16 +332,32 @@ export default function StaffPage() {
       emergencyPhone: formData.emergencyPhone || "",
     };
 
-    updateStaff([...staff, newStaff]);
-    setFormData({});
-    alert("Staff member added successfully!");
-    router.push("/staff");
+    try {
+      await updateStaff([...staff, newStaff]);
+      setFormData({});
+      alert("Staff member added successfully!");
+      router.push("/staff");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? `Failed to save staff member: ${error.message}`
+          : "Failed to save staff member. Please try again.",
+      );
+    }
   };
 
-  const handleDeleteStaff = (staffId: string) => {
+  const handleDeleteStaff = async (staffId: string) => {
     if (confirm("Are you sure you want to delete this staff member?")) {
-      updateStaff(staff.filter(s => s.id !== staffId));
-      alert("Staff member deleted successfully!");
+      try {
+        await updateStaff(staff.filter(s => s.id !== staffId));
+        alert("Staff member deleted successfully!");
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? `Failed to delete staff member: ${error.message}`
+            : "Failed to delete staff member. Please try again.",
+        );
+      }
     }
   };
 
