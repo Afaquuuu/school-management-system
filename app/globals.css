@@ -210,7 +210,7 @@ body {
   }
 
   .landing-nav {
-    @apply relative z-10 flex items-center justify-between gap-6 py-2;
+    @apply relative z-50 flex items-center justify-between gap-6 py-2;
   }
 
   .landing-brand-title {
