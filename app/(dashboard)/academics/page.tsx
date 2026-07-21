@@ -126,14 +126,20 @@ export default function AcademicsPage() {
     return (
       <div className="space-y-6">
         <SectionPage
-          title={isStudentView ? "My Timetable" : section.title}
+          title={isStudentView || isTeacherView ? "My Timetable" : section.title}
           description={
             isStudentView
               ? "Your weekly class schedule and room assignments"
-              : section.description
+              : isTeacherView
+                ? "View your assigned classes, periods, and room timings"
+                : section.description
           }
         />
-        <TimetableManager readOnly={isStudentView} initialClassId={studentClassId} />
+        <TimetableManager
+          readOnly={isStudentView || isTeacherView}
+          initialClassId={isStudentView ? studentClassId : ""}
+          filterToTeacherName={teacherName}
+        />
       </div>
     );
   }

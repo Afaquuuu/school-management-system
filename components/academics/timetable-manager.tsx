@@ -34,6 +34,10 @@ import {
   loadSchoolResources,
   loadTimetableEntries,
   saveTimetableEntries,
+  getClassIdsForTeacher,
+  filterAssignmentsForTeacher,
+  isSameTeacherName,
+  isTeacherInChargeOfClass,
   TIMETABLE_DAYS,
   type ClassAssignment,
   type SchoolResource,
@@ -62,11 +66,15 @@ type SlotEditorState = {
 export function TimetableManager({
   readOnly = false,
   initialClassId = "",
+  filterToTeacherName = "",
 }: {
   readOnly?: boolean;
   initialClassId?: string;
+  filterToTeacherName?: string;
 }) {
   const { currentSchool } = useSchool();
+  const isTeacherView = Boolean(filterToTeacherName.trim());
+  const lockClassPicker = readOnly && Boolean(initialClassId);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [resources, setResources] = useState<SchoolResource[]>([]);
   const [assignmentsByClass, setAssignmentsByClass] = useState<Record<string, ClassAssignment[]>>({});
@@ -82,20 +90,29 @@ export function TimetableManager({
     let schoolClasses = getSchoolClasses(currentSchool.id).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
+    const assignments = loadClassAssignments(currentSchool.id);
 
-    if (readOnly && initialClassId) {
+    if (filterToTeacherName) {
+      const teacherClassIds = new Set(getClassIdsForTeacher(assignments, filterToTeacherName));
+      for (const cls of schoolClasses) {
+        if (isTeacherInChargeOfClass(cls.id, assignments, filterToTeacherName)) {
+          teacherClassIds.add(cls.id);
+        }
+      }
+      schoolClasses = schoolClasses.filter((cls) => teacherClassIds.has(cls.id));
+    } else if (readOnly && initialClassId) {
       schoolClasses = schoolClasses.filter((cls) => cls.id === initialClassId);
     }
 
     setClasses(schoolClasses);
     setResources(loadSchoolResources(currentSchool.id));
-    setAssignmentsByClass(loadClassAssignments(currentSchool.id));
+    setAssignmentsByClass(assignments);
     setEntries(loadTimetableEntries(currentSchool.id));
     setBellTimes(loadBellTimes(currentSchool.id));
     setClassPeriodSettings(loadClassPeriodSettings(currentSchool.id));
     if (schoolClasses.length > 0) {
       setSelectedClassId((current) => {
-        if (readOnly && initialClassId && schoolClasses.some((cls) => cls.id === initialClassId)) {
+        if (lockClassPicker && initialClassId && schoolClasses.some((cls) => cls.id === initialClassId)) {
           return initialClassId;
         }
         if (current && schoolClasses.some((cls) => cls.id === current)) return current;
@@ -107,14 +124,21 @@ export function TimetableManager({
     } else {
       setSelectedClassId("");
     }
-  }, [currentSchool, initialClassId, readOnly]);
+  }, [currentSchool, filterToTeacherName, initialClassId, lockClassPicker, readOnly]);
 
   const selectedClass = classes.find((cls) => cls.id === selectedClassId) ?? null;
-  const classEntries = useMemo(
-    () => entries.filter((entry) => entry.classId === selectedClassId),
-    [entries, selectedClassId],
-  );
+  const classEntries = useMemo(() => {
+    const entriesForClass = entries.filter((entry) => entry.classId === selectedClassId);
+    if (!filterToTeacherName) return entriesForClass;
+    return entriesForClass.filter((entry) =>
+      isSameTeacherName(entry.teacher, filterToTeacherName),
+    );
+  }, [entries, filterToTeacherName, selectedClassId]);
   const classAssignments = assignmentsByClass[selectedClassId] ?? [];
+  const visibleClassAssignments = useMemo(() => {
+    if (!filterToTeacherName) return classAssignments;
+    return filterAssignmentsForTeacher(classAssignments, filterToTeacherName);
+  }, [classAssignments, filterToTeacherName]);
   const selectedClassSlots = classPeriodSettings[selectedClassId];
   const visiblePeriods = useMemo(
     () => {
@@ -150,8 +174,8 @@ export function TimetableManager({
     [visiblePeriods],
   );
   const weeklyPeriodTarget = useMemo(
-    () => classAssignments.reduce((sum, assignment) => sum + assignment.periodsPerWeek, 0),
-    [classAssignments],
+    () => visibleClassAssignments.reduce((sum, assignment) => sum + assignment.periodsPerWeek, 0),
+    [visibleClassAssignments],
   );
   const conflicts = useMemo(() => detectTimetableConflicts(entries), [entries]);
   const classConflicts = useMemo(
@@ -498,9 +522,13 @@ export function TimetableManager({
     return (
       <div className="surface-card p-8 text-center">
         <CalendarRange className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">No classes yet</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+          {isTeacherView ? "No classes assigned yet" : "No classes yet"}
+        </h2>
         <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-          Create classes in Admin → Academics Config before building a timetable.
+          {isTeacherView
+            ? "Your administrator has not assigned you to any classes yet. Contact the school office if this looks incorrect."
+            : "Create classes in Admin → Academics Config before building a timetable."}
         </p>
       </div>
     );
@@ -546,19 +574,21 @@ export function TimetableManager({
                   Timetable
                 </p>
                 <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-                  Class schedule builder
+                  {isTeacherView ? "My teaching schedule" : "Class schedule builder"}
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-                  Assign subjects to each period and adjust your school bell times.
+                  {isTeacherView
+                    ? "View your assigned periods, subjects, and room timings across your classes."
+                    : "Assign subjects to each period and adjust your school bell times."}
                 </p>
               </div>
             </div>
 
             <div className="w-full max-w-[220px]">
               <label className={recordFormFieldLabel}>
-                {readOnly ? "Your Class" : "Select Class"}
+                {lockClassPicker ? "Your Class" : isTeacherView ? "Your Classes" : "Select Class"}
               </label>
-              {readOnly && selectedClass ? (
+              {lockClassPicker && selectedClass ? (
                 <div className="rounded-lg border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm font-semibold text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50">
                   {selectedClass.name}
                 </div>
@@ -579,7 +609,7 @@ export function TimetableManager({
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <StatChip label="Subjects" value={classAssignments.length} accent="blue" />
+            <StatChip label="Subjects" value={visibleClassAssignments.length} accent="blue" />
             <StatChip label="Lesson slots" value={lessonPeriodCount} accent="emerald" />
             <StatChip label="Breaks" value={breakPeriodCount} accent="amber" />
             <StatChip
@@ -674,7 +704,13 @@ export function TimetableManager({
                         />
                       </td>
                       {TIMETABLE_DAYS.map((day) => {
-                        const entry = findEntryForSlot(entries, selectedClassId, day, period.id);
+                        const slotEntry = findEntryForSlot(entries, selectedClassId, day, period.id);
+                        const entry =
+                          slotEntry &&
+                          filterToTeacherName &&
+                          !isSameTeacherName(slotEntry.teacher, filterToTeacherName)
+                            ? undefined
+                            : slotEntry;
                         return (
                           <td
                             key={`${day}-${period.id}`}
