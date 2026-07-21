@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, School } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { AppBrandMark } from "@/components/brand/app-brand-mark";
 import { DEMO_REQUEST_LINK, externalEmailLinkProps } from "@/components/landing/demo-request";
 
 const productLinks = [
@@ -56,14 +57,7 @@ export function LandingNav() {
 
   return (
     <header ref={navRef} className="landing-nav">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-md shadow-blue-500/25">
-          <School className="h-5 w-5 text-white" />
-        </div>
-        <span className="landing-brand-title text-[1.35rem] font-bold tracking-tight">
-          School Management
-        </span>
-      </div>
+      <AppBrandMark />
 
       <nav className="hidden flex-1 items-center justify-center gap-10 md:flex">
         <div className="relative">

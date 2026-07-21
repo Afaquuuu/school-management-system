@@ -3,27 +3,13 @@
 import { usePathname } from "next/navigation";
 import { useSchool } from "@/lib/school-context";
 import { isClientDatabaseMode } from "@/lib/storage-mode";
+import { AppLoadingScreen } from "@/components/layout/app-loading-screen";
 
 const PUBLIC_ENTRY_PATHS = ["/", "/school-auth", "/login", "/unauthorized"];
 
 function isPublicEntryPath(pathname: string): boolean {
   return PUBLIC_ENTRY_PATHS.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`),
-  );
-}
-
-function LoadingScreen({ message }: { message: string }) {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
-      <div className="text-center">
-        <div className="login-brand-icon mb-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/favicon.png" alt="" className="login-brand-icon-image" />
-        </div>
-        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-slate-600 dark:text-slate-400">{message}</p>
-      </div>
-    </div>
   );
 }
 
@@ -37,11 +23,11 @@ export function StorageReadyGate({ children }: { children: React.ReactNode }) {
   }
 
   if (isLoading && !publicEntry) {
-    return <LoadingScreen message="Loading schools..." />;
+    return <AppLoadingScreen message="Loading schools..." />;
   }
 
   if (currentSchool && !isStorageReady && !publicEntry) {
-    return <LoadingScreen message="Loading school data..." />;
+    return <AppLoadingScreen message="Loading school data..." />;
   }
 
   return <>{children}</>;
