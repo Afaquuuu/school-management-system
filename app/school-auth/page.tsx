@@ -24,7 +24,7 @@ import {
   LandingConstellation,
 } from "@/components/landing/landing-graphics";
 import { LandingNav } from "@/components/landing/landing-nav";
-import { DEMO_REQUEST_MAILTO } from "@/components/landing/demo-request";
+import { DEMO_REQUEST_EMAIL, DEMO_REQUEST_MAILTO, SUPPORT_MAILTO } from "@/components/landing/demo-request";
 import {
   Building2,
   ChevronRight,
@@ -576,7 +576,9 @@ export default function SchoolAuthPage() {
                 <Mail className="h-5 w-5" />
               </div>
               <h3 className="landing-info-card-title">Email Support</h3>
-              <p className="landing-info-card-text">support@edumanageplus.org</p>
+              <a href={SUPPORT_MAILTO} className="landing-info-card-text hover:text-blue-600">
+                {DEMO_REQUEST_EMAIL}
+              </a>
             </article>
             <article className="landing-info-card">
               <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">

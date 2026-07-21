@@ -5,3 +5,9 @@ export const DEMO_REQUEST_MAILTO = `mailto:${DEMO_REQUEST_EMAIL}?subject=${encod
 )}&body=${encodeURIComponent(
   "Hello,\n\nI would like to request a demo of the School Management platform.\n\nSchool name:\nContact name:\nPhone:\n\nThank you."
 )}`;
+
+export const SUPPORT_MAILTO = `mailto:${DEMO_REQUEST_EMAIL}?subject=${encodeURIComponent(
+  "School Management Support Request"
+)}&body=${encodeURIComponent(
+  "Hello,\n\nI need help with the School Management platform.\n\nSchool name:\nIssue:\n\nThank you."
+)}`;
