@@ -80,7 +80,7 @@ export function HeaderProfile() {
         onClick={() => setOpen((value) => !value)}
         className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 shadow-sm transition-colors hover:bg-slate-50"
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-teal-600 to-teal-700 text-xs font-semibold text-white">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-teal-600 text-xs font-semibold text-white shadow-sm">
           {getInitials(userSession.name)}
         </div>
         <div className="hidden text-left sm:block">

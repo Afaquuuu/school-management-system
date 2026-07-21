@@ -652,6 +652,153 @@ body {
   .status-row-info {
     @apply status-row border-teal-200 bg-teal-50 text-teal-900;
   }
+
+  .dashboard-mesh-wrap {
+    @apply pointer-events-none absolute inset-0 overflow-hidden opacity-70;
+  }
+
+  .dashboard-main-surface {
+    @apply relative flex-1 overflow-hidden;
+    background: linear-gradient(180deg, #f4f7fb 0%, #eef2f8 100%);
+  }
+
+  .admin-control-banner {
+    @apply relative overflow-hidden rounded-[24px] border border-white/80 bg-white shadow-[0_18px_50px_-34px_rgba(15,23,42,0.28)];
+  }
+
+  .admin-control-banner-accent {
+    @apply absolute bottom-0 left-0 top-0 w-1.5;
+    background: linear-gradient(180deg, #2dd4bf 0%, #14b8a6 100%);
+  }
+
+  .admin-control-banner-body {
+    @apply flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7;
+  }
+
+  .admin-control-eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400;
+  }
+
+  .admin-control-title {
+    @apply mt-1 text-[1.85rem] font-bold tracking-tight text-slate-900;
+  }
+
+  .admin-control-description {
+    @apply mt-1 max-w-2xl text-sm leading-relaxed text-slate-500;
+  }
+
+  .admin-view-toggle {
+    @apply inline-flex rounded-full border border-slate-200 bg-slate-100/80 p-1;
+  }
+
+  .admin-view-toggle-btn,
+  .admin-view-toggle-btn-active {
+    @apply rounded-full px-5 py-2 text-sm font-semibold transition;
+  }
+
+  .admin-view-toggle-btn {
+    @apply text-slate-500 hover:text-slate-700;
+  }
+
+  .admin-view-toggle-btn-active {
+    @apply bg-white text-slate-900 shadow-sm;
+  }
+
+  .admin-kpi-grid {
+    @apply grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .admin-kpi-card {
+    @apply relative overflow-hidden rounded-[22px] border border-white/70 p-5 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.25)];
+  }
+
+  .admin-kpi-card-content {
+    @apply relative z-10 max-w-[68%];
+  }
+
+  .admin-kpi-card-mint {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 55%, #ecfdf5 100%);
+  }
+
+  .admin-kpi-card-sky {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 55%, #eff6ff 100%);
+  }
+
+  .admin-kpi-card-gray {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 55%, #f8fafc 100%);
+  }
+
+  .admin-kpi-card-coral {
+    background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 55%, #fff1f2 100%);
+  }
+
+  .admin-kpi-label {
+    @apply text-sm font-semibold text-slate-600;
+  }
+
+  .admin-kpi-value-row {
+    @apply mt-1 flex items-end gap-2;
+  }
+
+  .admin-kpi-value {
+    @apply text-[2rem] font-bold leading-none tracking-tight text-slate-900;
+  }
+
+  .admin-kpi-trend {
+    @apply mb-1 inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600;
+  }
+
+  .admin-kpi-lines {
+    @apply mt-3 space-y-0.5 text-xs leading-relaxed text-slate-600;
+  }
+
+  .admin-kpi-link {
+    @apply mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 transition hover:text-blue-700;
+  }
+
+  .admin-kpi-button {
+    @apply mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50;
+  }
+
+  .admin-kpi-art {
+    @apply absolute bottom-2 right-2 h-[88px] w-[108px] opacity-95;
+  }
+
+  .admin-section-title {
+    @apply text-[1.35rem] font-bold tracking-tight text-slate-900;
+  }
+
+  .admin-module-grid {
+    @apply grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3;
+  }
+
+  .admin-module-card {
+    @apply relative flex min-h-[220px] flex-col rounded-[22px] border border-slate-200/70 bg-white p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_48px_-28px_rgba(15,23,42,0.28)];
+  }
+
+  .admin-module-badge {
+    @apply absolute right-4 top-4 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600;
+  }
+
+  .admin-module-art {
+    @apply mb-4 h-16 w-20;
+  }
+
+  .admin-module-art-placeholder {
+    @apply mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-blue-100 text-2xl font-bold text-indigo-600;
+  }
+
+  .admin-module-title {
+    @apply text-lg font-bold text-slate-900;
+  }
+
+  .admin-module-description {
+    @apply mt-2 text-sm leading-relaxed text-slate-500;
+  }
+
+  .admin-stack {
+    @apply space-y-6;
+  }
 }
 
 .glass-panel {

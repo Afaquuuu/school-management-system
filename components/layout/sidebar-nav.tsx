@@ -116,8 +116,9 @@ function NavigationGroupSection({
   return (
     <div
       className={cn(
-        "rounded-lg transition-colors",
-        isOpen && "bg-slate-800/60",
+        "relative rounded-xl transition-colors",
+        isGroupActive && "before:absolute before:bottom-2 before:left-0 before:top-2 before:w-[3px] before:rounded-full before:bg-teal-400 before:content-['']",
+        isOpen && "bg-slate-800/45",
       )}
     >
       <button
@@ -177,7 +178,7 @@ function NavigationGroupSection({
                     className={cn(
                       "group flex items-center gap-2 rounded-xl py-2 pl-9 pr-3 text-[13px] font-semibold transition-all",
                       isActive
-                        ? "bg-teal-600/90 text-white shadow-sm"
+                        ? "bg-teal-500/15 text-white ring-1 ring-teal-400/35 shadow-[0_0_18px_-8px_rgba(45,212,191,0.8)]"
                         : "text-white/85 hover:bg-slate-800/50 hover:text-white",
                     )}
                   >

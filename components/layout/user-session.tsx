@@ -64,9 +64,9 @@ export function UserSession() {
     <div className="relative">
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 transition-all hover:border-slate-300 hover:shadow-sm"
+        className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.35)] transition-all hover:border-slate-300"
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 text-sm font-semibold text-white">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-sm font-semibold text-white">
           {userSession.name.charAt(0).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1 text-left">

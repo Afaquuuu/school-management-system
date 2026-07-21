@@ -35,6 +35,7 @@ import { HeaderProfile } from "./header-profile";
 import { SchoolBrand } from "./school-brand";
 import { SidebarNav } from "./sidebar-nav";
 import { WhatsAppQueueStatus } from "@/components/whatsapp-queue-status";
+import { DashboardMeshBackground } from "@/components/dashboard/dashboard-mesh-background";
 
 function HeaderContext({
   userRole,
@@ -289,13 +290,15 @@ export function DashboardShell({
                 <HeaderContext userRole={userRole} />
               </Suspense>
 
-              <div className="hidden min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 shadow-sm lg:flex lg:max-w-md">
-                <Search className="h-4 w-4 shrink-0 text-slate-400" />
-                <input
-                  className="w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-slate-400"
-                  placeholder="Search students, invoices, attendance..."
-                  aria-label="Search school data"
-                />
+              <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
+                <div className="flex w-full max-w-xl items-center gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-3 shadow-sm">
+                  <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                  <input
+                    className="w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-slate-400"
+                    placeholder="Search students, invoices, attendance..."
+                    aria-label="Search school data"
+                  />
+                </div>
               </div>
 
               <div className="ml-auto flex items-center gap-2">
@@ -371,14 +374,9 @@ export function DashboardShell({
             </div>
           </header>
 
-          <main
-            className="flex-1 px-4 py-8 sm:px-6 lg:px-8"
-            style={{
-              background:
-                "linear-gradient(180deg, hsl(var(--content-gradient-start)) 0%, hsl(var(--content-gradient-end)) 100%)",
-            }}
-          >
-            <div className="main-content-enter content-shell w-full">
+          <main className="dashboard-main-surface">
+            <DashboardMeshBackground />
+            <div className="main-content-enter content-shell relative z-10 w-full px-4 py-8 sm:px-6 lg:px-8">
               {emailSetupNotice && userRole === "admin" && (
                 <div className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   <p>{emailSetupNotice}</p>
