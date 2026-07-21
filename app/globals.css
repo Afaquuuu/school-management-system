@@ -188,11 +188,25 @@ body {
 
   .auth-shell {
     @apply relative min-h-screen overflow-hidden px-5 py-5 sm:px-8 lg:px-10;
-    background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 55%, #eef2ff 100%);
+    background: linear-gradient(180deg, #fbfcfe 0%, #f3f7ff 52%, #eef3fb 100%);
+  }
+
+  .landing-mesh-wrap {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
   }
 
   .landing-constellation-svg {
-    @apply pointer-events-none absolute inset-0 h-full w-full opacity-80;
+    @apply absolute inset-0 h-[118%] w-[118%];
+  }
+
+  .landing-constellation-primary {
+    opacity: 1;
+    transform: translate(-9%, -8%);
+  }
+
+  .landing-constellation-accent {
+    opacity: 0.75;
+    transform: translate(-5%, -4%) scale(1.05);
   }
 
   .landing-nav {

@@ -68,34 +68,88 @@ export function FeatureIconCommunication() {
   );
 }
 
+function buildLowPolyMesh(width: number, height: number, cols: number, rows: number): string[] {
+  const points: Array<{ x: number; y: number }> = [];
+
+  for (let row = 0; row <= rows; row += 1) {
+    for (let col = 0; col <= cols; col += 1) {
+      const jitterX = Math.sin(row * 1.7 + col * 0.9) * 18 + Math.cos(col * 1.3) * 10;
+      const jitterY = Math.cos(row * 1.2 + col * 1.1) * 16 + Math.sin(row * 0.8) * 12;
+      points.push({
+        x: (col / cols) * width + jitterX,
+        y: (row / rows) * height + jitterY,
+      });
+    }
+  }
+
+  const index = (row: number, col: number) => row * (cols + 1) + col;
+  const lines = new Set<string>();
+
+  const addLine = (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    const key = [
+      Math.round(from.x),
+      Math.round(from.y),
+      Math.round(to.x),
+      Math.round(to.y),
+    ]
+      .sort((a, b) => a - b)
+      .join("-");
+    lines.add(`${from.x},${from.y},${to.x},${to.y}:${key}`);
+  };
+
+  for (let row = 0; row <= rows; row += 1) {
+    for (let col = 0; col <= cols; col += 1) {
+      const current = points[index(row, col)];
+
+      if (col < cols) {
+        addLine(current, points[index(row, col + 1)]);
+      }
+      if (row < rows) {
+        addLine(current, points[index(row + 1, col)]);
+      }
+      if (row < rows && col < cols) {
+        addLine(current, points[index(row + 1, col + 1)]);
+      }
+      if (row < rows && col > 0) {
+        addLine(current, points[index(row + 1, col - 1)]);
+      }
+    }
+  }
+
+  return Array.from(lines).map((entry) => entry.split(":")[0]);
+}
+
+const primaryMeshLines = buildLowPolyMesh(1600, 1000, 28, 18);
+const accentMeshLines = buildLowPolyMesh(1600, 1000, 14, 9);
+
 export function LandingConstellation() {
   return (
-    <svg
-      className="landing-constellation-svg"
-      viewBox="0 0 1440 900"
-      preserveAspectRatio="xMidYMid slice"
-      aria-hidden
-    >
-      <g stroke="rgba(100, 116, 139, 0.14)" strokeWidth="1">
-        <line x1="120" y1="80" x2="280" y2="160" />
-        <line x1="280" y1="160" x2="420" y2="90" />
-        <line x1="420" y1="90" x2="560" y2="180" />
-        <line x1="900" y1="60" x2="1040" y2="140" />
-        <line x1="1040" y1="140" x2="1180" y2="70" />
-        <line x1="1180" y1="70" x2="1320" y2="150" />
-        <line x1="200" y1="420" x2="360" y2="500" />
-        <line x1="360" y1="500" x2="520" y2="430" />
-        <line x1="980" y1="380" x2="1120" y2="460" />
-        <line x1="1120" y1="460" x2="1280" y2="390" />
-        <line x1="640" y1="700" x2="780" y2="760" />
-        <line x1="780" y1="760" x2="920" y2="690" />
-      </g>
-      {[
-        [120, 80], [280, 160], [420, 90], [560, 180], [900, 60], [1040, 140], [1180, 70], [1320, 150],
-        [200, 420], [360, 500], [520, 430], [980, 380], [1120, 460], [1280, 390], [640, 700], [780, 760], [920, 690],
-      ].map(([cx, cy]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="3" fill="rgba(100, 116, 139, 0.22)" />
-      ))}
-    </svg>
+    <div className="landing-mesh-wrap" aria-hidden>
+      <svg
+        className="landing-constellation-svg landing-constellation-primary"
+        viewBox="0 0 1600 1000"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <g stroke="rgba(147, 170, 206, 0.34)" strokeWidth="0.9">
+          {primaryMeshLines.map((line) => {
+            const [x1, y1, x2, y2] = line.split(",").map(Number);
+            return <line key={line} x1={x1} y1={y1} x2={x2} y2={y2} />;
+          })}
+        </g>
+      </svg>
+
+      <svg
+        className="landing-constellation-svg landing-constellation-accent"
+        viewBox="0 0 1600 1000"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <g stroke="rgba(186, 203, 230, 0.28)" strokeWidth="1.1">
+          {accentMeshLines.map((line) => {
+            const [x1, y1, x2, y2] = line.split(",").map(Number);
+            return <line key={`accent-${line}`} x1={x1} y1={y1} x2={x2} y2={y2} />;
+          })}
+        </g>
+      </svg>
+    </div>
   );
 }
