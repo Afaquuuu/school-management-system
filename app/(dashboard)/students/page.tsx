@@ -25,7 +25,7 @@ import {
   AlertCircle,
   UserCheck,
 } from "lucide-react";
-import { formatStudentClassLabel, getClassNameWithoutSection, getUniqueClassLabels, getUniqueSchoolClassesByName, findStudentWithRollNumberInClassSection, formatRollNumberConflictMessage, normalizeClassLabel, normalizeSection } from "@/lib/class-labels";
+import { formatStudentClassLabel, getClassNameWithoutSection, getNextRollNumberForClassSection, getUniqueClassLabels, getUniqueSchoolClassesByName, findStudentWithRollNumberInClassSection, formatRollNumberConflictMessage, normalizeClassLabel, normalizeSection } from "@/lib/class-labels";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
 import { ensureSchoolClassesFromStudents } from "@/lib/school-classes-sync";
 import {
@@ -187,6 +187,25 @@ export default function StudentsPage() {
   const availableSectionsForClass = formData.class 
     ? getSectionsForClass(availableClasses, formData.class)
     : uniqueSections;
+
+  useEffect(() => {
+    if (!isAddMode) return;
+
+    if (!formData.class || !formData.section) {
+      setFormData((prev) => (prev.rollNumber ? { ...prev, rollNumber: "" } : prev));
+      return;
+    }
+
+    const nextRollNumber = getNextRollNumberForClassSection(
+      students,
+      formData.class,
+      formData.section,
+    );
+
+    setFormData((prev) =>
+      prev.rollNumber === nextRollNumber ? prev : { ...prev, rollNumber: nextRollNumber },
+    );
+  }, [isAddMode, formData.class, formData.section, students]);
 
   // Save students to scoped localStorage whenever they change
   const updateStudents = (newStudents: Student[]) => {
@@ -800,7 +819,11 @@ export default function StudentsPage() {
                   type="text"
                   value={formData.rollNumber || ""}
                   onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
-                  placeholder="Unique within class and section"
+                  placeholder={
+                    formData.class && formData.section
+                      ? "Auto-filled from class enrollment"
+                      : "Select class and section first"
+                  }
                   className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
                 />
               </div>

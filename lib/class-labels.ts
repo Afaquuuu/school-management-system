@@ -139,6 +139,32 @@ export function formatRollNumberConflictMessage(
   return `Roll number ${rollNumber} is already assigned to ${name || "another student"} in ${classLabel}. Each student in the same class and section must have a unique roll number.`;
 }
 
+/** Suggest the next roll number for a class/section based on existing students. */
+export function getNextRollNumberForClassSection<
+  T extends { class: string; section: string; rollNumber: string },
+>(students: T[], className: string, section: string): string {
+  if (!className.trim() || !section.trim()) return "";
+
+  const classmates = students.filter((student) =>
+    studentMatchesClassSection(student, className, section),
+  );
+
+  let maxNumeric = 0;
+  let padWidth = 2;
+
+  for (const student of classmates) {
+    const roll = normalizeClassLabel(student.rollNumber);
+    if (/^\d+$/.test(roll)) {
+      const numeric = Number.parseInt(roll, 10);
+      if (numeric > maxNumeric) maxNumeric = numeric;
+      padWidth = Math.max(padWidth, roll.length);
+    }
+  }
+
+  const next = maxNumeric > 0 ? maxNumeric + 1 : classmates.length + 1;
+  return String(next).padStart(padWidth, "0");
+}
+
 /** Return unique class labels, preserving the first spelling of each normalized name. */
 export function getUniqueClassLabels(labels: string[]): string[] {
   const byNormalized = new Map<string, string>();
