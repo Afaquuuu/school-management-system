@@ -478,7 +478,7 @@ body {
   }
 
   .login-shell {
-    @apply relative h-screen overflow-hidden;
+    @apply relative h-[100dvh] overflow-hidden;
     background: linear-gradient(180deg, #eef3fb 0%, #f6f9ff 42%, #edf2fa 100%);
   }
 
@@ -500,7 +500,11 @@ body {
   }
 
   .login-page-main {
-    @apply flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-5 py-3 sm:px-8;
+    @apply flex min-h-0 flex-1 items-start justify-center overflow-y-auto overscroll-contain px-5 py-4 sm:px-8 sm:py-5;
+  }
+
+  .login-page-content {
+    @apply my-auto w-full max-w-[430px] py-1;
   }
 
   .login-brand-icon {
@@ -537,13 +541,29 @@ body {
   }
 
   .login-card-title {
-    @apply text-[1.65rem] font-bold tracking-tight;
+    @apply text-[1.45rem] font-bold tracking-tight sm:text-[1.65rem];
     color: #1e293b;
   }
 
   .login-card-subtitle {
-    @apply mt-1.5 text-sm leading-relaxed;
+    @apply mt-1 text-sm leading-relaxed;
     color: #64748b;
+  }
+
+  .login-card-header-compact {
+    @apply relative z-10 mb-4;
+  }
+
+  .login-notice-banner {
+    @apply relative z-10 mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800 sm:text-sm;
+  }
+
+  .login-link-btn {
+    @apply w-full text-sm font-semibold text-blue-600 transition hover:text-blue-700 disabled:opacity-60;
+  }
+
+  .login-link-btn-muted {
+    @apply w-full text-sm text-slate-500 transition hover:text-slate-700;
   }
 
   .login-field-label {
@@ -607,10 +627,6 @@ body {
 
   .login-error-banner {
     @apply mb-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5;
-  }
-
-  .login-notice-banner {
-    @apply mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800;
   }
 
   .main-content-enter {

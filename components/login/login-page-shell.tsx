@@ -35,7 +35,7 @@ export function LoginPageShell({ schoolName, children }: LoginPageShellProps) {
 
       <div className="login-page-body">
         <div className="login-page-main">
-          <div className="w-full max-w-[430px]">
+          <div className="login-page-content">
             <div className="login-brand-icon">
               <School className="h-9 w-9 text-white" strokeWidth={1.8} />
             </div>

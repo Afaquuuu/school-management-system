@@ -443,29 +443,25 @@ export default function LoginPage() {
             </>
           ) : twoFactorStep ? (
             <>
-              <div className="relative z-10 mb-6">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                  <Shield className="h-6 w-6" />
-                </div>
+              <div className="login-card-header-compact">
                 <h2 className="login-card-title">Admin Verification</h2>
                 <p className="login-card-subtitle">
-                  Enter the 6-digit code sent to{" "}
-                  {getPendingAdminTwoFactor()?.user.email ?? "your admin email"}.
+                  Enter the 6-digit code sent to your admin email.
                 </p>
               </div>
 
               {twoFactorNotice ? (
-                <div className="login-notice-banner relative z-10">{twoFactorNotice}</div>
+                <div className="login-notice-banner">{twoFactorNotice}</div>
               ) : null}
 
               {error ? (
-                <div className="login-error-banner relative z-10">
+                <div className="login-error-banner">
                   <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
                   <p className="text-sm text-red-700">{error}</p>
                 </div>
               ) : null}
 
-              <form onSubmit={handleVerifyTwoFactor} className="relative z-10 space-y-4">
+              <form onSubmit={handleVerifyTwoFactor} className="relative z-10 space-y-3">
                 <div>
                   <label className="login-field-label">Verification Code</label>
                   <input
@@ -495,7 +491,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={handleResendVerificationCode}
                   disabled={isResendingCode}
-                  className="w-full text-sm font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-60"
+                  className="login-link-btn"
                 >
                   {isResendingCode ? "Sending..." : "Resend verification code"}
                 </button>
@@ -509,7 +505,7 @@ export default function LoginPage() {
                     setTwoFactorNotice("");
                     setError("");
                   }}
-                  className="w-full text-sm text-slate-500 hover:text-slate-700"
+                  className="login-link-btn-muted"
                 >
                   Back to sign in
                 </button>
