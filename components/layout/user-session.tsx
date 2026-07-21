@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { User, LogOut, ChevronDown } from "lucide-react";
+import { User, LogOut } from "lucide-react";
 import { performAppSignOut } from "@/lib/app-sign-out";
-import { clearUserSession, getUserSession, redirectToLogin, type UserSession } from "@/lib/teacher-check-in";
+import { getUserSession, redirectToLogin, type UserSession } from "@/lib/teacher-check-in";
 
 export function UserSession() {
   const [userSession, setUserSession] = useState<UserSession | null>(() =>
@@ -41,30 +41,12 @@ export function UserSession() {
     );
   }
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role.toLowerCase()) {
-      case "admin":
-        return "bg-red-50 text-red-700 ring-1 ring-red-100";
-      case "teacher":
-        return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100";
-      case "student":
-        return "bg-blue-50 text-blue-700 ring-1 ring-blue-100";
-    case "parent":
-      return "bg-violet-50 text-violet-700 ring-1 ring-violet-100";
-    case "accountant":
-      return "bg-amber-50 text-amber-700 ring-1 ring-amber-100";
-    case "librarian":
-      return "bg-teal-50 text-teal-700 ring-1 ring-teal-100";
-      default:
-        return "bg-slate-100 text-slate-700 ring-1 ring-slate-200";
-    }
-  };
-
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setShowDropdown(!showDropdown)}
-        className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-2.5 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.35)] transition-all hover:border-slate-300"
+        className="flex w-full items-center gap-3 rounded-xl px-1 py-1 transition-all hover:opacity-90"
       >
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-sm font-semibold text-white">
           {userSession.name.charAt(0).toUpperCase()}
@@ -73,20 +55,18 @@ export function UserSession() {
           <p className="truncate text-sm font-semibold text-slate-900">
             {userSession.name}
           </p>
-          <span
-            className={`mt-0.5 inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${getRoleBadgeColor(userSession.role)}`}
-          >
-            {userSession.role}
-          </span>
+          <span className="sidebar-profile-badge">{userSession.role}</span>
         </div>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${showDropdown ? "rotate-180" : ""}`}
-        />
       </button>
 
-      {showDropdown && (
+      {showDropdown ? (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
+          <button
+            type="button"
+            className="fixed inset-0 z-40"
+            aria-label="Close profile menu"
+            onClick={() => setShowDropdown(false)}
+          />
           <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-elevated">
             <div className="border-b border-slate-100 p-3">
               <p className="text-sm font-semibold text-slate-900">{userSession.name}</p>
@@ -95,6 +75,7 @@ export function UserSession() {
             </div>
             <div className="p-2">
               <button
+                type="button"
                 onClick={handleLogout}
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
               >
@@ -104,7 +85,7 @@ export function UserSession() {
             </div>
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -37,39 +37,6 @@ const primaryModules = [
   },
 ];
 
-const secondaryModules = [
-  {
-    title: "Academics",
-    description: "Manage classes, subjects, and class-subject assignments",
-    href: "/admin/academics",
-    badge: "Classes & subjects",
-  },
-  {
-    title: "Resources",
-    description: "Manage classrooms, labs, and detect scheduling conflicts",
-    href: "/admin/resources",
-    badge: "Facilities",
-  },
-  {
-    title: "Alerts & Notifications",
-    description: "Configure alert thresholds and notification preferences",
-    href: "/admin/alerts",
-    badge: "Alerts",
-  },
-  {
-    title: "Reports",
-    description: "Generate comprehensive school reports",
-    href: "/admin/reports",
-    badge: "Analytics",
-  },
-  {
-    title: "System Settings",
-    description: "Global configuration, school info, academic calendar",
-    href: "/admin/settings",
-    badge: "Configuration",
-  },
-];
-
 const quickActions = [
   { title: "View Attendance", href: "/attendance?view=records" },
   { title: "Enter Exam Marks", href: "/admin/exams?tab=marks" },
@@ -183,7 +150,7 @@ export default function AdminDashboard() {
       label: "Total Users",
       value: String(metrics.totalUsers),
       tone: "mint",
-      trend: metrics.totalUsers > 0 ? "Active" : undefined,
+      showTrend: metrics.totalUsers > 0,
       lines: [
         `${metrics.students} enrolled student${metrics.students === 1 ? "" : "s"}`,
         `${metrics.staff} staff / ${metrics.admins} admin`,
@@ -203,7 +170,7 @@ export default function AdminDashboard() {
       value: String(metrics.pendingInvoices),
       tone: "gray",
       lines: [
-        `₵${metrics.pendingTotal.toLocaleString()} outstanding`,
+        `$${metrics.pendingTotal.toLocaleString()} outstanding`,
         `${metrics.overdueInvoices} overdue invoice${metrics.overdueInvoices === 1 ? "" : "s"}`,
       ],
       button: { label: "Process payment", href: "/finance?action=record-payment" },
@@ -221,7 +188,7 @@ export default function AdminDashboard() {
   ];
 
   const moduleBadges = {
-    users: `Pending requests: ${Math.max(metrics.inactiveUsers, 0)}`,
+    users: `Pending requests: ${metrics.inactiveUsers}`,
     checkins: `Pending approvals: ${pendingCheckIns}`,
     exams: `Upcoming: ${metrics.upcomingExams}`,
   };
@@ -255,36 +222,20 @@ export default function AdminDashboard() {
           </div>
         </section>
       ) : (
-        <>
-          <section>
-            <AdminSectionTitle>Management Sections</AdminSectionTitle>
-            <div className="admin-module-grid mt-5">
-              {primaryModules.map((section) => (
-                <AdminModuleCard
-                  key={section.href}
-                  title={section.title}
-                  description={section.description}
-                  href={section.href}
-                  badge={moduleBadges[section.badgeKey]}
-                />
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <div className="admin-module-grid">
-              {secondaryModules.map((section) => (
-                <AdminModuleCard
-                  key={section.href}
-                  title={section.title}
-                  description={section.description}
-                  href={section.href}
-                  badge={section.badge}
-                />
-              ))}
-            </div>
-          </section>
-        </>
+        <section>
+          <AdminSectionTitle>Management Sections</AdminSectionTitle>
+          <div className="admin-module-grid mt-5">
+            {primaryModules.map((section) => (
+              <AdminModuleCard
+                key={section.href}
+                title={section.title}
+                description={section.description}
+                href={section.href}
+                badge={moduleBadges[section.badgeKey]}
+              />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

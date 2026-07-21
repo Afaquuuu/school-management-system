@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -69,7 +69,7 @@ export function SidebarNav({
   };
 
   return (
-    <nav className="sidebar-scroll mt-2 flex-1 space-y-0.5 overflow-y-auto pr-1">
+    <nav className="sidebar-scroll flex-1 space-y-1 overflow-y-auto pr-0.5">
       {visibleGroups.map((group) => {
         const isOpen = openGroupId === group.id;
         const isGroupActive = group.id === routeActiveGroupId;
@@ -112,90 +112,48 @@ function NavigationGroupSection({
   onNavigate?: () => void;
 }) {
   const Icon = group.icon;
+  const activeChild = getActiveNavigationChild(group, pathname, search, currentHash);
 
   return (
     <div
       className={cn(
-        "relative rounded-xl transition-colors",
-        isGroupActive && "before:absolute before:bottom-2 before:left-0 before:top-2 before:w-[3px] before:rounded-full before:bg-teal-400 before:content-['']",
-        isOpen && "bg-slate-800/45",
+        "sidebar-nav-group",
+        isGroupActive && "sidebar-nav-group-active",
+        isOpen && "sidebar-nav-group-open",
       )}
     >
       <button
         type="button"
         onClick={onToggle}
-        className={cn(
-          "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-          isOpen || isGroupActive
-            ? "text-white"
-            : "text-white/90 hover:bg-slate-800/40 hover:text-white",
-        )}
+        className="sidebar-nav-group-btn"
         aria-expanded={isOpen}
       >
-        <span
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-            isOpen || isGroupActive
-              ? "bg-teal-600 text-white shadow-sm"
-              : "bg-slate-800 text-white/80",
-          )}
-        >
-          <Icon className="h-4 w-4" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-white">
-            {group.label}
-          </span>
-        </span>
-        <ChevronDown
-          className={cn(
-            "h-3.5 w-3.5 shrink-0 text-white/70 transition-transform duration-200",
-            isOpen ? "rotate-0" : "-rotate-90",
-          )}
+        <Icon className="sidebar-nav-icon" strokeWidth={1.75} />
+        <span className="sidebar-nav-label">{group.label}</span>
+        <ChevronRight
+          className={cn("sidebar-nav-chevron", isOpen && "sidebar-nav-chevron-open")}
         />
       </button>
 
       {isOpen ? (
-        <ul className="space-y-0.5 px-1.5 pb-2 pt-0.5">
-          {(() => {
-            const activeChild = getActiveNavigationChild(
-              group,
-              pathname,
-              search,
-              currentHash,
+        <ul className="sidebar-nav-sublist">
+          {group.children.map((child) => {
+            const isActive =
+              activeChild?.href === child.href && activeChild?.label === child.label;
+
+            return (
+              <li key={`${group.id}-${child.href}-${child.label}`}>
+                <Link
+                  href={child.href}
+                  onClick={onNavigate}
+                  className={cn("sidebar-nav-subitem", isActive && "sidebar-nav-subitem-active")}
+                >
+                  <span className="sidebar-nav-subitem-dot" />
+                  {child.label}
+                </Link>
+              </li>
             );
-
-            return group.children.map((child) => {
-              const isActive =
-                activeChild?.href === child.href &&
-                activeChild?.label === child.label;
-
-              return (
-                <li key={`${group.id}-${child.href}-${child.label}`}>
-                  <Link
-                    href={child.href}
-                    onClick={onNavigate}
-                    className={cn(
-                      "group flex items-center gap-2 rounded-xl py-2 pl-9 pr-3 text-[13px] font-semibold transition-all",
-                      isActive
-                        ? "bg-teal-500/15 text-white ring-1 ring-teal-400/35 shadow-[0_0_18px_-8px_rgba(45,212,191,0.8)]"
-                        : "text-white/85 hover:bg-slate-800/50 hover:text-white",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "h-1 w-1 shrink-0 rounded-full transition-colors",
-                        isActive
-                          ? "bg-white"
-                          : "bg-white/40 group-hover:bg-teal-300",
-                      )}
-                    />
-                    <span>{child.label}</span>
-                  </Link>
-                </li>
-              );
-            });
-          })()}
+          })}
         </ul>
       ) : null}
     </div>

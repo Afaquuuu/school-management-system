@@ -22,7 +22,7 @@
   --border: 214 32% 91%;
   --input: 214 32% 91%;
   --ring: 173 58% 39%;
-  --sidebar: 222 47% 11%;
+  --sidebar: 222 52% 9%;
   --sidebar-foreground: 210 40% 98%;
   --sidebar-muted: 215 20% 35%;
   --sidebar-accent: 173 58% 39%;
@@ -654,46 +654,143 @@ body {
   }
 
   .dashboard-mesh-wrap {
-    @apply pointer-events-none absolute inset-0 overflow-hidden opacity-70;
+    @apply pointer-events-none absolute inset-0 overflow-hidden opacity-40;
   }
 
   .dashboard-main-surface {
     @apply relative flex-1 overflow-hidden;
-    background: linear-gradient(180deg, #f4f7fb 0%, #eef2f8 100%);
+    background: #f3f6fa;
+  }
+
+  .sidebar-brand-logo {
+    @apply h-11 w-11 shrink-0 rounded-full border border-white/20 object-cover shadow-[0_8px_20px_-10px_rgba(0,0,0,0.45)];
+  }
+
+  .sidebar-brand-logo-fallback {
+    @apply flex items-center justify-center bg-white;
+  }
+
+  .sidebar-nav-group {
+    @apply rounded-xl transition-colors;
+  }
+
+  .sidebar-nav-group-active {
+    @apply bg-slate-800/60 shadow-[inset_3px_0_0_0_#2dd4bf,0_0_24px_-12px_rgba(45,212,191,0.35)];
+  }
+
+  .sidebar-nav-group-open {
+    @apply bg-slate-800/35;
+  }
+
+  .sidebar-nav-group-btn {
+    @apply flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-slate-800/40;
+  }
+
+  .sidebar-nav-icon {
+    @apply h-[18px] w-[18px] shrink-0 text-slate-400;
+  }
+
+  .sidebar-nav-group-active .sidebar-nav-icon,
+  .sidebar-nav-group-open .sidebar-nav-icon {
+    @apply text-teal-300;
+  }
+
+  .sidebar-nav-label {
+    @apply min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-300;
+  }
+
+  .sidebar-nav-group-active .sidebar-nav-label {
+    @apply text-white;
+  }
+
+  .sidebar-nav-chevron {
+    @apply h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform duration-200;
+  }
+
+  .sidebar-nav-chevron-open {
+    @apply rotate-90 text-teal-300;
+  }
+
+  .sidebar-nav-sublist {
+    @apply space-y-0.5 px-2 pb-2 pt-1;
+  }
+
+  .sidebar-nav-subitem {
+    @apply flex items-center gap-2.5 rounded-xl py-2 pl-8 pr-3 text-[13px] font-semibold text-slate-300 transition-all hover:bg-slate-800/45 hover:text-white;
+  }
+
+  .sidebar-nav-subitem-active {
+    @apply border border-teal-400/35 bg-gradient-to-r from-teal-500/20 to-teal-400/10 text-white shadow-[0_0_20px_-10px_rgba(45,212,191,0.9)];
+  }
+
+  .sidebar-nav-subitem-dot {
+    @apply h-1.5 w-1.5 shrink-0 rounded-full bg-slate-500;
+  }
+
+  .sidebar-nav-subitem-active .sidebar-nav-subitem-dot {
+    @apply bg-white;
+  }
+
+  .dashboard-header-bar {
+    @apply sticky top-0 z-20 border-b border-slate-200/60 bg-white/95 shadow-[0_8px_30px_-24px_rgba(15,23,42,0.18)] backdrop-blur-md;
+  }
+
+  .dashboard-header-grid {
+    @apply grid w-full items-center gap-3 px-4 py-3 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,38rem)_minmax(0,1fr)] lg:gap-6 lg:px-8;
+  }
+
+  .dashboard-header-search {
+    @apply hidden items-center gap-3 rounded-full border border-slate-200/80 bg-white px-5 py-3 shadow-sm lg:flex lg:w-full lg:max-w-none;
+  }
+
+  .dashboard-header-actions {
+    @apply flex items-center justify-end gap-2 lg:col-start-3;
+  }
+
+  .dashboard-breadcrumb {
+    @apply flex min-w-0 items-center gap-2 text-sm;
+  }
+
+  .dashboard-breadcrumb-group {
+    @apply font-semibold text-slate-400;
+  }
+
+  .dashboard-breadcrumb-page {
+    @apply truncate font-bold text-slate-800;
   }
 
   .admin-control-banner {
-    @apply relative overflow-hidden rounded-[24px] border border-white/80 bg-white shadow-[0_18px_50px_-34px_rgba(15,23,42,0.28)];
+    @apply relative overflow-hidden rounded-[20px] border border-slate-200/70 bg-white shadow-[0_14px_40px_-28px_rgba(15,23,42,0.22)];
   }
 
   .admin-control-banner-accent {
-    @apply absolute bottom-0 left-0 top-0 w-1.5;
-    background: linear-gradient(180deg, #2dd4bf 0%, #14b8a6 100%);
+    @apply absolute bottom-0 left-0 top-0 w-[4px];
+    background: linear-gradient(180deg, #5eead4 0%, #14b8a6 100%);
   }
 
   .admin-control-banner-body {
-    @apply flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7;
+    @apply flex flex-col gap-5 py-5 pl-7 pr-6 sm:flex-row sm:items-center sm:justify-between sm:py-6;
   }
 
   .admin-control-eyebrow {
-    @apply text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400;
+    @apply text-[10px] font-bold uppercase tracking-[0.24em] text-teal-600;
   }
 
   .admin-control-title {
-    @apply mt-1 text-[1.85rem] font-bold tracking-tight text-slate-900;
+    @apply mt-1 text-[2rem] font-bold leading-tight tracking-tight text-slate-900;
   }
 
   .admin-control-description {
-    @apply mt-1 max-w-2xl text-sm leading-relaxed text-slate-500;
+    @apply mt-1.5 max-w-2xl text-[15px] leading-relaxed text-slate-500;
   }
 
   .admin-view-toggle {
-    @apply inline-flex rounded-full border border-slate-200 bg-slate-100/80 p-1;
+    @apply inline-flex rounded-full bg-slate-100 p-1;
   }
 
   .admin-view-toggle-btn,
   .admin-view-toggle-btn-active {
-    @apply rounded-full px-5 py-2 text-sm font-semibold transition;
+    @apply rounded-full px-6 py-2 text-sm font-semibold transition;
   }
 
   .admin-view-toggle-btn {
@@ -705,99 +802,115 @@ body {
   }
 
   .admin-kpi-grid {
-    @apply grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4;
+    @apply grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4;
   }
 
   .admin-kpi-card {
-    @apply relative overflow-hidden rounded-[22px] border border-white/70 p-5 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.25)];
+    @apply relative min-h-[168px] overflow-hidden rounded-[18px] border border-white/80 p-5 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.28)];
   }
 
   .admin-kpi-card-content {
-    @apply relative z-10 max-w-[68%];
+    @apply relative z-10 max-w-[62%];
   }
 
   .admin-kpi-card-mint {
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 55%, #ecfdf5 100%);
+    background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 48%, #ecfdf5 100%);
   }
 
   .admin-kpi-card-sky {
-    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 55%, #eff6ff 100%);
+    background: linear-gradient(145deg, #eff6ff 0%, #dbeafe 48%, #eff6ff 100%);
   }
 
   .admin-kpi-card-gray {
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 55%, #f8fafc 100%);
+    background: linear-gradient(145deg, #f8fafc 0%, #e2e8f0 48%, #f8fafc 100%);
   }
 
   .admin-kpi-card-coral {
-    background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 55%, #fff1f2 100%);
+    background: linear-gradient(145deg, #fff1f2 0%, #ffe4e6 48%, #fff1f2 100%);
   }
 
   .admin-kpi-label {
-    @apply text-sm font-semibold text-slate-600;
+    @apply text-[11px] font-bold uppercase tracking-[0.14em] text-slate-600;
+  }
+
+  .admin-kpi-card-top {
+    @apply space-y-0;
   }
 
   .admin-kpi-value-row {
-    @apply mt-1 flex items-end gap-2;
+    @apply mt-2 flex items-center gap-2;
   }
 
   .admin-kpi-value {
-    @apply text-[2rem] font-bold leading-none tracking-tight text-slate-900;
+    @apply text-[2.35rem] font-bold leading-none tracking-tight text-slate-900;
   }
 
   .admin-kpi-trend {
-    @apply mb-1 inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600;
+    @apply inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600;
   }
 
   .admin-kpi-lines {
-    @apply mt-3 space-y-0.5 text-xs leading-relaxed text-slate-600;
+    @apply mt-3 space-y-1 text-[13px] leading-snug text-slate-600;
   }
 
   .admin-kpi-link {
-    @apply mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 transition hover:text-blue-700;
+    @apply mt-3 inline-flex items-center gap-0.5 text-[13px] font-semibold text-blue-600 transition hover:text-blue-700;
   }
 
   .admin-kpi-button {
-    @apply mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50;
+    @apply mt-3 inline-flex rounded-full border border-slate-200/90 bg-white px-4 py-1.5 text-[12px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50;
   }
 
   .admin-kpi-art {
-    @apply absolute bottom-2 right-2 h-[88px] w-[108px] opacity-95;
+    @apply absolute bottom-0 right-0 h-[108px] w-[128px];
   }
 
   .admin-section-title {
-    @apply text-[1.35rem] font-bold tracking-tight text-slate-900;
+    @apply text-[1.5rem] font-bold tracking-tight text-slate-900;
   }
 
   .admin-module-grid {
-    @apply grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3;
+    @apply grid grid-cols-1 gap-5 lg:grid-cols-3;
   }
 
   .admin-module-card {
-    @apply relative flex min-h-[220px] flex-col rounded-[22px] border border-slate-200/70 bg-white p-5 shadow-[0_16px_40px_-30px_rgba(15,23,42,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_48px_-28px_rgba(15,23,42,0.28)];
+    @apply relative flex min-h-[236px] flex-col rounded-[18px] border border-slate-200/70 bg-white p-6 shadow-[0_14px_36px_-28px_rgba(15,23,42,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_-26px_rgba(15,23,42,0.28)];
+  }
+
+  .admin-module-card-top {
+    @apply mb-5 flex items-start justify-between gap-3;
   }
 
   .admin-module-badge {
-    @apply absolute right-4 top-4 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600;
+    @apply shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 shadow-sm;
   }
 
   .admin-module-art {
-    @apply mb-4 h-16 w-20;
+    @apply h-[72px] w-[88px];
   }
 
   .admin-module-art-placeholder {
-    @apply mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-blue-100 text-2xl font-bold text-indigo-600;
+    @apply flex h-[72px] w-[72px] items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-blue-100 text-3xl font-bold text-indigo-600;
   }
 
   .admin-module-title {
-    @apply text-lg font-bold text-slate-900;
+    @apply text-[1.35rem] font-bold text-slate-900;
   }
 
   .admin-module-description {
-    @apply mt-2 text-sm leading-relaxed text-slate-500;
+    @apply mt-2 text-[14px] leading-relaxed text-slate-500;
   }
 
   .admin-stack {
-    @apply space-y-6;
+    @apply space-y-7;
+  }
+
+  .sidebar-profile-card {
+    @apply rounded-2xl border border-slate-200/80 bg-white p-3 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.35)];
+  }
+
+  .sidebar-profile-badge {
+    @apply mt-1 inline-flex rounded-md bg-teal-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white;
   }
 }
 

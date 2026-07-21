@@ -154,7 +154,7 @@ export type AdminKpiCardData = {
   lines: string[];
   action?: { label: string; href: string };
   button?: { label: string; href: string };
-  trend?: string;
+  showTrend?: boolean;
 };
 
 export function AdminKpiCard({ card }: { card: AdminKpiCardData }) {
@@ -167,10 +167,9 @@ export function AdminKpiCard({ card }: { card: AdminKpiCardData }) {
           <p className="admin-kpi-label">{card.label}</p>
           <div className="admin-kpi-value-row">
             <span className="admin-kpi-value">{card.value}</span>
-            {card.trend ? (
+            {card.showTrend ? (
               <span className="admin-kpi-trend">
                 <ArrowUpRight className="h-3.5 w-3.5" />
-                {card.trend}
               </span>
             ) : null}
           </div>
@@ -214,8 +213,10 @@ export function AdminModuleCard({
 
   return (
     <Link href={href} className="admin-module-card">
-      <span className="admin-module-badge">{badge}</span>
-      <Art />
+      <div className="admin-module-card-top">
+        <Art />
+        <span className="admin-module-badge">{badge}</span>
+      </div>
       <h3 className="admin-module-title">{title}</h3>
       <p className="admin-module-description">{description}</p>
     </Link>

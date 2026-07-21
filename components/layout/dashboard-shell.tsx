@@ -62,11 +62,11 @@ function HeaderContext({
   );
 
   return (
-    <div className="hidden min-w-0 flex-1 md:block">
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-semibold text-slate-400">{groupLabel}</span>
+    <div className="hidden min-w-0 md:block">
+      <div className="dashboard-breadcrumb">
+        <span className="dashboard-breadcrumb-group">{groupLabel}</span>
         <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
-        <span className="truncate font-bold text-slate-900">{pageLabel}</span>
+        <span className="dashboard-breadcrumb-page">{pageLabel}</span>
       </div>
     </div>
   );
@@ -224,12 +224,12 @@ export function DashboardShell({
     <div className="min-h-screen bg-background text-slate-900">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-slate-800/50 bg-sidebar text-sidebar-foreground shadow-sidebar transition-transform duration-300",
+          "fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-slate-900/40 bg-sidebar text-sidebar-foreground shadow-[4px_0_24px_-12px_rgba(0,0,0,0.35)] transition-transform duration-300",
           mobileNavOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}
       >
           <div className="flex h-full flex-col px-4 py-5">
-            <div className="mb-5 flex items-center gap-3 px-1">
+            <div className="mb-6 flex items-center gap-3 px-1">
               <SchoolBrand />
               <button
                 type="button"
@@ -259,8 +259,10 @@ export function DashboardShell({
               />
             </Suspense>
 
-            <div className="mt-4 border-t border-slate-800 pt-4">
-              <UserSession />
+            <div className="mt-4 border-t border-slate-800/80 pt-4">
+              <div className="sidebar-profile-card">
+                <UserSession />
+              </div>
             </div>
           </div>
         </aside>
@@ -275,8 +277,8 @@ export function DashboardShell({
         ) : null}
 
       <div className="flex min-h-screen min-w-0 flex-col md:pl-[280px]">
-          <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 shadow-soft backdrop-blur-xl">
-            <div className="flex items-center gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
+          <header className="dashboard-header-bar">
+            <div className="dashboard-header-grid">
               <button
                 type="button"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden"
@@ -286,22 +288,20 @@ export function DashboardShell({
                 <Menu className="h-5 w-5" />
               </button>
 
-              <Suspense fallback={<div className="hidden flex-1 md:block" />}>
+              <Suspense fallback={<div className="hidden md:block" />}>
                 <HeaderContext userRole={userRole} />
               </Suspense>
 
-              <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
-                <div className="flex w-full max-w-xl items-center gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/90 px-4 py-3 shadow-sm">
-                  <Search className="h-4 w-4 shrink-0 text-slate-400" />
-                  <input
-                    className="w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-slate-400"
-                    placeholder="Search students, invoices, attendance..."
-                    aria-label="Search school data"
-                  />
-                </div>
+              <div className="dashboard-header-search lg:col-start-2">
+                <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                <input
+                  className="w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-slate-400"
+                  placeholder="Search students, invoices, attendance..."
+                  aria-label="Search school data"
+                />
               </div>
 
-              <div className="ml-auto flex items-center gap-2">
+              <div className="dashboard-header-actions">
                 <div className="relative" ref={notificationsRef}>
                   <button
                     type="button"
@@ -311,7 +311,7 @@ export function DashboardShell({
                   >
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
-                      <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-teal-500 ring-2 ring-white" />
+                      <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
                     )}
                   </button>
 
@@ -376,7 +376,7 @@ export function DashboardShell({
 
           <main className="dashboard-main-surface">
             <DashboardMeshBackground />
-            <div className="main-content-enter content-shell relative z-10 w-full px-4 py-8 sm:px-6 lg:px-8">
+            <div className="main-content-enter relative z-10 w-full max-w-[1440px] px-4 py-7 sm:px-6 lg:px-8 xl:mx-auto">
               {emailSetupNotice && userRole === "admin" && (
                 <div className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   <p>{emailSetupNotice}</p>

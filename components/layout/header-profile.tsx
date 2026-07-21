@@ -80,14 +80,16 @@ export function HeaderProfile() {
         onClick={() => setOpen((value) => !value)}
         className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 shadow-sm transition-colors hover:bg-slate-50"
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-teal-600 text-xs font-semibold text-white shadow-sm">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-xs font-bold text-white shadow-sm">
           {getInitials(userSession.name)}
         </div>
         <div className="hidden text-left sm:block">
           <p className="max-w-[140px] truncate text-sm font-semibold text-slate-900">
             {userSession.name}
           </p>
-          <p className="text-xs capitalize text-slate-500">{userSession.role}</p>
+          <p className="text-xs capitalize text-slate-500">
+            {userSession.role === "admin" ? "Admin" : userSession.role}
+          </p>
         </div>
         <ChevronDown
           className={cn(
