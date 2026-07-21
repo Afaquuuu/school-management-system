@@ -16,6 +16,10 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "School Management",
   description: "Complete school operations platform for modern educational institutions.",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/favicon.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
