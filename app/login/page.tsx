@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Lock, Eye, EyeOff, LogIn, School, AlertCircle, Shield } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, School, AlertCircle, Shield } from "lucide-react";
+import { LoginPageShell } from "@/components/login/login-page-shell";
+import { SUPPORT_LINK, externalEmailLinkProps } from "@/components/landing/demo-request";
 import { useSchool } from "@/lib/school-context";
 import {
   createInitialAdminUser,
@@ -321,92 +323,79 @@ export default function LoginPage() {
 
   if (!currentSchool) {
     return (
-      <div className="auth-shell flex items-center justify-center">
-        <div className="text-center">
-          <School className="mx-auto mb-4 h-16 w-16 text-slate-300" />
-          <p className="text-slate-500">Redirecting to school selection...</p>
+      <LoginPageShell>
+        <div className="py-8 text-center">
+          <School className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+          <p className="login-card-subtitle">Redirecting to school selection...</p>
         </div>
-      </div>
+      </LoginPageShell>
     );
   }
 
   if (!isAuthStorageReady) {
     return (
-      <div className="auth-shell flex items-center justify-center">
-        <div className="text-center">
+      <LoginPageShell schoolName={currentSchool.name}>
+        <div className="py-10 text-center">
           <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          <p className="text-slate-500">Preparing sign in...</p>
+          <p className="login-card-subtitle">Preparing sign in...</p>
         </div>
-      </div>
+      </LoginPageShell>
     );
   }
 
   return (
-    <div className="auth-shell flex items-center justify-center">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 shadow-lg shadow-blue-600/20">
-            <School className="h-7 w-7 text-white" />
-          </div>
-          <p className="section-label mb-2">School Management System</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{currentSchool.name}</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {schoolHasUsers
-              ? "Sign in to continue to your dashboard"
-              : "Set up the first principal / admin account for this school"}
-          </p>
-        </div>
-
-        <div className="auth-card">
+    <LoginPageShell schoolName={currentSchool.name}>
           {!schoolHasUsers ? (
             <>
-              <div className="mb-6 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 text-purple-700">
+              <div className="relative z-10 mb-6">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
                   <Shield className="h-6 w-6" />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900">Create Principal Account</h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <h2 className="login-card-title">Create Principal Account</h2>
+                <p className="login-card-subtitle">
                   This school has no login accounts yet. Create the administrator account below.
                 </p>
               </div>
 
-              {error && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+              {error ? (
+                <div className="login-error-banner relative z-10">
                   <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
                   <p className="text-sm text-red-700">{error}</p>
                 </div>
-              )}
+              ) : null}
 
-              <form onSubmit={handleSetupAdmin} className="space-y-4">
+              <form onSubmit={handleSetupAdmin} className="relative z-10 space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Admin Name *</label>
+                  <label className="login-field-label">Admin Name *</label>
                   <input
                     type="text"
                     value={setupData.adminName}
                     onChange={(e) => setSetupData({ ...setupData, adminName: e.target.value })}
                     placeholder="e.g., Dr. Ali Khan"
-                    className="input-field"
+                    className="login-input !pl-4"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Admin Login Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={setupData.adminEmail}
-                    onChange={(e) => setSetupData({ ...setupData, adminEmail: e.target.value })}
-                    placeholder="principal@gmail.com"
-                    className="input-field"
-                    required
-                  />
+                  <label className="login-field-label">Institutional Email *</label>
+                  <div className="login-input-wrap">
+                    <Mail className="login-input-icon" />
+                    <input
+                      type="email"
+                      value={setupData.adminEmail}
+                      onChange={(e) => setSetupData({ ...setupData, adminEmail: e.target.value })}
+                      placeholder="principal@gmail.com"
+                      className="login-input"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Password *</label>
-                  <div className="relative">
+                  <label className="login-field-label">Password *</label>
+                  <div className="login-input-wrap">
+                    <Lock className="login-input-icon" />
                     <input
                       type={showSetupPassword ? "text" : "password"}
                       value={setupData.adminPassword}
@@ -414,14 +403,14 @@ export default function LoginPage() {
                         setSetupData({ ...setupData, adminPassword: e.target.value })
                       }
                       placeholder={`At least ${passwordMinLength} characters`}
-                      className="input-field pr-11"
+                      className="login-input"
                       required
                       minLength={passwordMinLength}
                     />
                     <button
                       type="button"
                       onClick={() => setShowSetupPassword(!showSetupPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="login-toggle-password"
                     >
                       {showSetupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -429,72 +418,69 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Confirm Password *
-                  </label>
-                  <input
-                    type="password"
-                    value={setupData.confirmPassword}
-                    onChange={(e) =>
-                      setSetupData({ ...setupData, confirmPassword: e.target.value })
-                    }
-                    placeholder="Re-enter password"
-                    className="input-field"
-                    required
-                    minLength={passwordMinLength}
-                  />
+                  <label className="login-field-label">Confirm Password *</label>
+                  <div className="login-input-wrap">
+                    <Lock className="login-input-icon" />
+                    <input
+                      type="password"
+                      value={setupData.confirmPassword}
+                      onChange={(e) =>
+                        setSetupData({ ...setupData, confirmPassword: e.target.value })
+                      }
+                      placeholder="Re-enter password"
+                      className="login-input"
+                      required
+                      minLength={passwordMinLength}
+                    />
+                  </div>
                 </div>
 
-                <button type="submit" className="btn-primary w-full py-3">
+                <button type="submit" className="login-signin-btn">
                   <Shield className="h-4 w-4" />
-                  Create Admin & Enter Dashboard
+                  Create Admin Account
                 </button>
               </form>
             </>
           ) : twoFactorStep ? (
             <>
-              <div className="mb-6 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+              <div className="relative z-10 mb-6">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
                   <Shield className="h-6 w-6" />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900">Admin verification</h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <h2 className="login-card-title">Admin Verification</h2>
+                <p className="login-card-subtitle">
                   Enter the 6-digit code sent to{" "}
                   {getPendingAdminTwoFactor()?.user.email ?? "your admin email"}.
                 </p>
               </div>
 
-              {twoFactorNotice && (
-                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
-                  {twoFactorNotice}
-                </div>
-              )}
+              {twoFactorNotice ? (
+                <div className="login-notice-banner relative z-10">{twoFactorNotice}</div>
+              ) : null}
 
-              {error && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+              {error ? (
+                <div className="login-error-banner relative z-10">
                   <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
                   <p className="text-sm text-red-700">{error}</p>
                 </div>
-              )}
+              ) : null}
 
-              <form onSubmit={handleVerifyTwoFactor} className="space-y-4">
+              <form onSubmit={handleVerifyTwoFactor} className="relative z-10 space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Verification code
-                  </label>
+                  <label className="login-field-label">Verification Code</label>
                   <input
                     type="text"
                     inputMode="numeric"
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     placeholder="6-digit code"
-                    className="input-field text-center text-lg tracking-[0.35em]"
+                    className="login-input !pl-4 text-center text-lg tracking-[0.35em]"
                     required
                     maxLength={6}
                   />
                 </div>
 
-                <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+                <button type="submit" disabled={loading} className="login-signin-btn">
                   {loading ? (
                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   ) : (
@@ -509,7 +495,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={handleResendVerificationCode}
                   disabled={isResendingCode}
-                  className="w-full text-sm font-medium text-blue-600 hover:text-blue-700 disabled:opacity-60"
+                  className="w-full text-sm font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-60"
                 >
                   {isResendingCode ? "Sending..." : "Resend verification code"}
                 </button>
@@ -531,79 +517,84 @@ export default function LoginPage() {
             </>
           ) : (
             <>
-          <div className="mb-6 text-center">
-            <h2 className="text-lg font-semibold text-slate-900">Welcome back</h2>
-            <p className="mt-1 text-sm text-slate-500">Enter your credentials to access your account</p>
-          </div>
-
-          {error && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
-              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Login Email (Gmail)
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@gmail.com"
-                  className="input-field pl-10"
-                  required
-                />
+              <div className="relative z-10 mb-6">
+                <h2 className="login-card-title">Welcome Back</h2>
+                <p className="login-card-subtitle">
+                  Sign in to continue to your administrative dashboard
+                </p>
               </div>
-            </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="input-field pl-10 pr-11"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {error ? (
+                <div className="login-error-banner relative z-10">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              ) : null}
+
+              <form onSubmit={handleLogin} className="relative z-10 space-y-4">
+                <div>
+                  <label className="login-field-label">Institutional Email</label>
+                  <div className="login-input-wrap">
+                    <Mail className="login-input-icon" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="user@gmail.com"
+                      className="login-input"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="login-field-label-row">
+                    <label className="login-field-label !mb-0">Password</label>
+                    <a
+                      href={SUPPORT_LINK}
+                      {...externalEmailLinkProps}
+                      className="login-forgot-link"
+                    >
+                      Forgot Password?
+                    </a>
+                  </div>
+                  <div className="login-input-wrap">
+                    <Lock className="login-input-icon" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="login-input"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="login-toggle-password"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" disabled={loading} className="login-signin-btn">
+                  {loading ? (
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <>
+                      <ArrowRight className="h-4 w-4" />
+                      Sign In
+                    </>
+                  )}
                 </button>
-              </div>
-            </div>
+              </form>
 
-            <button type="submit" disabled={loading} className="btn-primary w-full py-3">
-              {loading ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <>
-                  <LogIn className="h-4 w-4" />
-                  Sign In
-                </>
-              )}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-xs text-slate-400">
-            Need help? Contact your school administrator
-          </p>
+              <p className="login-card-support relative z-10">
+                Contact your school administrator for support.
+              </p>
             </>
           )}
-        </div>
-      </div>
-    </div>
+    </LoginPageShell>
   );
 }
