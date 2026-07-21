@@ -267,16 +267,124 @@ body {
     color: #64748b;
   }
 
+  .landing-pricing-section {
+    @apply relative z-10 scroll-mt-24 rounded-[28px] border border-slate-200/60 bg-white/95 p-6 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.28)] backdrop-blur-sm sm:p-8 lg:p-10;
+  }
+
+  .landing-pricing-header {
+    @apply mx-auto max-w-2xl text-center;
+  }
+
+  .landing-pricing-eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.22em];
+    color: #3b82f6;
+  }
+
+  .landing-pricing-lead {
+    @apply mt-3 text-[15px] leading-relaxed;
+    color: #64748b;
+  }
+
   .landing-pricing-grid {
-    @apply mt-6 grid gap-4 md:grid-cols-3;
+    @apply mt-8 grid gap-5 md:grid-cols-3 md:items-stretch;
   }
 
   .landing-pricing-card {
-    @apply rounded-2xl border border-slate-200/70 bg-white p-5;
+    @apply relative flex flex-col rounded-[22px] border border-slate-200/80 bg-white p-6 transition duration-200;
+    box-shadow: 0 10px 40px -28px rgba(15, 23, 42, 0.22);
+  }
+
+  .landing-pricing-card:hover {
+    @apply -translate-y-0.5 border-slate-300/80;
+    box-shadow: 0 18px 48px -28px rgba(15, 23, 42, 0.24);
   }
 
   .landing-pricing-card-featured {
-    @apply border-blue-200 bg-blue-50/40 shadow-[0_16px_40px_-24px_rgba(59,130,246,0.45)];
+    @apply border-blue-200 bg-gradient-to-b from-blue-50/80 to-white md:scale-[1.03];
+    box-shadow: 0 22px 55px -28px rgba(59, 130, 246, 0.45);
+  }
+
+  .landing-pricing-popular {
+    @apply absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white;
+    background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+  }
+
+  .landing-pricing-card-top {
+    @apply border-b border-slate-100 pb-5;
+  }
+
+  .landing-pricing-plan-name {
+    @apply text-sm font-bold uppercase tracking-[0.16em];
+    color: #64748b;
+  }
+
+  .landing-pricing-card-featured .landing-pricing-plan-name {
+    color: #2563eb;
+  }
+
+  .landing-pricing-headline {
+    @apply mt-2 text-[2rem] font-bold leading-tight tracking-tight;
+    color: #1e3a5f;
+  }
+
+  .landing-pricing-card-featured .landing-pricing-headline {
+    color: #1d4ed8;
+  }
+
+  .landing-pricing-subline {
+    @apply mt-2 text-sm leading-relaxed;
+    color: #64748b;
+  }
+
+  .landing-pricing-features {
+    @apply my-6 flex-1 space-y-3;
+  }
+
+  .landing-pricing-feature {
+    @apply flex items-start gap-3 text-sm leading-relaxed;
+    color: #475569;
+  }
+
+  .landing-pricing-check {
+    @apply mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full;
+    background: #eff6ff;
+    color: #2563eb;
+  }
+
+  .landing-pricing-cta-primary,
+  .landing-pricing-cta-secondary {
+    @apply mt-auto inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition;
+  }
+
+  .landing-pricing-cta-primary {
+    @apply text-white shadow-[0_10px_24px_-12px_rgba(59,130,246,0.65)];
+    background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+  }
+
+  .landing-pricing-cta-primary:hover {
+    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  }
+
+  .landing-pricing-cta-secondary {
+    @apply border border-slate-200 bg-white text-slate-700;
+  }
+
+  .landing-pricing-cta-secondary:hover {
+    @apply border-slate-300 bg-slate-50 text-slate-900;
+  }
+
+  .landing-pricing-footnote {
+    @apply mt-8 text-center text-sm;
+    color: #64748b;
+  }
+
+  .landing-pricing-footnote-link {
+    @apply font-semibold transition;
+    color: #2563eb;
+  }
+
+  .landing-pricing-footnote-link:hover {
+    color: #1d4ed8;
   }
 
   .landing-hero-title {

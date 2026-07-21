@@ -24,7 +24,8 @@ import {
   LandingConstellation,
 } from "@/components/landing/landing-graphics";
 import { LandingNav } from "@/components/landing/landing-nav";
-import { DEMO_REQUEST_EMAIL, DEMO_REQUEST_MAILTO, SUPPORT_MAILTO } from "@/components/landing/demo-request";
+import { LandingPricing } from "@/components/landing/landing-pricing";
+import { DEMO_REQUEST_EMAIL, SUPPORT_MAILTO } from "@/components/landing/demo-request";
 import {
   Building2,
   ChevronRight,
@@ -522,48 +523,7 @@ export default function SchoolAuthPage() {
           </div>
         </section>
 
-        <section id="pricing" className="landing-info-section mt-8 scroll-mt-24">
-          <h2 className="landing-info-title">Simple, transparent pricing</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
-            Choose a plan that fits your institution. All plans include secure cloud hosting,
-            regular updates, and onboarding support.
-          </p>
-          <div className="landing-pricing-grid">
-            <article className="landing-pricing-card">
-              <h3 className="text-lg font-bold text-slate-800">Starter</h3>
-              <p className="mt-2 text-3xl font-bold text-slate-900">Contact us</p>
-              <p className="mt-1 text-sm text-slate-500">For small schools getting started</p>
-              <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                <li>Up to 300 students</li>
-                <li>Core modules included</li>
-                <li>Email support</li>
-              </ul>
-            </article>
-            <article className="landing-pricing-card landing-pricing-card-featured">
-              <h3 className="text-lg font-bold text-blue-900">Professional</h3>
-              <p className="mt-2 text-3xl font-bold text-blue-900">Contact us</p>
-              <p className="mt-1 text-sm text-slate-500">Most popular for growing schools</p>
-              <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                <li>Unlimited students & staff</li>
-                <li>All modules + analytics</li>
-                <li>Priority support</li>
-              </ul>
-            </article>
-            <article className="landing-pricing-card">
-              <h3 className="text-lg font-bold text-slate-800">Enterprise</h3>
-              <p className="mt-2 text-3xl font-bold text-slate-900">Custom</p>
-              <p className="mt-1 text-sm text-slate-500">For multi-campus organizations</p>
-              <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                <li>Dedicated onboarding</li>
-                <li>Custom integrations</li>
-                <li>Account manager</li>
-              </ul>
-            </article>
-          </div>
-          <a href={DEMO_REQUEST_MAILTO} className="landing-demo-btn mt-6 inline-flex">
-            Request Demo
-          </a>
-        </section>
+        <LandingPricing />
 
         <section id="support" className="landing-info-section mb-10 mt-8 scroll-mt-24">
           <h2 className="landing-info-title">Support when you need it</h2>
