@@ -117,7 +117,7 @@ async function setCoreRelationalJson(
   schoolId: string,
   key: string,
   value: string,
-  options?: { deletedStudentIds?: string[] },
+  options?: { deletedStudentIds?: string[]; deletedStaffIds?: string[] },
 ): Promise<void> {
   switch (key) {
     case STUDENTS_STORAGE_KEY:
@@ -127,7 +127,7 @@ async function setCoreRelationalJson(
       await setRelationalClassesJson(schoolId, value);
       return;
     case STAFF_STORAGE_KEY:
-      await setRelationalStaffJson(schoolId, value);
+      await setRelationalStaffJson(schoolId, value, options);
       return;
     case ACCOUNTS_STORAGE_KEY:
       await setRelationalAccountsJson(schoolId, value);
@@ -170,7 +170,7 @@ export async function setTenantStorageItem(
   schoolId: string,
   key: string,
   value: string,
-  options?: { deletedStudentIds?: string[] },
+  options?: { deletedStudentIds?: string[]; deletedStaffIds?: string[] },
 ): Promise<void> {
   if (!isServerDatabaseMode()) return;
 

@@ -391,7 +391,7 @@ export async function persistScopedItem(
   schoolId: string,
   key: string,
   value: string,
-  options?: { deletedStudentIds?: string[] },
+  options?: { deletedStudentIds?: string[]; deletedStaffIds?: string[] },
 ): Promise<void> {
   if (typeof window === "undefined") return;
 

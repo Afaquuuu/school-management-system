@@ -31,12 +31,18 @@ async function persistToServer(
   schoolId: string,
   key: string,
   value: string,
-  options?: { deletedStudentIds?: string[] },
+  options?: { deletedStudentIds?: string[]; deletedStaffIds?: string[] },
 ): Promise<void> {
   const response = await fetch("/api/tenant-storage", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ schoolId, key, value, deletedStudentIds: options?.deletedStudentIds }),
+    body: JSON.stringify({
+      schoolId,
+      key,
+      value,
+      deletedStudentIds: options?.deletedStudentIds,
+      deletedStaffIds: options?.deletedStaffIds,
+    }),
   });
 
   if (!response.ok) {
@@ -55,7 +61,7 @@ export async function persistScopedItemNow(
   schoolId: string,
   key: string,
   value: string,
-  options?: { deletedStudentIds?: string[] },
+  options?: { deletedStudentIds?: string[]; deletedStaffIds?: string[] },
 ): Promise<void> {
   getSchoolCache(schoolId).set(key, value);
 

@@ -23,6 +23,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { useSchool, getScopedItem, persistScopedItem } from "@/lib/school-context";
+import { hydrateSchoolStorageFromServer } from "@/lib/tenant-storage-cache";
 import { syncStaffToSystemUsersPersisted } from "@/lib/system-users";
 import { getUserSession } from "@/lib/teacher-check-in";
 import { exportTableData, slugifyFileName } from "@/lib/export-data";
@@ -126,14 +127,43 @@ export default function StaffPage() {
     router.push("/staff?action=add");
   };
 
+  const getCurrentStaffFromStorage = (): Staff[] => {
+    if (!currentSchool) return staff;
+    const stored = getScopedItem(currentSchool.id, "school_staff");
+    if (!stored) return staff;
+    try {
+      return JSON.parse(stored) as Staff[];
+    } catch {
+      return staff;
+    }
+  };
+
+  const reloadStaffFromStorage = async () => {
+    if (!currentSchool) return;
+    await hydrateSchoolStorageFromServer(currentSchool.id);
+    const stored = getScopedItem(currentSchool.id, "school_staff");
+    if (stored) {
+      setStaff(JSON.parse(stored) as Staff[]);
+    }
+  };
+
   // Save staff to storage/database whenever they change
-  const updateStaff = async (newStaff: Staff[]) => {
+  const updateStaff = async (
+    newStaff: Staff[],
+    options?: { deletedStaffIds?: string[] },
+  ) => {
     const previousStaff = staff;
     setStaff(newStaff);
     if (typeof window !== "undefined" && currentSchool) {
       try {
-        await persistScopedItem(currentSchool.id, "school_staff", JSON.stringify(newStaff));
+        await persistScopedItem(
+          currentSchool.id,
+          "school_staff",
+          JSON.stringify(newStaff),
+          options,
+        );
         await syncStaffToSystemUsersPersisted(currentSchool.id);
+        await reloadStaffFromStorage();
       } catch (error) {
         setStaff(previousStaff);
         throw error;
@@ -269,7 +299,7 @@ export default function StaffPage() {
 
     if (imported.length > 0) {
       try {
-        await updateStaff([...staff, ...imported]);
+        await updateStaff([...getCurrentStaffFromStorage(), ...imported]);
       } catch (error) {
         alert(
           error instanceof Error
@@ -311,9 +341,14 @@ export default function StaffPage() {
       return;
     }
 
+    const currentStaff = getCurrentStaffFromStorage();
+
     const newStaff: Staff = {
       id: Date.now().toString(),
-      staffId: `STF${String(staff.length + 1).padStart(3, '0')}`,
+      staffId: nextSequentialId(
+        "STF",
+        currentStaff.map((member) => member.staffId),
+      ),
       firstName: formData.firstName,
       lastName: formData.lastName,
       dateOfBirth: formData.dateOfBirth || "",
@@ -333,7 +368,7 @@ export default function StaffPage() {
     };
 
     try {
-      await updateStaff([...staff, newStaff]);
+      await updateStaff([...currentStaff, newStaff]);
       setFormData({});
       alert("Staff member added successfully!");
       router.push("/staff");
@@ -349,7 +384,10 @@ export default function StaffPage() {
   const handleDeleteStaff = async (staffId: string) => {
     if (confirm("Are you sure you want to delete this staff member?")) {
       try {
-        await updateStaff(staff.filter(s => s.id !== staffId));
+        await updateStaff(
+          getCurrentStaffFromStorage().filter((s) => s.id !== staffId),
+          { deletedStaffIds: [staffId] },
+        );
         alert("Staff member deleted successfully!");
       } catch (error) {
         alert(

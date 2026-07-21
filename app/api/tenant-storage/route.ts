@@ -47,6 +47,7 @@ export async function PUT(request: Request) {
       key?: string;
       value?: string;
       deletedStudentIds?: string[];
+      deletedStaffIds?: string[];
     };
 
     const schoolId = body.schoolId?.trim();
@@ -58,6 +59,7 @@ export async function PUT(request: Request) {
 
     await setTenantStorageItem(schoolId, key, body.value, {
       deletedStudentIds: body.deletedStudentIds,
+      deletedStaffIds: body.deletedStaffIds,
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
