@@ -478,7 +478,7 @@ body {
   }
 
   .login-shell {
-    @apply relative min-h-screen overflow-x-hidden;
+    @apply relative h-screen overflow-hidden;
     background: linear-gradient(180deg, #eef3fb 0%, #f6f9ff 42%, #edf2fa 100%);
   }
 
@@ -496,15 +496,15 @@ body {
   }
 
   .login-page-body {
-    @apply relative z-10 flex min-h-screen flex-col;
+    @apply relative z-10 flex h-full flex-col overflow-hidden;
   }
 
   .login-page-main {
-    @apply flex flex-1 flex-col items-center justify-center px-5 py-10 sm:px-8;
+    @apply flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-5 py-3 sm:px-8;
   }
 
   .login-brand-icon {
-    @apply mx-auto mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-[20px] shadow-[0_16px_40px_-18px_rgba(37,99,235,0.55)];
+    @apply mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-[18px] shadow-[0_16px_40px_-18px_rgba(37,99,235,0.55)];
     background: linear-gradient(180deg, #4f8df7 0%, #2563eb 100%);
   }
 
@@ -514,12 +514,12 @@ body {
   }
 
   .login-brand-title {
-    @apply mt-2 text-center text-[1.35rem] font-bold uppercase leading-tight tracking-[0.04em] sm:text-[1.55rem];
+    @apply mt-1.5 line-clamp-2 text-center text-[1.15rem] font-bold uppercase leading-tight tracking-[0.04em] sm:text-[1.35rem];
     color: #0f172a;
   }
 
   .login-glass-card {
-    @apply relative mt-8 w-full max-w-[430px] overflow-hidden rounded-[28px] border border-white/70 p-7 shadow-[0_28px_80px_-36px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:p-8;
+    @apply relative mt-4 w-full max-w-[430px] overflow-hidden rounded-[28px] border border-white/70 p-6 shadow-[0_28px_80px_-36px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:p-7;
     background: rgba(255, 255, 255, 0.78);
   }
 
@@ -601,7 +601,7 @@ body {
   }
 
   .login-page-footer {
-    @apply relative z-10 flex flex-col gap-2 px-6 pb-6 text-[11px] font-medium sm:flex-row sm:items-center sm:justify-between sm:px-10;
+    @apply relative z-10 flex shrink-0 flex-col gap-2 px-6 pb-4 pt-2 text-[11px] font-medium sm:flex-row sm:items-center sm:justify-between sm:px-10;
     color: #94a3b8;
   }
 

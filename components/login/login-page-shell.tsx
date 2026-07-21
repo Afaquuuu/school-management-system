@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, type ReactNode } from "react";
 import { School } from "lucide-react";
 import { getSchoolInitials, LoginBackground } from "@/components/login/login-background";
 
@@ -11,6 +13,21 @@ export function LoginPageShell({ schoolName, children }: LoginPageShellProps) {
   const displayName = schoolName?.toUpperCase() ?? "School Management";
   const initials = schoolName ? getSchoolInitials(schoolName) : "SM";
   const year = new Date().getFullYear();
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
 
   return (
     <div className="login-shell">
