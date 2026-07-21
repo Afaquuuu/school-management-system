@@ -774,12 +774,17 @@ body {
   }
 
   .dashboard-mesh-wrap {
-    @apply pointer-events-none absolute inset-0 overflow-hidden opacity-40;
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+    background-color: #f8fafc;
+    background-image: url("/images/dashboard-bg.png");
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-size: cover;
   }
 
   .dashboard-main-surface {
     @apply relative flex-1 overflow-hidden;
-    background: #f3f6fa;
+    background: #ffffff;
   }
 
   .sidebar-brand-logo {
