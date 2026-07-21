@@ -187,41 +187,115 @@ body {
   }
 
   .auth-shell {
-    @apply relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 lg:px-8;
-    background: linear-gradient(135deg, #eef4ff 0%, #f8fbff 45%, #edf2ff 100%);
+    @apply relative min-h-screen overflow-hidden px-5 py-5 sm:px-8 lg:px-10;
+    background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 55%, #eef2ff 100%);
   }
 
-  .landing-mesh {
-    background-image:
-      radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.08), transparent 35%),
-      radial-gradient(circle at 80% 0%, rgba(99, 102, 241, 0.08), transparent 32%),
-      linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
-    background-size: auto, auto, 48px 48px, 48px 48px;
+  .landing-constellation-svg {
+    @apply pointer-events-none absolute inset-0 h-full w-full opacity-80;
   }
 
   .landing-nav {
-    @apply flex items-center justify-between gap-4 rounded-2xl border border-white/70 bg-white/75 px-4 py-3 shadow-sm backdrop-blur md:px-6;
+    @apply relative z-10 flex items-center justify-between gap-6 py-2;
+  }
+
+  .landing-brand-title {
+    color: #1e3a5f;
+  }
+
+  .landing-nav-link {
+    @apply inline-flex items-center gap-1 text-[15px] font-medium transition;
+    color: #64748b;
+  }
+
+  .landing-nav-link:hover {
+    color: #1e3a5f;
+  }
+
+  .landing-hero-title {
+    @apply text-[2.75rem] font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-[3.25rem];
+    color: #1e3a5f;
+  }
+
+  .landing-hero-subtitle {
+    @apply max-w-xl text-[17px] leading-relaxed;
+    color: #64748b;
+  }
+
+  .landing-feature-grid {
+    @apply grid grid-cols-2 gap-4 lg:grid-cols-3;
   }
 
   .landing-feature-card {
-    @apply rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
+    @apply flex min-h-[148px] flex-col items-center justify-center rounded-[18px] border border-slate-200/70 bg-white px-4 py-5 text-center shadow-[0_8px_30px_-18px_rgba(15,23,42,0.25)];
+  }
+
+  .landing-feature-label {
+    @apply mt-3 text-[13px] font-medium leading-snug;
+    color: #475569;
   }
 
   .landing-dashboard-card {
-    @apply rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.25)] sm:p-8;
+    @apply relative z-10 rounded-[24px] border border-slate-200/60 bg-white p-6 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] sm:p-7;
+  }
+
+  .landing-dashboard-title {
+    @apply text-[1.65rem] font-bold leading-tight;
+    color: #334155;
+  }
+
+  .landing-search-input {
+    @apply w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100;
   }
 
   .landing-school-item {
-    @apply flex w-full items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:border-blue-300 hover:shadow-sm;
+    @apply flex w-full items-center gap-3 rounded-2xl border border-transparent bg-white p-3.5 text-left transition-all;
   }
 
   .landing-school-item-active {
-    @apply border-blue-500 ring-2 ring-blue-100;
+    @apply border-slate-200 bg-slate-50 shadow-sm;
+  }
+
+  .landing-school-logo {
+    @apply flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white;
+  }
+
+  .landing-owner-divider {
+    @apply my-6 flex items-center gap-3;
+  }
+
+  .landing-owner-divider-line {
+    @apply h-px flex-1 bg-slate-200;
+  }
+
+  .landing-owner-divider-text {
+    @apply text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400;
+  }
+
+  .landing-unlock-btn {
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60;
+    background: #1e3a5f;
+  }
+
+  .landing-unlock-btn:hover:not(:disabled) {
+    background: #172554;
   }
 
   .landing-demo-btn {
-    @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:from-blue-600 hover:to-blue-700;
+    @apply inline-flex items-center justify-center rounded-2xl px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-12px_rgba(59,130,246,0.65)] transition;
+    background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+  }
+
+  .landing-demo-btn:hover {
+    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  }
+
+  .landing-dot-active {
+    @apply h-2 w-2 rounded-full bg-slate-500;
+  }
+
+  .landing-dot {
+    @apply h-2 w-2 rounded-full bg-slate-300;
   }
 
   .auth-card {

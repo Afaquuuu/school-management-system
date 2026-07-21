@@ -15,55 +15,54 @@ import {
 } from "@/lib/school-registration-access";
 import { isPublicSchoolRegistrationAllowed } from "@/lib/school-registration-policy";
 import {
-  BarChart3,
+  FeatureIconAnalytics,
+  FeatureIconAttendance,
+  FeatureIconCommunication,
+  FeatureIconExams,
+  FeatureIconFinance,
+  FeatureIconStudents,
+  LandingConstellation,
+} from "@/components/landing/landing-graphics";
+import {
   Building2,
-  CalendarCheck,
   ChevronDown,
+  ChevronRight,
   Eye,
   EyeOff,
   KeyRound,
   Lock,
-  MessageSquare,
   Search,
   School,
   Shield,
-  Users,
-  Wallet,
-  ClipboardList,
 } from "lucide-react";
 
 const featureCards = [
-  {
-    title: "Student & Staff Management",
-    icon: Users,
-    iconBg: "bg-blue-100 text-blue-600",
-  },
-  {
-    title: "Attendance Tracking",
-    icon: CalendarCheck,
-    iconBg: "bg-emerald-100 text-emerald-600",
-  },
-  {
-    title: "Exam & Marks Management",
-    icon: ClipboardList,
-    iconBg: "bg-orange-100 text-orange-600",
-  },
-  {
-    title: "Performance Analytics",
-    icon: BarChart3,
-    iconBg: "bg-violet-100 text-violet-600",
-  },
-  {
-    title: "Finance Management",
-    icon: Wallet,
-    iconBg: "bg-amber-100 text-amber-600",
-  },
-  {
-    title: "Communication Tools",
-    icon: MessageSquare,
-    iconBg: "bg-cyan-100 text-cyan-600",
-  },
+  { title: "Student & Staff Management", Icon: FeatureIconStudents },
+  { title: "Attendance Tracking", Icon: FeatureIconAttendance },
+  { title: "Exam & Marks Management", Icon: FeatureIconExams },
+  { title: "Performance Analytics", Icon: FeatureIconAnalytics },
+  { title: "Finance Management", Icon: FeatureIconFinance },
+  { title: "Communication Tools", Icon: FeatureIconCommunication },
 ];
+
+function SchoolLogo({ name, logo }: { name: string; logo?: string }) {
+  if (logo) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={logo} alt="" className="h-full w-full object-cover" />
+    );
+  }
+
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 text-xs font-bold uppercase tracking-wide text-blue-700">
+      {name
+        .split(" ")
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")}
+    </div>
+  );
+}
 
 export default function SchoolAuthPage() {
   const router = useRouter();
@@ -78,7 +77,7 @@ export default function SchoolAuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [schoolSearch, setSchoolSearch] = useState("");
-  const [hoveredSchoolId, setHoveredSchoolId] = useState<string | null>(null);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -120,6 +119,17 @@ export default function SchoolAuthPage() {
       return haystack.includes(query);
     });
   }, [schools, schoolSearch]);
+
+  useEffect(() => {
+    if (filteredSchools.length === 0) {
+      setSelectedSchoolId(null);
+      return;
+    }
+
+    if (!selectedSchoolId || !filteredSchools.some((school) => school.id === selectedSchoolId)) {
+      setSelectedSchoolId(filteredSchools[0].id);
+    }
+  }, [filteredSchools, selectedSchoolId]);
 
   const handleOwnerKeyUnlock = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -191,6 +201,7 @@ export default function SchoolAuthPage() {
   };
 
   const handleSelectSchool = (schoolId: string) => {
+    setSelectedSchoolId(schoolId);
     const school = schools.find((s) => s.id === schoolId);
     if (school) {
       setCurrentSchool(school);
@@ -199,31 +210,33 @@ export default function SchoolAuthPage() {
   };
 
   return (
-    <div className="auth-shell landing-mesh">
-      <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl flex-col">
-        <header className="landing-nav mb-8 lg:mb-10">
+    <div className="auth-shell">
+      <LandingConstellation />
+
+      <div className="relative mx-auto flex min-h-screen max-w-[1240px] flex-col">
+        <header className="landing-nav">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg shadow-blue-500/25">
-              <School className="h-6 w-6 text-white" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-md shadow-blue-500/25">
+              <School className="h-5 w-5 text-white" />
             </div>
-            <span className="text-lg font-bold tracking-tight text-slate-900">
+            <span className="landing-brand-title text-[1.35rem] font-bold tracking-tight">
               School Management
             </span>
           </div>
 
-          <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
-            <button type="button" className="inline-flex items-center gap-1 transition hover:text-slate-900">
+          <nav className="hidden flex-1 items-center justify-center gap-10 md:flex">
+            <button type="button" className="landing-nav-link">
               Product
               <ChevronDown className="h-4 w-4" />
             </button>
-            <button type="button" className="inline-flex items-center gap-1 transition hover:text-slate-900">
+            <button type="button" className="landing-nav-link">
               Solutions
               <ChevronDown className="h-4 w-4" />
             </button>
-            <a href="#support" className="transition hover:text-slate-900">
+            <a href="#support" className="landing-nav-link">
               Support
             </a>
-            <a href="#pricing" className="transition hover:text-slate-900">
+            <a href="#pricing" className="landing-nav-link">
               Pricing
             </a>
           </nav>
@@ -233,28 +246,22 @@ export default function SchoolAuthPage() {
           </a>
         </header>
 
-        <div className="grid flex-1 items-center gap-10 pb-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
-          <section className="space-y-8">
+        <div className="grid flex-1 items-center gap-10 py-8 lg:grid-cols-[1.08fr_0.92fr] lg:gap-12 lg:py-10">
+          <section className="relative z-10 space-y-8">
             <div className="space-y-4">
-              <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-[3.35rem] lg:leading-[1.05]">
-                School Management
-              </h1>
-              <p className="max-w-xl text-lg leading-relaxed text-slate-600">
+              <h1 className="landing-hero-title">School Management</h1>
+              <p className="landing-hero-subtitle">
                 Complete school operations platform for modern educational institutions.
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="landing-feature-grid">
               {featureCards.map((feature) => {
-                const Icon = feature.icon;
+                const Icon = feature.Icon;
                 return (
                   <article key={feature.title} className="landing-feature-card">
-                    <div className={`mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl ${feature.iconBg}`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <p className="text-sm font-semibold leading-snug text-slate-800">
-                      {feature.title}
-                    </p>
+                    <Icon />
+                    <p className="landing-feature-label">{feature.title}</p>
                   </article>
                 );
               })}
@@ -265,81 +272,57 @@ export default function SchoolAuthPage() {
             {showRegisterSchool && mode === "register" ? (
               <form onSubmit={handleRegister} className="space-y-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Register your school</h2>
+                  <h2 className="landing-dashboard-title">Register your school</h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Set up your institution and create the first principal / admin login
                   </p>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    School Name *
-                  </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="School name *"
+                  className="landing-search-input !pl-4"
+                  required
+                />
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="School email *"
+                  className="landing-search-input !pl-4"
+                  required
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="Phone"
+                    className="landing-search-input !pl-4"
+                  />
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g., Quaid-e-Azam Public School Mardan"
-                    className="input-field"
-                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Address"
+                    className="landing-search-input !pl-4"
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    School Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="info@school.com"
-                    className="input-field"
-                    required
-                  />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Phone</label>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="+92 300 000 0000"
-                      className="input-field"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Address</label>
-                    <input
-                      type="text"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="City, region"
-                      className="input-field"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
                   <div className="mb-3 flex items-center gap-2">
                     <Shield className="h-5 w-5 text-blue-700" />
-                    <div>
-                      <h3 className="text-sm font-bold text-blue-900">Principal / Admin Account</h3>
-                      <p className="text-xs text-blue-700">
-                        This person will manage the school and issue logins to staff and students.
-                      </p>
-                    </div>
+                    <h3 className="text-sm font-bold text-blue-900">Principal / Admin Account</h3>
                   </div>
-
                   <div className="space-y-3">
                     <input
                       type="text"
                       value={formData.adminName}
                       onChange={(e) => setFormData({ ...formData, adminName: e.target.value })}
                       placeholder="Admin name *"
-                      className="input-field"
+                      className="landing-search-input !pl-4"
                       required
                     />
                     <input
@@ -347,7 +330,7 @@ export default function SchoolAuthPage() {
                       value={formData.adminEmail}
                       onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
                       placeholder="Admin login email *"
-                      className="input-field"
+                      className="landing-search-input !pl-4"
                       required
                     />
                     <div className="relative">
@@ -358,14 +341,14 @@ export default function SchoolAuthPage() {
                           setFormData({ ...formData, adminPassword: e.target.value })
                         }
                         placeholder="Admin password *"
-                        className="input-field pr-11"
+                        className="landing-search-input !pl-4 pr-11"
                         required
                         minLength={6}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -378,14 +361,14 @@ export default function SchoolAuthPage() {
                           setFormData({ ...formData, confirmPassword: e.target.value })
                         }
                         placeholder="Confirm password *"
-                        className="input-field pr-11"
+                        className="landing-search-input !pl-4 pr-11"
                         required
                         minLength={6}
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                       >
                         {showConfirmPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -397,28 +380,22 @@ export default function SchoolAuthPage() {
                   </div>
                 </div>
 
-                <button type="submit" className="btn-primary w-full py-3">
+                <button type="submit" className="landing-unlock-btn">
                   Create School & Admin Account
                 </button>
-
                 <button
                   type="button"
                   onClick={() => setMode("select")}
-                  className="btn-secondary w-full py-2.5"
+                  className="w-full rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-600"
                 >
                   Back to school selection
                 </button>
               </form>
             ) : (
               <>
-                <div className="mb-5">
-                  <h2 className="text-2xl font-bold text-slate-900">
-                    Access your Institution Dashboard
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Search for your school and continue to sign in
-                  </p>
-                </div>
+                <h2 className="landing-dashboard-title mb-5">
+                  Access your Institution Dashboard
+                </h2>
 
                 <div className="relative mb-4">
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -427,7 +404,7 @@ export default function SchoolAuthPage() {
                     value={schoolSearch}
                     onChange={(event) => setSchoolSearch(event.target.value)}
                     placeholder="Search for your school..."
-                    className="input-field pl-11"
+                    className="landing-search-input"
                   />
                 </div>
 
@@ -435,16 +412,11 @@ export default function SchoolAuthPage() {
                   <div className="rounded-2xl border border-dashed border-slate-200 py-12 text-center">
                     <Building2 className="mx-auto mb-4 h-12 w-12 text-slate-300" />
                     <p className="mb-2 font-medium text-slate-700">No schools registered yet</p>
-                    <p className="text-sm text-slate-500">
-                      {showRegisterSchool
-                        ? "Unlock administrator access below to register your first school."
-                        : "Contact your platform administrator to add a school."}
-                    </p>
                     {showRegisterSchool ? (
                       <button
                         type="button"
                         onClick={() => setMode("register")}
-                        className="btn-primary mt-4"
+                        className="landing-demo-btn mt-4"
                       >
                         Register Your School
                       </button>
@@ -455,28 +427,31 @@ export default function SchoolAuthPage() {
                     No schools match your search.
                   </div>
                 ) : (
-                  <div className="max-h-[280px] space-y-3 overflow-y-auto pr-1">
+                  <div className="max-h-[250px] space-y-2 overflow-y-auto pr-1">
                     {filteredSchools.map((school) => {
-                      const isActive = hoveredSchoolId === school.id;
+                      const isActive = selectedSchoolId === school.id;
                       return (
                         <button
                           key={school.id}
                           type="button"
                           onClick={() => handleSelectSchool(school.id)}
-                          onMouseEnter={() => setHoveredSchoolId(school.id)}
-                          onMouseLeave={() => setHoveredSchoolId(null)}
                           className={`landing-school-item ${isActive ? "landing-school-item-active" : ""}`}
                         >
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                            <Building2 className="h-5 w-5" />
+                          <div className="landing-school-logo">
+                            <SchoolLogo name={school.name} logo={school.logo} />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h3 className="truncate font-semibold text-slate-900">{school.name}</h3>
+                            <h3 className="truncate text-[15px] font-semibold text-slate-800">
+                              {school.name}
+                            </h3>
                             {school.address ? (
                               <p className="truncate text-sm text-slate-500">{school.address}</p>
                             ) : null}
                             <p className="truncate text-sm text-blue-600">{school.email}</p>
                           </div>
+                          {isActive ? (
+                            <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+                          ) : null}
                         </button>
                       );
                     })}
@@ -494,10 +469,15 @@ export default function SchoolAuthPage() {
                 ) : null}
 
                 {!isPublicSchoolRegistrationAllowed() && !ownerUnlocked ? (
-                  <div className="mt-8 border-t border-slate-200 pt-6">
-                    <p className="mb-4 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">
-                      Owner Registration (Platform Admin)
-                    </p>
+                  <>
+                    <div className="landing-owner-divider">
+                      <div className="landing-owner-divider-line" />
+                      <span className="landing-owner-divider-text">
+                        Owner Registration (Platform Admin)
+                      </span>
+                      <div className="landing-owner-divider-line" />
+                    </div>
+
                     <form onSubmit={handleOwnerKeyUnlock} className="space-y-3">
                       <div className="relative">
                         <KeyRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -507,7 +487,7 @@ export default function SchoolAuthPage() {
                           value={ownerKeyInput}
                           onChange={(event) => setOwnerKeyInput(event.target.value)}
                           placeholder="Owner registration key"
-                          className="input-field px-11"
+                          className="landing-search-input px-11"
                           autoComplete="off"
                         />
                       </div>
@@ -517,19 +497,19 @@ export default function SchoolAuthPage() {
                       <button
                         type="submit"
                         disabled={isVerifyingOwnerKey || !ownerKeyInput.trim()}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="landing-unlock-btn"
                       >
                         <Lock className="h-4 w-4" />
                         {isVerifyingOwnerKey ? "Checking..." : "Unlock Administrator Access"}
                       </button>
                     </form>
-                  </div>
+                  </>
                 ) : null}
 
-                <div className="mt-6 flex justify-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-blue-500" />
-                  <span className="h-2 w-2 rounded-full bg-slate-300" />
-                  <span className="h-2 w-2 rounded-full bg-slate-300" />
+                <div className="mt-6 flex justify-center gap-2.5">
+                  <span className="landing-dot-active" />
+                  <span className="landing-dot" />
+                  <span className="landing-dot" />
                 </div>
               </>
             )}
