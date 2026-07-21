@@ -21,7 +21,7 @@ import {
   FeatureIconExams,
   FeatureIconFinance,
   FeatureIconStudents,
-  LandingConstellation,
+  LandingCorporateBackground,
 } from "@/components/landing/landing-graphics";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { LandingPricing } from "@/components/landing/landing-pricing";
@@ -214,7 +214,7 @@ export default function SchoolAuthPage() {
 
   return (
     <div className="auth-shell">
-      <LandingConstellation />
+      <LandingCorporateBackground />
 
       <div className="relative mx-auto flex min-h-screen max-w-[1240px] flex-col">
         <LandingNav />

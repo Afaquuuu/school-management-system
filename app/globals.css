@@ -188,7 +188,95 @@ body {
 
   .auth-shell {
     @apply relative min-h-screen overflow-x-hidden px-5 py-5 sm:px-8 lg:px-10;
-    background: linear-gradient(180deg, #fbfcfe 0%, #f3f7ff 52%, #eef3fb 100%);
+    background: linear-gradient(165deg, #f4f7f9 0%, #f8fafb 42%, #ffffff 100%);
+  }
+
+  .landing-corporate-bg {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+    z-index: 0;
+  }
+
+  .landing-corporate-bg-base {
+    @apply absolute inset-0;
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.95) 0%, transparent 42%),
+      radial-gradient(circle at 82% 88%, rgba(226, 232, 240, 0.35) 0%, transparent 48%);
+  }
+
+  .landing-corporate-bg-glow {
+    @apply absolute rounded-full blur-3xl;
+  }
+
+  .landing-corporate-bg-glow-top {
+    top: -8%;
+    right: 8%;
+    width: 42%;
+    height: 38%;
+    background: rgba(255, 255, 255, 0.75);
+  }
+
+  .landing-corporate-bg-glow-bottom {
+    bottom: -12%;
+    left: -4%;
+    width: 46%;
+    height: 40%;
+    background: rgba(226, 232, 240, 0.28);
+  }
+
+  .landing-corporate-shape {
+    @apply absolute;
+  }
+
+  .landing-corporate-shape-rect-1 {
+    top: 10%;
+    left: -5%;
+    width: 34rem;
+    height: 18rem;
+    border-radius: 2.75rem;
+    background: rgba(100, 116, 139, 0.06);
+    transform: rotate(-7deg);
+  }
+
+  .landing-corporate-shape-rect-2 {
+    top: 48%;
+    right: -6%;
+    width: 28rem;
+    height: 16rem;
+    border-radius: 2.25rem;
+    background: rgba(148, 163, 184, 0.07);
+    transform: rotate(8deg);
+  }
+
+  .landing-corporate-shape-rect-3 {
+    bottom: 8%;
+    left: 28%;
+    width: 22rem;
+    height: 12rem;
+    border-radius: 2rem;
+    background: rgba(100, 116, 139, 0.05);
+    transform: rotate(-4deg);
+  }
+
+  .landing-corporate-shape-circle-1 {
+    top: 22%;
+    right: 12%;
+    width: 18rem;
+    height: 18rem;
+    border-radius: 9999px;
+    background: rgba(148, 163, 184, 0.06);
+  }
+
+  .landing-corporate-shape-circle-2 {
+    bottom: 18%;
+    left: 8%;
+    width: 14rem;
+    height: 14rem;
+    border-radius: 9999px;
+    background: rgba(100, 116, 139, 0.05);
+  }
+
+  .landing-corporate-grid {
+    @apply absolute inset-0 h-full w-full opacity-80;
   }
 
   .landing-mesh-wrap {
@@ -241,7 +329,8 @@ body {
   }
 
   .landing-info-section {
-    @apply relative z-10 scroll-mt-24 rounded-[24px] border border-slate-200/60 bg-white/90 p-6 shadow-[0_20px_60px_-32px_rgba(15,23,42,0.2)] backdrop-blur-sm sm:p-8;
+    @apply relative z-10 scroll-mt-24 rounded-[24px] border border-white/60 p-6 shadow-[0_16px_48px_-24px_rgba(15,23,42,0.12)] backdrop-blur-md sm:p-8;
+    background: rgba(255, 255, 255, 0.78);
   }
 
   .landing-info-title {
@@ -402,7 +491,7 @@ body {
   }
 
   .landing-feature-card {
-    @apply flex min-h-[148px] flex-col items-center justify-center rounded-[18px] border border-slate-200/70 bg-white px-4 py-5 text-center shadow-[0_8px_30px_-18px_rgba(15,23,42,0.25)];
+    @apply relative z-10 flex min-h-[148px] flex-col items-center justify-center rounded-[18px] border border-white/70 bg-white/85 px-4 py-5 text-center shadow-[0_8px_28px_-18px_rgba(15,23,42,0.12)] backdrop-blur-sm;
   }
 
   .landing-feature-label {
@@ -411,7 +500,8 @@ body {
   }
 
   .landing-dashboard-card {
-    @apply relative z-10 rounded-[24px] border border-slate-200/60 bg-white p-6 shadow-[0_28px_80px_-32px_rgba(15,23,42,0.35)] sm:p-7;
+    @apply relative z-10 rounded-[24px] border border-white/60 p-6 shadow-[0_24px_64px_-28px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:p-7;
+    background: rgba(255, 255, 255, 0.72);
   }
 
   .landing-dashboard-title {

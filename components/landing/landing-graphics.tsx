@@ -122,6 +122,42 @@ function buildLowPolyMesh(width: number, height: number, cols: number, rows: num
 const primaryMeshLines = buildLowPolyMesh(1600, 1000, 28, 18);
 const accentMeshLines = buildLowPolyMesh(1600, 1000, 14, 9);
 
+export function LandingCorporateBackground() {
+  return (
+    <div className="landing-corporate-bg" aria-hidden>
+      <div className="landing-corporate-bg-base" />
+      <div className="landing-corporate-bg-glow landing-corporate-bg-glow-top" />
+      <div className="landing-corporate-bg-glow landing-corporate-bg-glow-bottom" />
+
+      <div className="landing-corporate-shape landing-corporate-shape-rect-1" />
+      <div className="landing-corporate-shape landing-corporate-shape-rect-2" />
+      <div className="landing-corporate-shape landing-corporate-shape-rect-3" />
+      <div className="landing-corporate-shape landing-corporate-shape-circle-1" />
+      <div className="landing-corporate-shape landing-corporate-shape-circle-2" />
+
+      <svg
+        className="landing-corporate-grid"
+        viewBox="0 0 1440 900"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <g stroke="rgba(148, 163, 184, 0.14)" strokeWidth="1">
+          <line x1="180" y1="0" x2="180" y2="900" />
+          <line x1="720" y1="0" x2="720" y2="900" />
+          <line x1="1120" y1="0" x2="1120" y2="900" />
+          <line x1="0" y1="180" x2="1440" y2="180" />
+          <line x1="0" y1="520" x2="1440" y2="520" />
+          <line x1="0" y1="760" x2="1440" y2="760" />
+        </g>
+        <g stroke="rgba(148, 163, 184, 0.08)" strokeWidth="1">
+          <line x1="420" y1="0" x2="420" y2="900" />
+          <line x1="980" y1="0" x2="980" y2="900" />
+          <line x1="0" y1="340" x2="1440" y2="340" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 export function LandingConstellation() {
   return (
     <div className="landing-mesh-wrap" aria-hidden>
