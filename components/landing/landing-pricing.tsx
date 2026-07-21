@@ -16,7 +16,7 @@ const plans = [
       "Up to 300 students",
       "Student, staff & attendance modules",
       "Exam & marks management",
-      "Email support",
+      "Email support up to 300 per day",
     ],
     cta: "Get a Quote",
     href: QUOTE_LINK,
