@@ -222,7 +222,7 @@ export function AdminKpiCard({ card }: { card: AdminKpiCardData }) {
 
   return (
     <article className={`admin-kpi-card admin-kpi-card-${card.tone}${isUsersCard ? " admin-kpi-card-users" : ""}`}>
-      {!isUsersCard ? <div className="admin-kpi-accent" aria-hidden /> : null}
+      <div className="admin-kpi-accent" aria-hidden />
       <div className="admin-kpi-body">
         <div className="admin-kpi-card-content">
           <div className="admin-kpi-card-top">

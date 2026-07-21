@@ -841,7 +841,7 @@ body {
   }
 
   .admin-kpi-card-users .admin-kpi-body {
-    @apply items-center pl-0;
+    @apply items-center;
   }
 
   .admin-kpi-card-users .admin-kpi-label {
