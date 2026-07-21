@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowUpRight, ChevronRight } from "lucide-react";
+import { ArrowUpRight, ChevronRight, TrendingUp } from "lucide-react";
 
 export function AdminControlBanner({
   selectedView,
@@ -42,14 +42,71 @@ export function AdminControlBanner({
 }
 
 function KpiUsersArt() {
+  const stroke = "#374151";
+  const skin = "#F5D0C5";
+  const hair = "#6B7280";
+  const blue = "#93C5FD";
+  const mint = "#6EE7B7";
+
+  function Person({
+    x,
+    headY,
+    shirt,
+    hairPath,
+    scale = 1,
+  }: {
+    x: number;
+    headY: number;
+    shirt: string;
+    hairPath: string;
+    scale?: number;
+  }) {
+    return (
+      <g transform={`translate(${x} ${headY}) scale(${scale})`}>
+        <path d="M0 18c-10 0-16 6-16 16v2h32v-2c0-10-6-16-16-16z" fill={shirt} stroke={stroke} strokeWidth="1.5" />
+        <circle cx="0" cy="0" r="11" fill={skin} stroke={stroke} strokeWidth="1.5" />
+        <path d={hairPath} fill={hair} stroke={stroke} strokeWidth="1.2" />
+      </g>
+    );
+  }
+
   return (
-    <svg viewBox="0 0 64 64" className="admin-kpi-art" aria-hidden>
-      <circle cx="22" cy="20" r="8" fill="#93C5FD" />
-      <path d="M10 46c0-7 5-12 12-12s12 5 12 12" fill="#BFDBFE" />
-      <circle cx="40" cy="18" r="7" fill="#A5B4FC" />
-      <path d="M30 46c0-6 4-10 10-10s10 4 10 10" fill="#C7D2FE" />
-      <circle cx="52" cy="24" r="6" fill="#60A5FA" />
-      <path d="M44 46c0-5 4-9 9-9" stroke="#93C5FD" strokeWidth="5" strokeLinecap="round" />
+    <svg viewBox="0 0 120 96" className="admin-kpi-art admin-kpi-art-users" aria-hidden>
+      <Person
+        x={24}
+        headY={30}
+        shirt={blue}
+        scale={0.82}
+        hairPath="M-10 -2c0-8 8-12 10-12s10 4 10 12c0 3-2 6-5 7-3-2-6-2-10 0-3-1-5-4-5-7z"
+      />
+      <Person
+        x={48}
+        headY={22}
+        shirt={blue}
+        scale={0.78}
+        hairPath="M-9 -1c0-7 7-11 9-11s9 4 9 11c0 2-1 5-4 6-2-2-5-2-8 0-3-1-4-4-4-6z"
+      />
+      <Person
+        x={72}
+        headY={28}
+        shirt={blue}
+        scale={0.82}
+        hairPath="M-10 -2c0-8 8-12 10-12s10 4 10 12c0 3-2 6-5 7-3-2-6-2-10 0-3-1-5-4-5-7z"
+      />
+      <Person
+        x={52}
+        headY={48}
+        shirt={mint}
+        scale={1}
+        hairPath="M-11 -2c0-9 9-13 11-13s11 4 11 13c0 3-2 6-5 7-3-2-7-2-11 0-3-1-5-4-5-7z"
+      />
+      <Person
+        x={82}
+        headY={46}
+        shirt={blue}
+        scale={0.95}
+        hairPath="M-12 -3c0-4 4-8 8-10 4 2 8 6 8 10 0 5-3 9-8 10-1-4-3-7-6-8 3-1 5-4 6-8 2 1 4 4 4 8z"
+      />
     </svg>
   );
 }
@@ -161,10 +218,11 @@ export type AdminKpiCardData = {
 
 export function AdminKpiCard({ card }: { card: AdminKpiCardData }) {
   const Art = kpiArtMap[card.key];
+  const isUsersCard = card.key === "users";
 
   return (
-    <article className={`admin-kpi-card admin-kpi-card-${card.tone}`}>
-      <div className="admin-kpi-accent" aria-hidden />
+    <article className={`admin-kpi-card admin-kpi-card-${card.tone}${isUsersCard ? " admin-kpi-card-users" : ""}`}>
+      {!isUsersCard ? <div className="admin-kpi-accent" aria-hidden /> : null}
       <div className="admin-kpi-body">
         <div className="admin-kpi-card-content">
           <div className="admin-kpi-card-top">
@@ -172,9 +230,13 @@ export function AdminKpiCard({ card }: { card: AdminKpiCardData }) {
             <div className="admin-kpi-value-row">
               <span className="admin-kpi-value">{card.value}</span>
               {card.showTrend ? (
-                <span className="admin-kpi-trend">
-                  <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
-                </span>
+                isUsersCard ? (
+                  <TrendingUp className="admin-kpi-trend-chart" strokeWidth={2.5} aria-hidden />
+                ) : (
+                  <span className="admin-kpi-trend">
+                    <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
+                  </span>
+                )
               ) : null}
             </div>
           </div>
@@ -195,7 +257,7 @@ export function AdminKpiCard({ card }: { card: AdminKpiCardData }) {
             </Link>
           ) : null}
         </div>
-        <div className="admin-kpi-icon-wrap">
+        <div className={`admin-kpi-icon-wrap${isUsersCard ? " admin-kpi-icon-wrap-users" : ""}`}>
           <Art />
         </div>
       </div>

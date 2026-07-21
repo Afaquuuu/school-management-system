@@ -834,7 +834,49 @@ body {
   }
 
   .admin-kpi-card-mint {
+    background: linear-gradient(120deg, #7ebfa0 0%, #9fd0b8 30%, #c5e4d4 62%, #e8f5ef 100%);
+    border-color: rgba(110, 170, 140, 0.35);
+    min-height: 190px;
+    @apply rounded-2xl shadow-[0_10px_30px_-16px_rgba(16,94,62,0.22)];
+  }
+
+  .admin-kpi-card-users .admin-kpi-body {
+    @apply items-center pl-0;
+  }
+
+  .admin-kpi-card-users .admin-kpi-label {
+    @apply font-bold text-slate-700;
+  }
+
+  .admin-kpi-card-users .admin-kpi-value {
+    @apply text-[2.35rem] text-slate-800;
+  }
+
+  .admin-kpi-card-users .admin-kpi-lines {
+    @apply text-[14px] text-slate-700;
+  }
+
+  .admin-kpi-trend-chart {
+    @apply h-5 w-5 shrink-0 text-emerald-500;
+  }
+
+  .admin-kpi-icon-wrap-users {
+    @apply h-[104px] w-[118px];
+  }
+
+  .admin-kpi-icon-wrap-users::before {
+    display: none;
+  }
+
+  .admin-kpi-art-users {
+    @apply h-[96px] w-[112px];
+  }
+
+  .admin-kpi-card-mint:not(.admin-kpi-card-users) {
     background: linear-gradient(180deg, #ffffff 0%, #f8fffb 100%);
+    border-color: rgba(148, 163, 184, 0.25);
+    min-height: 176px;
+    @apply rounded-xl shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.1)];
   }
 
   .admin-kpi-card-sky {
