@@ -27,10 +27,10 @@ const plans = [
     headline: "Most popular",
     subline: "For growing schools that need the full platform",
     features: [
-      "Unlimited students & staff",
+      "800 students & staff",
       "All modules + performance analytics",
-      "Finance & communication tools",
-      "Priority onboarding & support",
+      "300+ emails per day",
+      "WhatsApp messaging announcements",
     ],
     cta: "Request Demo",
     href: DEMO_REQUEST_LINK,
