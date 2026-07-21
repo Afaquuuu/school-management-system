@@ -23,16 +23,18 @@ import {
   FeatureIconStudents,
   LandingConstellation,
 } from "@/components/landing/landing-graphics";
+import { LandingNav } from "@/components/landing/landing-nav";
+import { DEMO_REQUEST_MAILTO } from "@/components/landing/demo-request";
 import {
   Building2,
-  ChevronDown,
   ChevronRight,
   Eye,
   EyeOff,
   KeyRound,
   Lock,
+  Mail,
+  MessageCircle,
   Search,
-  School,
   Shield,
 } from "lucide-react";
 
@@ -214,37 +216,7 @@ export default function SchoolAuthPage() {
       <LandingConstellation />
 
       <div className="relative mx-auto flex min-h-screen max-w-[1240px] flex-col">
-        <header className="landing-nav">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-md shadow-blue-500/25">
-              <School className="h-5 w-5 text-white" />
-            </div>
-            <span className="landing-brand-title text-[1.35rem] font-bold tracking-tight">
-              School Management
-            </span>
-          </div>
-
-          <nav className="hidden flex-1 items-center justify-center gap-10 md:flex">
-            <button type="button" className="landing-nav-link">
-              Product
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            <button type="button" className="landing-nav-link">
-              Solutions
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            <a href="#support" className="landing-nav-link">
-              Support
-            </a>
-            <a href="#pricing" className="landing-nav-link">
-              Pricing
-            </a>
-          </nav>
-
-          <a href="#access" className="landing-demo-btn shrink-0">
-            Request Demo
-          </a>
-        </header>
+        <LandingNav />
 
         <div className="grid flex-1 items-center gap-10 py-8 lg:grid-cols-[1.08fr_0.92fr] lg:gap-12 lg:py-10">
           <section className="relative z-10 space-y-8">
@@ -255,7 +227,7 @@ export default function SchoolAuthPage() {
               </p>
             </div>
 
-            <div className="landing-feature-grid">
+            <div id="features" className="landing-feature-grid scroll-mt-24">
               {featureCards.map((feature) => {
                 const Icon = feature.Icon;
                 return (
@@ -515,6 +487,124 @@ export default function SchoolAuthPage() {
             )}
           </section>
         </div>
+
+        <section id="solutions" className="landing-info-section scroll-mt-24">
+          <h2 className="landing-info-title">Solutions for every institution</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+            Whether you run a single campus or multiple branches, School Management adapts to
+            your workflows for admissions, academics, finance, and communication.
+          </p>
+          <div className="landing-info-grid">
+            <article className="landing-info-card">
+              <h3 className="landing-info-card-title">Primary & Secondary Schools</h3>
+              <p className="landing-info-card-text">
+                Manage classes, attendance, exams, and parent communication in one place.
+              </p>
+            </article>
+            <article className="landing-info-card">
+              <h3 className="landing-info-card-title">Colleges & Universities</h3>
+              <p className="landing-info-card-text">
+                Track departments, staff roles, performance analytics, and student records.
+              </p>
+            </article>
+            <article className="landing-info-card">
+              <h3 className="landing-info-card-title">Private Academies</h3>
+              <p className="landing-info-card-text">
+                Streamline fee collection, announcements, and day-to-day administration.
+              </p>
+            </article>
+            <article className="landing-info-card">
+              <h3 className="landing-info-card-title">Multi-campus Institutions</h3>
+              <p className="landing-info-card-text">
+                Register and operate separate school dashboards from a unified platform.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="pricing" className="landing-info-section mt-8 scroll-mt-24">
+          <h2 className="landing-info-title">Simple, transparent pricing</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+            Choose a plan that fits your institution. All plans include secure cloud hosting,
+            regular updates, and onboarding support.
+          </p>
+          <div className="landing-pricing-grid">
+            <article className="landing-pricing-card">
+              <h3 className="text-lg font-bold text-slate-800">Starter</h3>
+              <p className="mt-2 text-3xl font-bold text-slate-900">Contact us</p>
+              <p className="mt-1 text-sm text-slate-500">For small schools getting started</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                <li>Up to 300 students</li>
+                <li>Core modules included</li>
+                <li>Email support</li>
+              </ul>
+            </article>
+            <article className="landing-pricing-card landing-pricing-card-featured">
+              <h3 className="text-lg font-bold text-blue-900">Professional</h3>
+              <p className="mt-2 text-3xl font-bold text-blue-900">Contact us</p>
+              <p className="mt-1 text-sm text-slate-500">Most popular for growing schools</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                <li>Unlimited students & staff</li>
+                <li>All modules + analytics</li>
+                <li>Priority support</li>
+              </ul>
+            </article>
+            <article className="landing-pricing-card">
+              <h3 className="text-lg font-bold text-slate-800">Enterprise</h3>
+              <p className="mt-2 text-3xl font-bold text-slate-900">Custom</p>
+              <p className="mt-1 text-sm text-slate-500">For multi-campus organizations</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                <li>Dedicated onboarding</li>
+                <li>Custom integrations</li>
+                <li>Account manager</li>
+              </ul>
+            </article>
+          </div>
+          <a href={DEMO_REQUEST_MAILTO} className="landing-demo-btn mt-6 inline-flex">
+            Request Demo
+          </a>
+        </section>
+
+        <section id="support" className="landing-info-section mb-10 mt-8 scroll-mt-24">
+          <h2 className="landing-info-title">Support when you need it</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+            Our team helps you set up your school, train staff, and resolve issues quickly.
+          </p>
+          <div className="landing-info-grid">
+            <article className="landing-info-card">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <Mail className="h-5 w-5" />
+              </div>
+              <h3 className="landing-info-card-title">Email Support</h3>
+              <p className="landing-info-card-text">support@edumanageplus.org</p>
+            </article>
+            <article className="landing-info-card">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <MessageCircle className="h-5 w-5" />
+              </div>
+              <h3 className="landing-info-card-title">Live Chat</h3>
+              <p className="landing-info-card-text">Available on weekdays, 9 AM – 6 PM</p>
+            </article>
+            <article className="landing-info-card">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                <Shield className="h-5 w-5" />
+              </div>
+              <h3 className="landing-info-card-title">Onboarding Help</h3>
+              <p className="landing-info-card-text">
+                Guided setup for admins, teachers, and finance staff.
+              </p>
+            </article>
+            <article className="landing-info-card">
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <h3 className="landing-info-card-title">Documentation</h3>
+              <p className="landing-info-card-text">
+                Step-by-step guides for attendance, exams, and reports.
+              </p>
+            </article>
+          </div>
+        </section>
       </div>
     </div>
   );
