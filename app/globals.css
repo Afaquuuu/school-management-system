@@ -802,72 +802,63 @@ body {
   }
 
   .admin-kpi-grid {
-    @apply grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4;
+    @apply grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4;
   }
 
   .admin-kpi-card {
-    @apply relative min-h-[196px] overflow-hidden rounded-2xl border p-6;
-    box-shadow: 0 8px 28px -14px rgba(15, 23, 42, 0.16);
+    @apply relative overflow-hidden rounded-xl border border-slate-200/90 bg-white p-5;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 8px 24px -12px rgba(15, 23, 42, 0.1);
+    min-height: 176px;
   }
 
-  .admin-kpi-card-content {
-    @apply relative z-10 flex min-h-[148px] max-w-[58%] flex-col;
+  .admin-kpi-accent {
+    @apply absolute bottom-5 left-0 top-5 w-[3px] rounded-full;
+  }
+
+  .admin-kpi-card-mint .admin-kpi-accent {
+    background: linear-gradient(180deg, #6ee7b7 0%, #10b981 100%);
+  }
+
+  .admin-kpi-card-sky .admin-kpi-accent {
+    background: linear-gradient(180deg, #93c5fd 0%, #3b82f6 100%);
+  }
+
+  .admin-kpi-card-gray .admin-kpi-accent {
+    background: linear-gradient(180deg, #cbd5e1 0%, #64748b 100%);
+  }
+
+  .admin-kpi-card-coral .admin-kpi-accent {
+    background: linear-gradient(180deg, #fda4af 0%, #f43f5e 100%);
   }
 
   .admin-kpi-card-mint {
-    background: linear-gradient(
-      102deg,
-      #86efac 0%,
-      #bbf7d0 16%,
-      #d1fae5 34%,
-      #ecfdf5 56%,
-      #f7fef9 78%,
-      #ffffff 100%
-    );
-    border-color: rgba(134, 239, 172, 0.45);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fffb 100%);
   }
 
   .admin-kpi-card-sky {
-    background: linear-gradient(
-      102deg,
-      #93c5fd 0%,
-      #bfdbfe 16%,
-      #dbeafe 34%,
-      #eff6ff 56%,
-      #f5f9ff 78%,
-      #ffffff 100%
-    );
-    border-color: rgba(147, 197, 253, 0.45);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   }
 
   .admin-kpi-card-gray {
-    background: linear-gradient(
-      102deg,
-      #cbd5e1 0%,
-      #dbeafe 12%,
-      #e2e8f0 30%,
-      #f1f5f9 54%,
-      #f8fafc 76%,
-      #ffffff 100%
-    );
-    border-color: rgba(203, 213, 225, 0.55);
+    background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
   }
 
   .admin-kpi-card-coral {
-    background: linear-gradient(
-      102deg,
-      #fda4af 0%,
-      #fecdd3 16%,
-      #ffe4e6 34%,
-      #fff1f2 56%,
-      #fff5f5 78%,
-      #ffffff 100%
-    );
-    border-color: rgba(253, 164, 175, 0.45);
+    background: linear-gradient(180deg, #ffffff 0%, #fffafb 100%);
+  }
+
+  .admin-kpi-body {
+    @apply relative z-10 flex h-full items-end justify-between gap-4 pl-3;
+  }
+
+  .admin-kpi-card-content {
+    @apply flex min-w-0 flex-1 flex-col;
   }
 
   .admin-kpi-label {
-    @apply text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500;
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400;
   }
 
   .admin-kpi-card-top {
@@ -875,35 +866,57 @@ body {
   }
 
   .admin-kpi-value-row {
-    @apply mt-2.5 flex items-center gap-2.5;
+    @apply mt-2 flex items-center gap-2;
   }
 
   .admin-kpi-value {
-    @apply text-[2.5rem] font-bold leading-none tracking-tight text-slate-900;
+    @apply text-[2rem] font-bold leading-none tracking-tight text-slate-900;
   }
 
   .admin-kpi-trend {
-    @apply inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 ring-4 ring-white/70;
+    @apply inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100;
   }
 
   .admin-kpi-lines {
-    @apply mt-3 space-y-0.5 text-[13px] leading-relaxed text-slate-600;
+    @apply mt-2.5 space-y-0.5 text-[13px] leading-snug text-slate-500;
   }
 
   .admin-kpi-link {
-    @apply mt-auto inline-flex items-center gap-0.5 pt-3 text-[13px] font-semibold text-blue-600 transition hover:text-blue-700;
+    @apply mt-3 inline-flex items-center gap-0.5 text-[13px] font-medium text-blue-600 transition hover:text-blue-700;
   }
 
   .admin-kpi-button {
-    @apply mt-auto inline-flex w-fit rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[12px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50;
+    @apply mt-3 inline-flex w-fit rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-[12px] font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50;
+  }
+
+  .admin-kpi-icon-wrap {
+    @apply relative flex h-[76px] w-[76px] shrink-0 items-center justify-center;
+  }
+
+  .admin-kpi-icon-wrap::before {
+    content: "";
+    @apply absolute inset-0 rounded-2xl;
+    opacity: 0.55;
+  }
+
+  .admin-kpi-card-mint .admin-kpi-icon-wrap::before {
+    background: radial-gradient(circle at center, rgba(167, 243, 208, 0.45) 0%, rgba(167, 243, 208, 0) 72%);
+  }
+
+  .admin-kpi-card-sky .admin-kpi-icon-wrap::before {
+    background: radial-gradient(circle at center, rgba(191, 219, 254, 0.55) 0%, rgba(191, 219, 254, 0) 72%);
+  }
+
+  .admin-kpi-card-gray .admin-kpi-icon-wrap::before {
+    background: radial-gradient(circle at center, rgba(226, 232, 240, 0.65) 0%, rgba(226, 232, 240, 0) 72%);
+  }
+
+  .admin-kpi-card-coral .admin-kpi-icon-wrap::before {
+    background: radial-gradient(circle at center, rgba(254, 205, 211, 0.55) 0%, rgba(254, 205, 211, 0) 72%);
   }
 
   .admin-kpi-art {
-    @apply pointer-events-none absolute bottom-1 right-1 h-[118px] w-[132px];
-  }
-
-  .admin-kpi-art-wrap {
-    @apply pointer-events-none absolute inset-y-0 right-0 flex w-[42%] items-end justify-end overflow-hidden;
+    @apply relative h-[58px] w-[58px];
   }
 
   .admin-section-title {
