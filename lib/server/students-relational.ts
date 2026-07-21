@@ -85,7 +85,8 @@ function toStoredStudentJson(profile: {
     name: string;
   };
 }): StoredStudentJson | null {
-  if (!profile.legacyId) return null;
+  const resolvedLegacyId = profile.legacyId ?? profile.admissionNo;
+  if (!resolvedLegacyId) return null;
 
   const nameParts = profile.user.name.trim().split(/\s+/);
   const firstName = nameParts[0] ?? "";
@@ -107,7 +108,7 @@ function toStoredStudentJson(profile: {
     profile.user.email.endsWith("@school.local") ? "" : profile.user.email;
 
   return {
-    id: profile.legacyId,
+    id: resolvedLegacyId,
     studentId: profile.admissionNo,
     firstName,
     lastName,
@@ -129,14 +130,101 @@ function toStoredStudentJson(profile: {
   };
 }
 
+type StudentProfileWithUser = {
+  id: string;
+  userId: string;
+  legacyId: string | null;
+  admissionNo: string;
+  user: {
+    email: string;
+    phone: string | null;
+    name: string;
+  };
+};
+
+async function findExistingStudentProfile(
+  tenant: PrismaClient,
+  student: StoredStudentJson,
+  email: string,
+): Promise<StudentProfileWithUser | null> {
+  const byLegacyId = await tenant.studentProfile.findUnique({
+    where: { legacyId: student.id },
+    include: { user: true },
+  });
+  if (byLegacyId) return byLegacyId;
+
+  const byAdmissionNo = await tenant.studentProfile.findUnique({
+    where: { admissionNo: student.studentId },
+    include: { user: true },
+  });
+  if (byAdmissionNo) return byAdmissionNo;
+
+  const userByEmail = await tenant.user.findUnique({
+    where: { email },
+    include: { studentProfile: true },
+  });
+  if (userByEmail?.studentProfile) {
+    return {
+      ...userByEmail.studentProfile,
+      user: userByEmail,
+    };
+  }
+
+  return null;
+}
+
+async function describeStudentEmailConflict(
+  tenant: PrismaClient,
+  email: string,
+): Promise<string> {
+  const user = await tenant.user.findUnique({
+    where: { email },
+    include: { studentProfile: true, staffProfile: true, guardianProfile: true },
+  });
+
+  if (!user) {
+    return "A student with this email already exists in the school records.";
+  }
+
+  if (user.studentProfile) {
+    const profile = user.studentProfile;
+    return (
+      `This email belongs to student ${user.name} (${profile.classLabel} Section ${profile.sectionLabel}, ID ${profile.admissionNo}). ` +
+      "Clear class/section filters and search by name or email to find them."
+    );
+  }
+
+  if (user.staffProfile) {
+    return `This email is already used by staff member ${user.name}. Use a different email for the student.`;
+  }
+
+  if (user.guardianProfile) {
+    return (
+      `This email is already used by parent/guardian ${user.name}. ` +
+      "Students must have their own email address, separate from the guardian email."
+    );
+  }
+
+  return `This email is already registered for ${user.role} (${user.name}).`;
+}
+
 export async function listStudentsFromRelationalStore(
   tenant: PrismaClient,
 ): Promise<StoredStudentJson[]> {
   const rows = await tenant.studentProfile.findMany({
-    where: { legacyId: { not: null } },
     include: { user: true },
     orderBy: { admissionNo: "asc" },
   });
+
+  for (const row of rows) {
+    if (!row.legacyId && row.admissionNo) {
+      await tenant.studentProfile.update({
+        where: { id: row.id },
+        data: { legacyId: row.admissionNo },
+      });
+      row.legacyId = row.admissionNo;
+    }
+  }
 
   return rows
     .map((row) => toStoredStudentJson(row))
@@ -148,14 +236,22 @@ export async function saveStudentsToRelationalStore(
   students: StoredStudentJson[],
 ): Promise<void> {
   const existing = await tenant.studentProfile.findMany({
-    where: { legacyId: { not: null } },
-    select: { id: true, legacyId: true, userId: true },
+    include: { user: true },
   });
 
   const incomingIds = new Set(students.map((student) => student.id));
+  const incomingAdmissionNos = new Set(students.map((student) => student.studentId));
+  const incomingEmails = new Set(students.map((student) => buildStudentEmail(student)));
 
   for (const profile of existing) {
-    if (profile.legacyId && !incomingIds.has(profile.legacyId)) {
+    const legacyId = profile.legacyId ?? profile.admissionNo;
+    const email = profile.user.email.toLowerCase();
+    const stillPresent =
+      (legacyId && incomingIds.has(legacyId)) ||
+      incomingAdmissionNos.has(profile.admissionNo) ||
+      incomingEmails.has(email);
+
+    if (!stillPresent) {
       await tenant.user.delete({ where: { id: profile.userId } });
     }
   }
@@ -163,10 +259,6 @@ export async function saveStudentsToRelationalStore(
   for (const student of students) {
     const email = buildStudentEmail(student);
     const name = buildStudentName(student);
-    const existingProfile = await tenant.studentProfile.findUnique({
-      where: { legacyId: student.id },
-      include: { user: true },
-    });
 
     const profileData = {
       admissionNo: student.studentId,
@@ -182,7 +274,10 @@ export async function saveStudentsToRelationalStore(
       studentStatus: student.status ?? "active",
       admissionDate: parseDate(student.admissionDate) ?? new Date(),
       isActive: isActiveStatus(student.status),
+      legacyId: student.id,
     };
+
+    const existingProfile = await findExistingStudentProfile(tenant, student, email);
 
     if (existingProfile) {
       await tenant.user.update({
@@ -191,6 +286,7 @@ export async function saveStudentsToRelationalStore(
           name,
           email,
           phone: student.phone ?? "",
+          role: "student",
           isActive: isActiveStatus(student.status),
         },
       });
@@ -202,6 +298,23 @@ export async function saveStudentsToRelationalStore(
       continue;
     }
 
+    const conflictingUser = await tenant.user.findUnique({
+      where: { email },
+      include: { staffProfile: true, guardianProfile: true },
+    });
+
+    if (conflictingUser?.staffProfile) {
+      throw new Error(
+        `This email is already used by staff member ${conflictingUser.name}. Use a different email for the student.`,
+      );
+    }
+
+    if (conflictingUser?.guardianProfile) {
+      throw new Error(
+        `This email is already used by parent/guardian ${conflictingUser.name}. Students must have their own email address, separate from the guardian email.`,
+      );
+    }
+
     await tenant.user.create({
       data: {
         clerkId: `legacy:${student.id}`,
@@ -211,10 +324,7 @@ export async function saveStudentsToRelationalStore(
         phone: student.phone ?? "",
         isActive: isActiveStatus(student.status),
         studentProfile: {
-          create: {
-            legacyId: student.id,
-            ...profileData,
-          },
+          create: profileData,
         },
       },
     });
@@ -251,7 +361,16 @@ export async function setRelationalStudentsJson(
     await saveStudentsToRelationalStore(tenant, students);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new Error("A student with this email already exists in the school records.");
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(", ")
+        : String(error.meta?.target ?? "email");
+      if (target.includes("email")) {
+        const duplicateEmail = students.find((student) => student.email?.trim())?.email?.trim().toLowerCase();
+        if (duplicateEmail) {
+          throw new Error(await describeStudentEmailConflict(tenant, duplicateEmail));
+        }
+      }
+      throw new Error("A student record with duplicate details already exists.");
     }
     throw error;
   }
