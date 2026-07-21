@@ -1077,14 +1077,6 @@ export default function StudentsPage() {
                 <option value="transferred">Transferred</option>
               </select>
             </div>
-            {(filterClass !== "all" || filterSection !== "all" || filterStatus !== "all" || searchTerm.trim()) &&
-              students.length > 0 &&
-              filteredStudents.length < students.length && (
-                <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
-                  Showing {filteredStudents.length} of {students.length} students. Clear filters or search to see all
-                  records — a student may already exist under a different class or section.
-                </p>
-              )}
           </div>
         </div>
 
