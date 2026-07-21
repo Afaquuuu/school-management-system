@@ -14,8 +14,8 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "School Management System",
-  description: "Professional school management platform with role-based access and modular operations.",
+  title: "School Management",
+  description: "Complete school operations platform for modern educational institutions.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
