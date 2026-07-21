@@ -51,6 +51,7 @@ import {
   getAnnouncementsPageDescription,
   getTeacherAnnouncementClasses,
   getVisibleAnnouncements,
+  recordAnnouncementView,
   SCHOOL_WIDE_AUDIENCE_OPTIONS,
   CLASS_AUDIENCE_OPTIONS,
   toggleSchoolAnnouncementPin,
@@ -331,6 +332,28 @@ export default function CommunicationPage() {
     if (!deleteSchoolAnnouncement(currentSchool.id, session, announcementId)) return;
     refreshAnnouncements();
     setSelectedAnnouncement(null);
+  };
+
+  const handleViewAnnouncement = async (announcement: SchoolAnnouncement) => {
+    setSelectedAnnouncement(announcement);
+    if (!currentSchool || !session) return;
+
+    const nextViews = await recordAnnouncementView(
+      currentSchool.id,
+      announcement.id,
+      session.email,
+    );
+
+    if (nextViews === null) return;
+
+    setAnnouncements((current) =>
+      current.map((item) =>
+        item.id === announcement.id ? { ...item, views: nextViews } : item,
+      ),
+    );
+    setSelectedAnnouncement((current) =>
+      current?.id === announcement.id ? { ...current, views: nextViews } : current,
+    );
   };
 
   const handleSendMessage = () => {
@@ -852,7 +875,7 @@ export default function CommunicationPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => setSelectedAnnouncement(announcement)}
+                          onClick={() => void handleViewAnnouncement(announcement)}
                           className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
                           title="View details"
                         >

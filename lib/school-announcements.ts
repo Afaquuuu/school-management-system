@@ -1,7 +1,8 @@
 import { formatStudentClassLabel } from "@/lib/class-labels";
 import { buildSchoolClassId } from "@/lib/school-classes-sync";
 import { getLinkedStudentsForParentEmail } from "@/lib/parent-student-links";
-import { getSchoolClasses, getScopedItem, setScopedItem } from "@/lib/school-context";
+import { getSchoolClasses, getScopedItem, persistScopedItem, setScopedItem } from "@/lib/school-context";
+import { isClientDatabaseMode } from "@/lib/storage-mode";
 import { getStudentClassContext } from "@/lib/school-messages";
 import {
   getClassIdsForTeacher,
@@ -99,7 +100,68 @@ export function saveSchoolAnnouncements(
   schoolId: string,
   announcements: SchoolAnnouncement[],
 ): void {
-  setScopedItem(schoolId, STORAGE_KEY, JSON.stringify(announcements));
+  const payload = JSON.stringify(announcements);
+  setScopedItem(schoolId, STORAGE_KEY, payload);
+  if (isClientDatabaseMode()) {
+    void persistScopedItem(schoolId, STORAGE_KEY, payload);
+  }
+}
+
+export async function persistSchoolAnnouncements(
+  schoolId: string,
+  announcements: SchoolAnnouncement[],
+): Promise<void> {
+  const payload = JSON.stringify(announcements);
+  if (isClientDatabaseMode()) {
+    await persistScopedItem(schoolId, STORAGE_KEY, payload);
+    return;
+  }
+  setScopedItem(schoolId, STORAGE_KEY, payload);
+}
+
+function announcementViewDedupeKey(
+  schoolId: string,
+  announcementId: string,
+  viewerEmail: string,
+): string {
+  return `ann_view_${schoolId}_${announcementId}_${viewerEmail.trim().toLowerCase()}`;
+}
+
+export function hasRecordedAnnouncementView(
+  schoolId: string,
+  announcementId: string,
+  viewerEmail: string,
+): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(localStorage.getItem(announcementViewDedupeKey(schoolId, announcementId, viewerEmail)));
+}
+
+export async function recordAnnouncementView(
+  schoolId: string,
+  announcementId: string,
+  viewerEmail: string,
+): Promise<number | null> {
+  const announcements = loadSchoolAnnouncements(schoolId);
+  const target = announcements.find((item) => item.id === announcementId);
+  if (!target) return null;
+
+  const dedupeKey = announcementViewDedupeKey(schoolId, announcementId, viewerEmail);
+  if (typeof window !== "undefined" && localStorage.getItem(dedupeKey)) {
+    return target.views ?? 0;
+  }
+
+  const nextViews = (target.views ?? 0) + 1;
+  const updatedAnnouncements = announcements.map((item) =>
+    item.id === announcementId ? { ...item, views: nextViews } : item,
+  );
+
+  await persistSchoolAnnouncements(schoolId, updatedAnnouncements);
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem(dedupeKey, new Date().toISOString());
+  }
+
+  return nextViews;
 }
 
 export function ensureSchoolAnnouncements(schoolId: string): SchoolAnnouncement[] {
