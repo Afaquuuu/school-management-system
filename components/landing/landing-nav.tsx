@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, School } from "lucide-react";
-import { DEMO_REQUEST_MAILTO } from "@/components/landing/demo-request";
+import { DEMO_REQUEST_LINK, externalEmailLinkProps } from "@/components/landing/demo-request";
 
 const productLinks = [
   { label: "Student & Staff Management", target: "features" },
@@ -145,7 +145,11 @@ export function LandingNav() {
         </button>
       </nav>
 
-      <a href={DEMO_REQUEST_MAILTO} className="landing-demo-btn shrink-0">
+      <a
+        href={DEMO_REQUEST_LINK}
+        {...externalEmailLinkProps}
+        className="landing-demo-btn shrink-0"
+      >
         Request Demo
       </a>
     </header>

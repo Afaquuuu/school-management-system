@@ -25,7 +25,7 @@ import {
 } from "@/components/landing/landing-graphics";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { LandingPricing } from "@/components/landing/landing-pricing";
-import { DEMO_REQUEST_EMAIL, SUPPORT_MAILTO } from "@/components/landing/demo-request";
+import { DEMO_REQUEST_EMAIL, SUPPORT_LINK, externalEmailLinkProps } from "@/components/landing/demo-request";
 import {
   Building2,
   ChevronRight,
@@ -536,7 +536,11 @@ export default function SchoolAuthPage() {
                 <Mail className="h-5 w-5" />
               </div>
               <h3 className="landing-info-card-title">Email Support</h3>
-              <a href={SUPPORT_MAILTO} className="landing-info-card-text hover:text-blue-600">
+              <a
+                href={SUPPORT_LINK}
+                {...externalEmailLinkProps}
+                className="landing-info-card-text hover:text-blue-600"
+              >
                 {DEMO_REQUEST_EMAIL}
               </a>
             </article>

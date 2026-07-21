@@ -353,7 +353,7 @@ body {
 
   .landing-pricing-cta-primary,
   .landing-pricing-cta-secondary {
-    @apply mt-auto inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition;
+    @apply relative z-10 mt-auto inline-flex w-full cursor-pointer items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition;
   }
 
   .landing-pricing-cta-primary {

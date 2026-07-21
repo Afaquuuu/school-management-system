@@ -1,9 +1,10 @@
 import { Check } from "lucide-react";
 import {
   DEMO_REQUEST_EMAIL,
-  DEMO_REQUEST_MAILTO,
-  QUOTE_MAILTO,
-  SALES_MAILTO,
+  DEMO_REQUEST_LINK,
+  QUOTE_LINK,
+  SALES_LINK,
+  externalEmailLinkProps,
 } from "@/components/landing/demo-request";
 
 const plans = [
@@ -18,7 +19,7 @@ const plans = [
       "Email support",
     ],
     cta: "Get a Quote",
-    mailto: QUOTE_MAILTO,
+    href: QUOTE_LINK,
     featured: false,
   },
   {
@@ -32,7 +33,7 @@ const plans = [
       "Priority onboarding & support",
     ],
     cta: "Request Demo",
-    mailto: DEMO_REQUEST_MAILTO,
+    href: DEMO_REQUEST_LINK,
     featured: true,
   },
   {
@@ -46,7 +47,7 @@ const plans = [
       "Account manager & SLA support",
     ],
     cta: "Contact Sales",
-    mailto: SALES_MAILTO,
+    href: SALES_LINK,
     featured: false,
   },
 ] as const;
@@ -91,7 +92,8 @@ export function LandingPricing() {
             </ul>
 
             <a
-              href={plan.mailto}
+              href={plan.href}
+              {...externalEmailLinkProps}
               className={
                 plan.featured ? "landing-pricing-cta-primary" : "landing-pricing-cta-secondary"
               }
@@ -104,7 +106,11 @@ export function LandingPricing() {
 
       <p className="landing-pricing-footnote">
         Need help choosing a plan? Email us at{" "}
-        <a href={`mailto:${DEMO_REQUEST_EMAIL}`} className="landing-pricing-footnote-link">
+        <a
+          href={DEMO_REQUEST_LINK}
+          {...externalEmailLinkProps}
+          className="landing-pricing-footnote-link"
+        >
           {DEMO_REQUEST_EMAIL}
         </a>
       </p>
