@@ -585,12 +585,30 @@ body {
   }
 
   .login-background-campus {
-    @apply absolute bottom-0 left-0 top-0 h-full w-[min(46vw,520px)] opacity-90;
+    @apply absolute inset-y-0 left-0 w-[min(62vw,760px)];
+    background-image: url("/images/login-campus-bg.png");
+    background-position: left center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    filter: grayscale(100%) contrast(0.95) brightness(1.04);
+    opacity: 0.72;
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.92) 0%,
+      rgba(0, 0, 0, 0.45) 52%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    mask-image: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.92) 0%,
+      rgba(0, 0, 0, 0.45) 52%,
+      rgba(0, 0, 0, 0) 100%
+    );
   }
 
   .login-background-vignette {
     @apply absolute inset-0;
-    background: linear-gradient(90deg, rgba(244, 247, 249, 0.15) 0%, rgba(255, 255, 255, 0) 42%);
+    background: linear-gradient(90deg, rgba(244, 247, 249, 0.08) 0%, rgba(255, 255, 255, 0.35) 48%, rgba(255, 255, 255, 0) 72%);
   }
 
   .login-page-body {
