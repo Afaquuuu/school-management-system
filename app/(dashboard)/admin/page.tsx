@@ -152,8 +152,7 @@ export default function AdminDashboard() {
       tone: "mint",
       showTrend: metrics.totalUsers > 0,
       lines: [
-        `${metrics.students} enrolled student${metrics.students === 1 ? "" : "s"}`,
-        `${metrics.staff} staff / ${metrics.admins} admin`,
+        `${metrics.students} enrolled students / ${metrics.staff} staff / ${metrics.admins} admin`,
       ],
     },
     {
@@ -170,8 +169,7 @@ export default function AdminDashboard() {
       value: String(metrics.pendingInvoices),
       tone: "gray",
       lines: [
-        `$${metrics.pendingTotal.toLocaleString()} outstanding`,
-        `${metrics.overdueInvoices} overdue invoice${metrics.overdueInvoices === 1 ? "" : "s"}`,
+        `$${metrics.pendingTotal.toLocaleString()} outstanding / ${metrics.overdueInvoices} overdue invoice${metrics.overdueInvoices === 1 ? "" : "s"}`,
       ],
       button: { label: "Process payment", href: "/finance?action=record-payment" },
     },
@@ -181,8 +179,7 @@ export default function AdminDashboard() {
       value: `${metrics.attendanceRate}%`,
       tone: "coral",
       lines: [
-        `${metrics.markedToday}/${metrics.totalStudents || metrics.students} marked`,
-        metrics.markedToday === 0 ? "100% data needed" : "Live attendance snapshot",
+        `${metrics.markedToday}/${metrics.totalStudents || metrics.students} marked / ${metrics.markedToday === 0 ? "100% data needed" : "Live attendance snapshot"}`,
       ],
     },
   ];

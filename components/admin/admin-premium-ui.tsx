@@ -43,49 +43,61 @@ export function AdminControlBanner({
 
 function KpiUsersArt() {
   return (
-    <svg viewBox="0 0 120 90" className="admin-kpi-art" aria-hidden>
-      <circle cx="38" cy="34" r="14" fill="#93C5FD" />
-      <path d="M18 72c0-12 9-20 20-20s20 8 20 20" fill="#BFDBFE" />
-      <circle cx="68" cy="30" r="11" fill="#C4B5FD" />
-      <path d="M54 68c0-10 7-16 16-16s16 6 16 16" fill="#DDD6FE" />
-      <circle cx="92" cy="36" r="9" fill="#60A5FA" />
-      <path d="M82 72c0-8 6-14 14-14" stroke="#93C5FD" strokeWidth="8" strokeLinecap="round" />
+    <svg viewBox="0 0 132 118" className="admin-kpi-art" aria-hidden>
+      <circle cx="34" cy="36" r="13" fill="#93C5FD" />
+      <path d="M16 88c0-11 8-19 18-19s18 8 18 19" fill="#BFDBFE" />
+      <circle cx="62" cy="32" r="11" fill="#C4B5FD" />
+      <path d="M48 84c0-10 7-17 16-17s16 7 16 17" fill="#DDD6FE" />
+      <circle cx="86" cy="38" r="10" fill="#60A5FA" />
+      <path d="M74 86c0-9 6-15 14-15s14 6 14 15" fill="#93C5FD" opacity="0.85" />
+      <circle cx="108" cy="44" r="8" fill="#818CF8" />
+      <path d="M98 88c0-7 5-12 12-12" stroke="#A5B4FC" strokeWidth="7" strokeLinecap="round" />
     </svg>
   );
 }
 
 function KpiExamsArt() {
   return (
-    <svg viewBox="0 0 120 90" className="admin-kpi-art" aria-hidden>
-      <circle cx="78" cy="32" r="22" fill="#BFDBFE" stroke="#60A5FA" strokeWidth="3" />
-      <path d="M78 20v24M66 32h24" stroke="#2563EB" strokeWidth="3" strokeLinecap="round" />
-      <rect x="22" y="24" width="34" height="44" rx="6" fill="#EFF6FF" stroke="#3B82F6" strokeWidth="2" />
-      <path d="M30 38h18M30 48h18M30 58h10" stroke="#60A5FA" strokeWidth="2.5" strokeLinecap="round" />
+    <svg viewBox="0 0 132 118" className="admin-kpi-art" aria-hidden>
+      <rect x="16" y="28" width="40" height="52" rx="7" fill="#EFF6FF" stroke="#60A5FA" strokeWidth="2.5" />
+      <path d="M28 44h24M28 56h24M28 68h16" stroke="#93C5FD" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="92" cy="42" r="24" fill="#DBEAFE" stroke="#3B82F6" strokeWidth="2.5" />
+      <circle cx="92" cy="42" r="18" fill="#EFF6FF" stroke="#60A5FA" strokeWidth="2" />
+      <path d="M92 30v24M80 42h24" stroke="#2563EB" strokeWidth="3" strokeLinecap="round" />
     </svg>
   );
 }
 
 function KpiInvoicesArt() {
   return (
-    <svg viewBox="0 0 120 90" className="admin-kpi-art" aria-hidden>
-      <rect x="18" y="28" width="42" height="26" rx="6" fill="#86EFAC" stroke="#22C55E" strokeWidth="2" />
-      <text x="28" y="46" fill="#166534" fontSize="14" fontWeight="700">$</text>
-      <rect x="58" y="22" width="38" height="48" rx="6" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="2" />
-      <path d="M66 34h22M66 44h22M66 54h14" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" />
+    <svg viewBox="0 0 132 118" className="admin-kpi-art" aria-hidden>
+      <rect x="18" y="44" width="46" height="30" rx="7" fill="#86EFAC" stroke="#22C55E" strokeWidth="2" />
+      <text x="32" y="64" fill="#166534" fontSize="16" fontWeight="700">
+        $
+      </text>
+      <rect x="62" y="34" width="42" height="54" rx="7" fill="#FFFFFF" stroke="#94A3B8" strokeWidth="2" />
+      <path d="M72 48h26M72 60h26M72 72h18" stroke="#CBD5E1" strokeWidth="2.5" strokeLinecap="round" />
+      <rect x="74" y="36" width="18" height="4" rx="2" fill="#E2E8F0" />
     </svg>
   );
 }
 
 function KpiAttendanceArt() {
   return (
-    <svg viewBox="0 0 120 90" className="admin-kpi-art" aria-hidden>
-      <rect x="24" y="20" width="52" height="44" rx="6" fill="#FECDD3" stroke="#FB7185" strokeWidth="2" />
-      <path d="M24 32h52" stroke="#FB7185" strokeWidth="2" />
-      <rect x="34" y="52" width="8" height="14" rx="2" fill="#F43F5E" />
-      <rect x="46" y="46" width="8" height="20" rx="2" fill="#FB7185" />
-      <rect x="58" y="40" width="8" height="26" rx="2" fill="#FDA4AF" />
-      <circle cx="88" cy="58" r="16" fill="#DCFCE7" stroke="#22C55E" strokeWidth="2" />
-      <path d="M82 58l4 4 8-8" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 132 118" className="admin-kpi-art" aria-hidden>
+      <rect x="22" y="24" width="56" height="48" rx="7" fill="#FECDD3" stroke="#FB7185" strokeWidth="2.5" />
+      <path d="M22 38h56" stroke="#FB7185" strokeWidth="2" />
+      <rect x="32" y="58" width="9" height="16" rx="2" fill="#F43F5E" />
+      <rect x="45" y="52" width="9" height="22" rx="2" fill="#FB7185" />
+      <rect x="58" y="46" width="9" height="28" rx="2" fill="#FDA4AF" />
+      <circle cx="98" cy="72" r="18" fill="#DCFCE7" stroke="#22C55E" strokeWidth="2.5" />
+      <path
+        d="M90 72l6 6 12-12"
+        stroke="#16A34A"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -169,7 +181,7 @@ export function AdminKpiCard({ card }: { card: AdminKpiCardData }) {
             <span className="admin-kpi-value">{card.value}</span>
             {card.showTrend ? (
               <span className="admin-kpi-trend">
-                <ArrowUpRight className="h-3.5 w-3.5" />
+                <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.5} />
               </span>
             ) : null}
           </div>
@@ -191,7 +203,9 @@ export function AdminKpiCard({ card }: { card: AdminKpiCardData }) {
           </Link>
         ) : null}
       </div>
-      <Art />
+      <div className="admin-kpi-art-wrap">
+        <Art />
+      </div>
     </article>
   );
 }
