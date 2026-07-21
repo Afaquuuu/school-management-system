@@ -27,11 +27,16 @@ function getSchoolCache(schoolId: string): Map<string, string> {
   return cache;
 }
 
-async function persistToServer(schoolId: string, key: string, value: string): Promise<void> {
+async function persistToServer(
+  schoolId: string,
+  key: string,
+  value: string,
+  options?: { deletedStudentIds?: string[] },
+): Promise<void> {
   const response = await fetch("/api/tenant-storage", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ schoolId, key, value }),
+    body: JSON.stringify({ schoolId, key, value, deletedStudentIds: options?.deletedStudentIds }),
   });
 
   if (!response.ok) {
@@ -50,6 +55,7 @@ export async function persistScopedItemNow(
   schoolId: string,
   key: string,
   value: string,
+  options?: { deletedStudentIds?: string[] },
 ): Promise<void> {
   getSchoolCache(schoolId).set(key, value);
 
@@ -60,7 +66,7 @@ export async function persistScopedItemNow(
     pendingWrites.delete(pendingKey);
   }
 
-  await persistToServer(schoolId, key, value);
+  await persistToServer(schoolId, key, value, options);
 }
 
 export function getCachedScopedItem(schoolId: string, key: string): string | null {

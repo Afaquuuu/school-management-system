@@ -37,6 +37,7 @@ import {
   pickCsvFile,
 } from "@/lib/import-data";
 import { useSchool, getScopedItem, setScopedItem, persistScopedItem, getSchoolClasses, getUniqueClassNames, getUniqueSections, getSectionsForClass } from "@/lib/school-context";
+import { hydrateSchoolStorageFromServer } from "@/lib/tenant-storage-cache";
 import {
   formatCredentialsText,
   isValidLoginEmail,
@@ -197,8 +198,31 @@ export default function StudentsPage() {
     ? formData.rollNumber
     : suggestedRollNumber;
 
+  const getCurrentStudentsFromStorage = (): Student[] => {
+    if (!currentSchool) return students;
+    const stored = getScopedItem(currentSchool.id, "school_students");
+    if (!stored) return students;
+    try {
+      return JSON.parse(stored) as Student[];
+    } catch {
+      return students;
+    }
+  };
+
+  const reloadStudentsFromStorage = async () => {
+    if (!currentSchool) return;
+    await hydrateSchoolStorageFromServer(currentSchool.id);
+    const stored = getScopedItem(currentSchool.id, "school_students");
+    if (stored) {
+      setStudents(JSON.parse(stored) as Student[]);
+    }
+  };
+
   // Save students to storage/database whenever they change
-  const updateStudents = async (newStudents: Student[]) => {
+  const updateStudents = async (
+    newStudents: Student[],
+    options?: { deletedStudentIds?: string[] },
+  ) => {
     const previousStudents = students;
     setStudents(newStudents);
     if (typeof window === "undefined" || !currentSchool) {
@@ -210,8 +234,11 @@ export default function StudentsPage() {
         currentSchool.id,
         "school_students",
         JSON.stringify(newStudents),
+        options,
       );
-      return await syncStudentsToSystemUsersPersisted(currentSchool.id);
+      const syncResult = await syncStudentsToSystemUsersPersisted(currentSchool.id);
+      await reloadStudentsFromStorage();
+      return syncResult;
     } catch (error) {
       setStudents(previousStudents);
       throw error;
@@ -369,7 +396,7 @@ export default function StudentsPage() {
 
     if (imported.length > 0) {
       try {
-        await updateStudents([...students, ...imported]);
+        await updateStudents([...getCurrentStudentsFromStorage(), ...imported]);
       } catch (error) {
         alert(
           error instanceof Error
@@ -473,11 +500,12 @@ export default function StudentsPage() {
       return;
     }
 
+    const currentStudents = getCurrentStudentsFromStorage();
     const assignedRollNumber =
       formData.rollNumber?.trim() ||
-      getNextRollNumberForClassSection(students, formData.class || "", formData.section || "");
+      getNextRollNumberForClassSection(currentStudents, formData.class || "", formData.section || "");
 
-    const rollConflict = findStudentWithRollNumberInClassSection(students, {
+    const rollConflict = findStudentWithRollNumberInClassSection(currentStudents, {
       class: formData.class || "",
       section: formData.section || "",
       rollNumber: assignedRollNumber,
@@ -496,7 +524,7 @@ export default function StudentsPage() {
 
     const newStudent: Student = {
       id: Date.now().toString(),
-      studentId: `STU${String(students.length + 1).padStart(3, '0')}`,
+      studentId: `STU${String(currentStudents.length + 1).padStart(3, '0')}`,
       firstName: formData.firstName,
       lastName: formData.lastName,
       dateOfBirth: formData.dateOfBirth || "",
@@ -517,7 +545,7 @@ export default function StudentsPage() {
 
     let successMessage = "Student added successfully!";
     try {
-      const syncResult = await updateStudents([...students, newStudent]);
+      const syncResult = await updateStudents([...currentStudents, newStudent]);
       if (currentSchool && newStudent.class && newStudent.section) {
         ensureSchoolClassesFromStudents(currentSchool.id);
         setAvailableClasses(
@@ -602,9 +630,11 @@ export default function StudentsPage() {
     }
 
     try {
-      await updateStudents(students.map(s => 
-        s.id === selectedStudent.id ? updatedStudent : s
-      ));
+      await updateStudents(
+        getCurrentStudentsFromStorage().map((s) =>
+          s.id === selectedStudent.id ? updatedStudent : s,
+        ),
+      );
 
       if (currentSchool) {
         const storedAttendance = getScopedItem(currentSchool.id, "attendance_records");
@@ -649,7 +679,10 @@ export default function StudentsPage() {
     }
     if (confirm("Are you sure you want to delete this student?")) {
       try {
-        await updateStudents(students.filter(s => s.id !== studentId));
+        await updateStudents(
+          getCurrentStudentsFromStorage().filter((s) => s.id !== studentId),
+          { deletedStudentIds: [studentId] },
+        );
         alert("Student deleted successfully!");
       } catch (error) {
         alert(

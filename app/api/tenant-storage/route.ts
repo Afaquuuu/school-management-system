@@ -46,6 +46,7 @@ export async function PUT(request: Request) {
       schoolId?: string;
       key?: string;
       value?: string;
+      deletedStudentIds?: string[];
     };
 
     const schoolId = body.schoolId?.trim();
@@ -55,7 +56,9 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "schoolId, key, and value are required." }, { status: 400 });
     }
 
-    await setTenantStorageItem(schoolId, key, body.value);
+    await setTenantStorageItem(schoolId, key, body.value, {
+      deletedStudentIds: body.deletedStudentIds,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(

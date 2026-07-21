@@ -391,11 +391,12 @@ export async function persistScopedItem(
   schoolId: string,
   key: string,
   value: string,
+  options?: { deletedStudentIds?: string[] },
 ): Promise<void> {
   if (typeof window === "undefined") return;
 
   if (databaseMode) {
-    await persistScopedItemNow(schoolId, key, value);
+    await persistScopedItemNow(schoolId, key, value, options);
     return;
   }
 

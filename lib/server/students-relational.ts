@@ -65,6 +65,34 @@ function isActiveStatus(status?: string): boolean {
   return (status ?? "active").toLowerCase() === "active";
 }
 
+function matchesStudentRecord(a: StoredStudentJson, b: StoredStudentJson): boolean {
+  if (a.id && b.id && a.id === b.id) return true;
+  if (a.studentId && b.studentId && a.studentId === b.studentId) return true;
+  return buildStudentEmail(a) === buildStudentEmail(b);
+}
+
+function mergeStudentLists(
+  existing: StoredStudentJson[],
+  incoming: StoredStudentJson[],
+): StoredStudentJson[] {
+  const merged = [...existing];
+
+  for (const incomingStudent of incoming) {
+    const matchIndex = merged.findIndex((student) => matchesStudentRecord(student, incomingStudent));
+    if (matchIndex >= 0) {
+      merged[matchIndex] = {
+        ...merged[matchIndex],
+        ...incomingStudent,
+        id: incomingStudent.id || merged[matchIndex].id,
+      };
+    } else {
+      merged.push(incomingStudent);
+    }
+  }
+
+  return merged;
+}
+
 function toStoredStudentJson(profile: {
   legacyId: string | null;
   admissionNo: string;
@@ -231,29 +259,31 @@ export async function listStudentsFromRelationalStore(
     .filter((row): row is StoredStudentJson => row !== null);
 }
 
+async function deleteStudentProfilesByLegacyIds(
+  tenant: PrismaClient,
+  deletedStudentIds: string[],
+): Promise<void> {
+  for (const deletedId of deletedStudentIds) {
+    const profile = await tenant.studentProfile.findFirst({
+      where: {
+        OR: [{ legacyId: deletedId }, { admissionNo: deletedId }],
+      },
+      select: { userId: true },
+    });
+
+    if (profile) {
+      await tenant.user.delete({ where: { id: profile.userId } });
+    }
+  }
+}
+
 export async function saveStudentsToRelationalStore(
   tenant: PrismaClient,
   students: StoredStudentJson[],
+  options?: { deletedStudentIds?: string[] },
 ): Promise<void> {
-  const existing = await tenant.studentProfile.findMany({
-    include: { user: true },
-  });
-
-  const incomingIds = new Set(students.map((student) => student.id));
-  const incomingAdmissionNos = new Set(students.map((student) => student.studentId));
-  const incomingEmails = new Set(students.map((student) => buildStudentEmail(student)));
-
-  for (const profile of existing) {
-    const legacyId = profile.legacyId ?? profile.admissionNo;
-    const email = profile.user.email.toLowerCase();
-    const stillPresent =
-      (legacyId && incomingIds.has(legacyId)) ||
-      incomingAdmissionNos.has(profile.admissionNo) ||
-      incomingEmails.has(email);
-
-    if (!stillPresent) {
-      await tenant.user.delete({ where: { id: profile.userId } });
-    }
+  if (options?.deletedStudentIds?.length) {
+    await deleteStudentProfilesByLegacyIds(tenant, options.deletedStudentIds);
   }
 
   for (const student of students) {
@@ -343,6 +373,7 @@ export async function getRelationalStudentsJson(schoolId: string): Promise<strin
 export async function setRelationalStudentsJson(
   schoolId: string,
   rawValue: string,
+  options?: { deletedStudentIds?: string[] },
 ): Promise<void> {
   const databaseName = await getSchoolDatabaseName(schoolId);
   if (!databaseName) {
@@ -357,8 +388,11 @@ export async function setRelationalStudentsJson(
   }
 
   const tenant = getTenantPrisma(databaseName);
+  const existing = await listStudentsFromRelationalStore(tenant);
+  const mergedStudents = mergeStudentLists(existing, students);
+
   try {
-    await saveStudentsToRelationalStore(tenant, students);
+    await saveStudentsToRelationalStore(tenant, mergedStudents, options);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const target = Array.isArray(error.meta?.target)
