@@ -1,13 +1,10 @@
 import { Check } from "lucide-react";
-import { DEMO_REQUEST_EMAIL } from "@/components/landing/demo-request";
-
-function buildPlanMailto(planName: string) {
-  return `mailto:${DEMO_REQUEST_EMAIL}?subject=${encodeURIComponent(
-    `School Management — ${planName} Plan Inquiry`
-  )}&body=${encodeURIComponent(
-    `Hello,\n\nI am interested in the ${planName} plan for School Management.\n\nSchool name:\nContact name:\nPhone:\nEstimated students:\n\nThank you.`
-  )}`;
-}
+import {
+  DEMO_REQUEST_EMAIL,
+  DEMO_REQUEST_MAILTO,
+  QUOTE_MAILTO,
+  SALES_MAILTO,
+} from "@/components/landing/demo-request";
 
 const plans = [
   {
@@ -21,6 +18,7 @@ const plans = [
       "Email support",
     ],
     cta: "Get a Quote",
+    mailto: QUOTE_MAILTO,
     featured: false,
   },
   {
@@ -34,6 +32,7 @@ const plans = [
       "Priority onboarding & support",
     ],
     cta: "Request Demo",
+    mailto: DEMO_REQUEST_MAILTO,
     featured: true,
   },
   {
@@ -47,6 +46,7 @@ const plans = [
       "Account manager & SLA support",
     ],
     cta: "Contact Sales",
+    mailto: SALES_MAILTO,
     featured: false,
   },
 ] as const;
@@ -91,7 +91,7 @@ export function LandingPricing() {
             </ul>
 
             <a
-              href={buildPlanMailto(plan.name)}
+              href={plan.mailto}
               className={
                 plan.featured ? "landing-pricing-cta-primary" : "landing-pricing-cta-secondary"
               }
