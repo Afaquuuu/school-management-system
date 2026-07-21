@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { normalizeClassLabel } from "@/lib/class-labels";
+import { getClassNameWithoutSection, normalizeClassLabel } from "@/lib/class-labels";
 import { migrateDummyAdminEmail } from "@/lib/system-users";
 import { migrateCommunicationSettings } from "@/lib/school-settings";
 import { isClientDatabaseMode } from "@/lib/storage-mode";
@@ -405,10 +405,9 @@ export function getSchoolClasses(schoolId: string): SchoolClass[] {
 
 export function getUniqueClassNames(classes: SchoolClass[]): string[] {
   const classNames = classes
-    .map((schoolClass) => {
-      const parts = normalizeClassLabel(schoolClass.name).split(" ");
-      return parts.slice(0, -1).join(" ");
-    })
+    .map((schoolClass) =>
+      getClassNameWithoutSection(schoolClass.name, schoolClass.section),
+    )
     .filter((name) => name.length > 0);
 
   return Array.from(new Set(classNames.map((name) => normalizeClassLabel(name)))).sort();
@@ -420,11 +419,11 @@ export function getUniqueSections(classes: SchoolClass[]): string[] {
 }
 
 export function getSectionsForClass(classes: SchoolClass[], className: string): string[] {
+  const normalizedClassName = normalizeClassLabel(className);
   return classes
     .filter((schoolClass) => {
-      const parts = schoolClass.name.trim().split(" ");
-      const classNamePart = parts.slice(0, -1).join(" ");
-      return classNamePart === className;
+      const classNamePart = getClassNameWithoutSection(schoolClass.name, schoolClass.section);
+      return normalizeClassLabel(classNamePart) === normalizedClassName;
     })
     .map((schoolClass) => schoolClass.section)
     .filter((section) => section.length > 0)

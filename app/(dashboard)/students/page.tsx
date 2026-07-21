@@ -188,24 +188,14 @@ export default function StudentsPage() {
     ? getSectionsForClass(availableClasses, formData.class)
     : uniqueSections;
 
-  useEffect(() => {
-    if (!isAddMode) return;
+  const suggestedRollNumber = useMemo(() => {
+    if (!formData.class?.trim() || !formData.section?.trim()) return "";
+    return getNextRollNumberForClassSection(students, formData.class, formData.section);
+  }, [formData.class, formData.section, students]);
 
-    if (!formData.class || !formData.section) {
-      setFormData((prev) => (prev.rollNumber ? { ...prev, rollNumber: "" } : prev));
-      return;
-    }
-
-    const nextRollNumber = getNextRollNumberForClassSection(
-      students,
-      formData.class,
-      formData.section,
-    );
-
-    setFormData((prev) =>
-      prev.rollNumber === nextRollNumber ? prev : { ...prev, rollNumber: nextRollNumber },
-    );
-  }, [isAddMode, formData.class, formData.section, students]);
+  const displayRollNumber = formData.rollNumber?.trim()
+    ? formData.rollNumber
+    : suggestedRollNumber;
 
   // Save students to scoped localStorage whenever they change
   const updateStudents = (newStudents: Student[]) => {
@@ -467,15 +457,19 @@ export default function StudentsPage() {
       return;
     }
 
+    const assignedRollNumber =
+      formData.rollNumber?.trim() ||
+      getNextRollNumberForClassSection(students, formData.class || "", formData.section || "");
+
     const rollConflict = findStudentWithRollNumberInClassSection(students, {
       class: formData.class || "",
       section: formData.section || "",
-      rollNumber: formData.rollNumber || "",
+      rollNumber: assignedRollNumber,
     });
     if (rollConflict) {
       alert(
         formatRollNumberConflictMessage(
-          formData.rollNumber || "",
+          assignedRollNumber,
           formData.class || "",
           formData.section || "",
           rollConflict,
@@ -499,7 +493,7 @@ export default function StudentsPage() {
       guardianEmail: formData.guardianEmail.trim().toLowerCase(),
       class: formData.class || "",
       section: formData.section || "",
-      rollNumber: formData.rollNumber || "",
+      rollNumber: assignedRollNumber,
       admissionDate: formData.admissionDate || getTodayIsoDate(),
       status: formData.status || "active",
       bloodGroup: formData.bloodGroup || "",
@@ -783,7 +777,14 @@ export default function StudentsPage() {
                 <label className={recordFormFieldLabel}>Class *</label>
                 <select
                   value={formData.class || ""}
-                  onChange={(e) => setFormData({ ...formData, class: e.target.value, section: "" })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      class: e.target.value,
+                      section: "",
+                      rollNumber: "",
+                    })
+                  }
                   className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
                   disabled={availableClasses.length === 0}
                 >
@@ -800,7 +801,14 @@ export default function StudentsPage() {
                 <label className={recordFormFieldLabel}>Section *</label>
                 <select
                   value={formData.section || ""}
-                  onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                  onChange={(e) => {
+                    const section = e.target.value;
+                    const rollNumber =
+                      formData.class && section
+                        ? getNextRollNumberForClassSection(students, formData.class, section)
+                        : "";
+                    setFormData({ ...formData, section, rollNumber });
+                  }}
                   className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
                   disabled={!formData.class || availableClasses.length === 0}
                 >
@@ -817,15 +825,22 @@ export default function StudentsPage() {
                 <label className={recordFormFieldLabel}>Roll Number</label>
                 <input
                   type="text"
-                  value={formData.rollNumber || ""}
+                  value={displayRollNumber}
                   onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
-                  placeholder={
-                    formData.class && formData.section
-                      ? "Auto-filled from class enrollment"
-                      : "Select class and section first"
-                  }
-                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`}
+                  placeholder="Select class and section first"
+                  className={`${recordFormFieldInput} ${recordFormFieldInputAccent.blue} ${
+                    suggestedRollNumber ? "font-semibold text-slate-900 dark:text-slate-50" : ""
+                  }`}
                 />
+                {suggestedRollNumber ? (
+                  <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                    Roll {suggestedRollNumber} will be assigned for {formData.class} Section {formData.section}.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Choose class and section to see the next roll number.
+                  </p>
+                )}
               </div>
 
               <div>
