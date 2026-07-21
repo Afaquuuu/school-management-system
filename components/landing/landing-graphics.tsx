@@ -130,18 +130,40 @@ export function FeatureIconFinance() {
 export function FeatureIconCommunication() {
   return (
     <svg viewBox="0 0 80 80" fill="none" className="h-16 w-16" aria-hidden>
+      <defs>
+        <linearGradient id="landing-feature-comm-back" x1="12" y1="16" x2="46" y2="52" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#EFF6FF" />
+          <stop offset="52%" stopColor="#DBEAFE" />
+          <stop offset="100%" stopColor="#BFDBFE" />
+        </linearGradient>
+        <linearGradient id="landing-feature-comm-front" x1="36" y1="24" x2="68" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#F8FBFF" />
+          <stop offset="48%" stopColor="#DBEAFE" />
+          <stop offset="100%" stopColor="#93C5FD" />
+        </linearGradient>
+      </defs>
+
+      {/* Back bubble */}
       <path
-        d="M16 28c0-6 5-10 12-10h24c7 0 12 4 12 10v12c0 6-5 10-12 10H36l-12 10V50"
-        fill={ICON.fill}
+        d="M20 16H38.5C42.4 16 45.5 19.1 45.5 23V37.5C45.5 41.4 42.4 44.5 38.5 44.5H25.5L14.5 54.5L17.5 44.5H20C16.1 44.5 13 41.4 13 37.5V23C13 19.1 16.1 16 20 16Z"
+        fill="url(#landing-feature-comm-back)"
         stroke={ICON.primary}
         strokeWidth={ICON.stroke}
+        strokeLinejoin="round"
       />
+
+      {/* Front bubble */}
       <path
-        d="M44 34c0-4 3-7 8-7h12c5 0 8 3 8 7v10c0 4-3 7-8 7H56l-8 8V51"
-        fill={ICON.fillSoft}
-        stroke={ICON.mid}
+        d="M44 26H61.5C65.1 26 68 28.9 68 32.5V43.5C68 47.1 65.1 50 61.5 50H49.5L40 58.5L42 50H44C40.4 50 37.5 47.1 37.5 43.5V32.5C37.5 28.9 40.4 26 44 26Z"
+        fill="url(#landing-feature-comm-front)"
+        stroke={ICON.primary}
         strokeWidth={ICON.stroke}
+        strokeLinejoin="round"
       />
+
+      {/* Subtle message lines in back bubble */}
+      <path d="M21 27.5H37.5" stroke={ICON.light} strokeWidth="1.75" strokeLinecap="round" opacity="0.85" />
+      <path d="M21 33H33" stroke={ICON.soft} strokeWidth="1.75" strokeLinecap="round" opacity="0.7" />
     </svg>
   );
 }
