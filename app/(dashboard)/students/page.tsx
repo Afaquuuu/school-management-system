@@ -972,42 +972,46 @@ export default function StudentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 -m-6 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen -m-4 overflow-x-hidden bg-gradient-to-br from-slate-50 to-slate-100 p-4 dark:from-slate-900 dark:to-slate-800 md:-m-6 md:p-6">
+      <div className="mx-auto min-w-0 max-w-7xl space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                  <GraduationCap className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <div className="mb-2 flex items-start gap-3">
+                <div className="shrink-0 rounded-xl bg-blue-100 p-2 dark:bg-blue-900/30">
+                  <GraduationCap className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Student Management</h1>
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 md:text-3xl">
+                    Student Management
+                  </h1>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 md:text-base">
+                    Manage student profiles, enrollments, class assignments, and guardian information
+                  </p>
+                </div>
               </div>
-              <p className="text-slate-600 dark:text-slate-400 ml-14">
-                Manage student profiles, enrollments, class assignments, and guardian information
-              </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-row md:gap-3">
               <button
                 onClick={handleImportStudents}
-                className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all font-medium text-slate-700 dark:text-slate-200"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 px-5 py-2.5 font-medium text-slate-700 transition-all hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-700 md:w-auto"
               >
-                <Upload className="w-4 h-4" />
+                <Upload className="h-4 w-4" />
                 Import
               </button>
               <button
                 onClick={handleExportStudents}
-                className="flex items-center gap-2 px-5 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-400 dark:hover:border-slate-500 transition-all font-medium text-slate-700 dark:text-slate-200"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 px-5 py-2.5 font-medium text-slate-700 transition-all hover:border-slate-400 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:border-slate-500 dark:hover:bg-slate-700 md:w-auto"
               >
-                <Download className="w-4 h-4" />
+                <Download className="h-4 w-4" />
                 Export
               </button>
               <button
                 onClick={openAddForm}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-blue-500/30"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-2.5 font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:from-blue-700 hover:to-blue-800 md:w-auto"
               >
-                <UserPlus className="w-4 h-4" />
+                <UserPlus className="h-4 w-4" />
                 Add Student
               </button>
             </div>
@@ -1015,10 +1019,10 @@ export default function StudentsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Total Students</span>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="group rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-300 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800 md:p-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Total Students</span>
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl group-hover:scale-110 transition-transform">
                 <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
@@ -1027,9 +1031,9 @@ export default function StudentsPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Enrolled students</p>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Active Students</span>
+          <div className="group rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-300 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800 md:p-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Active Students</span>
               <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-xl group-hover:scale-110 transition-transform">
                 <UserCheck className="w-5 h-5 text-green-600 dark:text-green-400" />
               </div>
@@ -1038,9 +1042,9 @@ export default function StudentsPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Currently active</p>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Inactive</span>
+          <div className="group rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-300 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800 md:p-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Inactive</span>
               <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl group-hover:scale-110 transition-transform">
                 <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
               </div>
@@ -1049,9 +1053,9 @@ export default function StudentsPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Need attention</p>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-all duration-300 group">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">New This Month</span>
+          <div className="group rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-300 hover:shadow-lg dark:border-slate-700 dark:bg-slate-800 md:p-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">New This Month</span>
               <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl group-hover:scale-110 transition-transform">
                 <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
@@ -1062,26 +1066,26 @@ export default function StudentsPage() {
         </div>
 
         {/* Search and Filter */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search by name, student ID, or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white py-3 pl-12 pr-4 text-slate-900 transition-all placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50"
               />
             </div>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:flex md:gap-3">
               <select
                 value={filterClass}
                 onChange={(e) => {
                   setFilterClass(e.target.value);
                   setFilterSection("all");
                 }}
-                className="px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 font-medium text-slate-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50 md:w-auto"
               >
                 <option value="all">All Classes</option>
                 {classes.map(cls => (
@@ -1091,7 +1095,7 @@ export default function StudentsPage() {
               <select
                 value={filterSection}
                 onChange={(e) => setFilterSection(e.target.value)}
-                className="px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 font-medium text-slate-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50 md:w-auto"
               >
                 <option value="all">All Sections</option>
                 {sections.map(sec => (
@@ -1101,7 +1105,7 @@ export default function StudentsPage() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-3 border-2 border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 font-medium text-slate-900 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50 md:w-auto"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
