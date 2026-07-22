@@ -568,8 +568,8 @@ export default function FinancePage() {
 
       {/* Financial Stats */}
       {!isParentView && (!isSectionView || selectedTab === "invoices") && (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 md:p-6">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Total Revenue</p>
             <DollarSign className="w-5 h-5 text-green-600" />
@@ -578,8 +578,8 @@ export default function FinancePage() {
           <p className="text-xs text-green-600 dark:text-green-400 mt-1">+12.5% from last month</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 md:p-6">
+          <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Outstanding</p>
             <Clock className="w-5 h-5 text-yellow-600" />
           </div>
@@ -590,8 +590,8 @@ export default function FinancePage() {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 md:p-6">
+          <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Overdue</p>
             <AlertCircle className="w-5 h-5 text-red-600" />
           </div>
@@ -599,8 +599,8 @@ export default function FinancePage() {
           <p className="text-xs text-red-600 dark:text-red-400 mt-1">Requires immediate attention</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-lg p-6 border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 md:p-6">
+          <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Collection Rate</p>
             <TrendingUp className="w-5 h-5 text-blue-600" />
           </div>
@@ -663,21 +663,21 @@ export default function FinancePage() {
       {selectedTab === "invoices" && !isParentView && (
         <div className="space-y-4">
           {/* Search and Filters */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+          <div className="flex flex-col gap-2 md:flex-row md:gap-4">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search by student name, invoice number, or class..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50"
               />
             </div>
             <select 
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as InvoiceStatus | "all")}
-              className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50 md:w-auto"
             >
               <option value="all">All Status</option>
               <option value="issued">Issued</option>
@@ -688,7 +688,7 @@ export default function FinancePage() {
             </select>
             <button
               onClick={handleExportInvoices}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-50 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-900 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50 dark:hover:bg-slate-600 md:w-auto"
             >
               <Download className="w-4 h-4" />
               Export
@@ -698,7 +698,7 @@ export default function FinancePage() {
                 type="button"
                 onClick={() => handleSendFeeReminders(overdueReminderInvoices)}
                 disabled={isSendingReminders}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
               >
                 <Mail className="w-4 h-4" />
                 {isSendingReminders
@@ -709,13 +709,58 @@ export default function FinancePage() {
           </div>
 
           {/* Invoices Table */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
             {filteredInvoices.length === 0 ? (
               <div className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
                 No invoices match your search filters.
               </div>
             ) : (
-            <table className="w-full text-sm">
+              <>
+                <div className="divide-y divide-slate-200 dark:divide-slate-700 md:hidden">
+                  {filteredInvoices.map((invoice) => {
+                    const config = statusConfig[invoice.status];
+                    const StatusIcon = config.icon;
+                    return (
+                      <div key={invoice.id} className="space-y-3 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">{invoice.invoiceNo}</p>
+                            <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-50">{invoice.studentName}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{invoice.className}</p>
+                          </div>
+                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${config.color}`}>
+                            <StatusIcon className="h-3 w-3" />
+                            {config.label}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Amount</p>
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">₵{invoice.totalAmount.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Paid</p>
+                            <p className="font-medium text-slate-900 dark:text-slate-50">₵{invoice.paidAmount.toLocaleString()}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Due Date</p>
+                            <p className="font-medium text-slate-700 dark:text-slate-300">{formatDate(invoice.dueAt)}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedInvoiceForView(invoice)}
+                          className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+                        >
+                          View Invoice
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[960px] text-sm">
               <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
                 <tr>
                   <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Invoice No.</th>
@@ -759,6 +804,8 @@ export default function FinancePage() {
                 })}
               </tbody>
             </table>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -767,13 +814,56 @@ export default function FinancePage() {
       {/* Payments Tab */}
       {!isParentView && selectedTab === "payments" && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 overflow-hidden">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
             {paymentRecords.length === 0 ? (
               <div className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
                 No payments have been recorded yet.
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <>
+                <div className="divide-y divide-slate-200 dark:divide-slate-700 md:hidden">
+                  {paymentRecords.map((invoice) => {
+                    const config = statusConfig[invoice.status];
+                    const StatusIcon = config.icon;
+                    const balance = invoice.totalAmount - invoice.paidAmount;
+
+                    return (
+                      <div key={invoice.id} className="space-y-3 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">{invoice.invoiceNo}</p>
+                            <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-50">{invoice.studentName}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{invoice.className}</p>
+                          </div>
+                          <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${config.color}`}>
+                            <StatusIcon className="h-3 w-3" />
+                            {config.label}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Amount Paid</p>
+                            <p className="font-semibold text-emerald-700 dark:text-emerald-400">₵{invoice.paidAmount.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Balance</p>
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">₵{balance.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedInvoiceForView(invoice)}
+                          className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+                        >
+                          View Invoice
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
                   <tr>
                     <th className="px-6 py-3 text-left font-semibold text-slate-900 dark:text-slate-50">Invoice No.</th>
@@ -818,6 +908,8 @@ export default function FinancePage() {
                   })}
                 </tbody>
               </table>
+                </div>
+              </>
             )}
           </div>
         </div>
