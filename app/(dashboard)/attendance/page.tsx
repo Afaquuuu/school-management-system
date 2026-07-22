@@ -871,11 +871,11 @@ export default function AttendancePage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 md:text-3xl">
             {isStudentView
               ? "My Attendance"
               : isParentView
@@ -886,7 +886,7 @@ export default function AttendancePage() {
                   ? "View Attendance"
                   : "Mark Attendance"}
           </h1>
-          <p className="mt-1 text-slate-600 dark:text-slate-400">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 md:text-base">
             {isStudentView
               ? enrolledClassLabel
                 ? `View-only attendance records for ${enrolledClassLabel}`
@@ -914,33 +914,33 @@ export default function AttendancePage() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-row md:gap-2">
           {(attendanceView === "mark" || isEditingFromRecords) && canMarkAttendance && (
             <>
           <button 
             onClick={refreshStudents}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700 md:w-auto md:py-2"
             title="Refresh student list"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="h-4 w-4" />
             Refresh
           </button>
           <button 
             onClick={handleExportAttendance}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700 md:w-auto md:py-2"
           >
-            <Download className="w-4 h-4" />
+            <Download className="h-4 w-4" />
             Export
           </button>
           <button 
             onClick={handleSave}
-            className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold transition-colors ${
+            className={`flex w-full items-center justify-center gap-2 rounded-lg px-6 py-2.5 font-semibold transition-colors md:w-auto md:py-2 ${
               isSaved 
                 ? "bg-green-600 text-white" 
-                : "bg-blue-600 hover:bg-blue-700 text-white"
+                : "bg-blue-600 text-white hover:bg-blue-700"
             }`}
           >
-            <Save className="w-4 h-4" />
+            <Save className="h-4 w-4" />
             {isSaved ? "Saved!" : "Save Attendance"}
           </button>
             </>
@@ -980,7 +980,7 @@ export default function AttendancePage() {
 
       {/* Date and Class Selection */}
       {attendanceView === "mark" && canMarkAttendance && (
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 md:p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -1046,45 +1046,45 @@ export default function AttendancePage() {
 
       {/* Statistics Cards */}
       {isViewingAttendanceEntry && !isChildScopedView && (
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Total</span>
-            <Users className="w-5 h-5 text-slate-400" />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:gap-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800 md:p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-400 md:text-sm">Total</span>
+            <Users className="h-5 w-5 text-slate-400" />
           </div>
-          <p className="text-3xl font-bold text-slate-900 dark:text-slate-50">{stats.total}</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-slate-50 md:text-3xl">{stats.total}</p>
         </div>
         
-        <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-700 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Present</span>
-            <CheckCircle className="w-5 h-5 text-emerald-600" />
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-700 dark:bg-emerald-900/20 md:p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 md:text-sm">Present</span>
+            <CheckCircle className="h-5 w-5 text-emerald-600" />
           </div>
-          <p className="text-3xl font-bold text-emerald-900 dark:text-emerald-50">{stats.present}</p>
+          <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-50 md:text-3xl">{stats.present}</p>
         </div>
 
-        <div className="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-700 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-red-700 dark:text-red-300">Absent</span>
-            <XCircle className="w-5 h-5 text-red-600" />
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/20 md:p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-red-700 dark:text-red-300 md:text-sm">Absent</span>
+            <XCircle className="h-5 w-5 text-red-600" />
           </div>
-          <p className="text-3xl font-bold text-red-900 dark:text-red-50">{stats.absent}</p>
+          <p className="text-2xl font-bold text-red-900 dark:text-red-50 md:text-3xl">{stats.absent}</p>
         </div>
 
-        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Late</span>
-            <Clock className="w-5 h-5 text-amber-600" />
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20 md:p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-amber-700 dark:text-amber-300 md:text-sm">Late</span>
+            <Clock className="h-5 w-5 text-amber-600" />
           </div>
-          <p className="text-3xl font-bold text-amber-900 dark:text-amber-50">{stats.late}</p>
+          <p className="text-2xl font-bold text-amber-900 dark:text-amber-50 md:text-3xl">{stats.late}</p>
         </div>
 
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-700 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Rate</span>
-            <TrendingUp className="w-5 h-5 text-blue-600" />
+        <div className="col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/20 md:col-span-1 md:p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-blue-700 dark:text-blue-300 md:text-sm">Rate</span>
+            <TrendingUp className="h-5 w-5 text-blue-600" />
           </div>
-          <p className="text-3xl font-bold text-blue-900 dark:text-blue-50">{stats.attendanceRate}%</p>
+          <p className="text-2xl font-bold text-blue-900 dark:text-blue-50 md:text-3xl">{stats.attendanceRate}%</p>
         </div>
       </div>
       )}
@@ -1109,50 +1109,165 @@ export default function AttendancePage() {
       {isViewingAttendanceEntry && (
         <>
           {isPersonalAttendanceView && (
-            <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 p-4">
+            <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-blue-800">
                 {isParentView ? "Your child's" : "Your"} attendance for <strong>{selectedClass}</strong> on{" "}
                 <strong>{formatDate(selectedDate)}</strong>. This view is read-only.
               </p>
               <button
                 onClick={closeAttendanceEntry}
-                className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 sm:w-auto sm:py-1.5"
               >
                 Back to list
               </button>
             </div>
           )}
           {isEditingFromRecords && (
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-700">
                 Editing attendance for <strong>{selectedClass}</strong> on{" "}
                 <strong>{formatDate(selectedDate)}</strong>.
               </p>
               <button
                 onClick={closeAttendanceEntry}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 sm:w-auto sm:py-1.5"
               >
                 Back to list
               </button>
             </div>
           )}
           {isAdminView && readOnlyMode && showAttendanceEntry && (
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-700">
                 View-only attendance for <strong>{selectedClass}</strong> on{" "}
                 <strong>{formatDate(selectedDate)}</strong>. Principals cannot mark or edit attendance.
               </p>
               <button
                 onClick={closeAttendanceEntry}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 sm:w-auto sm:py-1.5"
               >
                 Back to list
               </button>
             </div>
           )}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+          <div className="divide-y divide-slate-200 dark:divide-slate-700 md:hidden">
+            {filteredStudents.length === 0 && isChildScopedView ? (
+              <div className="px-4 py-12 text-center text-sm text-slate-500">
+                {isParentView
+                  ? "No attendance record found for your child on this date."
+                  : "No attendance record found for you on this date."}
+              </div>
+            ) : (
+              filteredStudents.map((student) => {
+                const config = statusConfig[student.status];
+
+                return (
+                  <div key={student.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Roll {student.rollNumber}
+                        </p>
+                        <p className="mt-1 break-words font-semibold text-slate-900 dark:text-slate-50">
+                          {student.name}
+                        </p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{student.admissionNo}</p>
+                      </div>
+                      {!readOnlyMode && !isChildScopedView && (
+                        <button
+                          type="button"
+                          onClick={() => handleViewHistory(student)}
+                          className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-blue-600 dark:text-blue-400"
+                        >
+                          <Eye className="h-4 w-4" />
+                          History
+                        </button>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Status
+                      </p>
+                      {readOnlyMode || isChildScopedView ? (
+                        <span
+                          className={`inline-flex rounded-lg px-3 py-1.5 text-xs font-semibold text-white ${config.color}`}
+                        >
+                          {config.label}
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {(Object.keys(statusConfig) as AttendanceStatus[]).map((status) => {
+                            const isSelected = student.status === status;
+                            const btnConfig = statusConfig[status];
+
+                            return (
+                              <button
+                                key={status}
+                                type="button"
+                                onClick={() => updateStatus(student.id, status)}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                                  isSelected
+                                    ? `${btnConfig.color} text-white shadow-md`
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-slate-600"
+                                }`}
+                              >
+                                {btnConfig.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Remarks
+                      </p>
+                      {readOnlyMode || isChildScopedView ? (
+                        <span className="text-sm text-slate-600 dark:text-slate-400">
+                          {student.remarks || "—"}
+                        </span>
+                      ) : (
+                        <input
+                          type="text"
+                          value={student.remarks}
+                          onChange={(e) => updateRemarks(student.id, e.target.value)}
+                          placeholder="Add remarks..."
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50"
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                        <span>Overall rate</span>
+                        <span className="font-semibold text-slate-900 dark:text-slate-50">
+                          {student.attendanceRate}%
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700">
+                        <div
+                          className={`h-2 rounded-full ${
+                            student.attendanceRate >= 95
+                              ? "bg-emerald-500"
+                              : student.attendanceRate >= 85
+                                ? "bg-amber-500"
+                                : "bg-red-500"
+                          }`}
+                          style={{ width: `${student.attendanceRate}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[960px]">
             <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
@@ -1284,15 +1399,15 @@ export default function AttendancePage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
-      </div>
         </>
       )}
 
       {/* Session Notes */}
       {isViewingAttendanceEntry && !readOnlyMode && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 md:p-6">
+          <h3 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-50">
             Session Notes
           </h3>
           <textarea
