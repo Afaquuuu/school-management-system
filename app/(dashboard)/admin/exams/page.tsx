@@ -1133,8 +1133,8 @@ export default function ExamsPage() {
             </div>
 
             {/* Selection Filters */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-4">Select Exam Details</h3>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 md:p-6">
+              <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-50">Select Exam Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Exam Cycle</label>
@@ -1204,14 +1204,14 @@ export default function ExamsPage() {
 
             {/* Marks Entry Table */}
             {marksFilter.cycleId && marksFilter.className && marksFilter.section && marksFilter.subjectId ? (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+                <div className="border-b border-slate-200 p-4 dark:border-slate-700 md:p-6">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-lg font-bold text-slate-900 dark:text-slate-50 md:text-xl">
                         {subjects.find(s => s.id === marksFilter.subjectId)?.name} - {marksFilter.className} Section {marksFilter.section}
                       </h3>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                      <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-400">
                         {cycles.find(c => c.id === marksFilter.cycleId)?.name} • Max Marks: {selectedSchedule?.maxMarks || 100}
                         {isAdmin ? " • View only" : canEditMarks ? " • Editable by class in-charge" : " • View only"}
                       </p>
@@ -1219,17 +1219,108 @@ export default function ExamsPage() {
                     {canEditMarks && (
                     <button
                       onClick={handleSaveMarks}
-                      className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-5 py-2.5 rounded-xl transition-all font-medium shadow-lg shadow-green-500/30"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-green-700 px-5 py-2.5 font-medium text-white shadow-lg shadow-green-500/30 transition-all hover:from-green-700 hover:to-green-800 md:w-auto"
                     >
-                      <CheckCircle className="w-4 h-4" />
+                      <CheckCircle className="h-4 w-4" />
                       Save All Marks
                     </button>
                     )}
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="divide-y divide-slate-200 dark:divide-slate-700 md:hidden">
+                  {filteredStudentsForMarks.length === 0 ? (
+                    <div className="px-4 py-12 text-center">
+                      <Users className="mx-auto mb-3 h-12 w-12 text-slate-300 dark:text-slate-600" />
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        No students found in {marksFilter.className} Section {marksFilter.section}
+                      </p>
+                    </div>
+                  ) : (
+                    filteredStudentsForMarks.map((student, index) => {
+                      const studentMark = studentMarks.find(m => m.studentId === student.id);
+                      const marksObtained = studentMark?.marksObtained || 0;
+                      const maxMarks = selectedSchedule?.maxMarks || 100;
+                      const percentage = maxMarks > 0 ? (marksObtained / maxMarks) * 100 : 0;
+                      const grade = getGrade(percentage);
+
+                      return (
+                        <div key={student.id} className="space-y-3 p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-xs font-bold text-white">
+                              {student.firstName[0]}{student.lastName[0]}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Roll {student.rollNumber || String(index + 1).padStart(2, "0")}
+                              </p>
+                              <p className="mt-0.5 break-words font-semibold text-slate-900 dark:text-slate-50">
+                                {student.firstName} {student.lastName}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{student.studentId}</p>
+                            </div>
+                            <span className={'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ' + (
+                              grade === 'A+' || grade === 'A' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                              grade === 'B+' || grade === 'B' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                              grade === 'C+' || grade === 'C' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' :
+                              'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                            )}>
+                              {grade}
+                            </span>
+                          </div>
+
+                          <div>
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Marks Obtained
+                            </p>
+                            <div className="flex items-center gap-2">
+                              {canEditMarks ? (
+                                <input
+                                  type="number"
+                                  value={marksObtained}
+                                  onChange={(e) => updateStudentMarks(student.id, 'marksObtained', parseFloat(e.target.value) || 0)}
+                                  min="0"
+                                  max={maxMarks}
+                                  className="w-24 rounded-lg border-2 border-slate-200 bg-white px-3 py-2 text-center font-semibold text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50"
+                                />
+                              ) : (
+                                <span className="inline-block w-24 rounded-lg bg-slate-100 px-3 py-2 text-center font-semibold text-slate-900 dark:bg-slate-700/60 dark:text-slate-50">
+                                  {marksObtained}
+                                </span>
+                              )}
+                              <span className="text-sm text-slate-600 dark:text-slate-400">/ {maxMarks}</span>
+                              <span className="ml-auto text-xs font-medium text-slate-500">
+                                {percentage.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Remarks
+                            </p>
+                            {canEditMarks ? (
+                              <input
+                                type="text"
+                                value={studentMark?.remarks || ''}
+                                onChange={(e) => updateStudentMarks(student.id, 'remarks', e.target.value)}
+                                placeholder="Optional remarks"
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-50"
+                              />
+                            ) : (
+                              <span className="text-sm text-slate-700 dark:text-slate-300">
+                                {studentMark?.remarks?.trim() ? studentMark.remarks : "—"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[960px]">
                     <thead className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-600">
                       <tr>
                         <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">Roll No</th>
@@ -1328,27 +1419,27 @@ export default function ExamsPage() {
                 </div>
 
                 {filteredStudentsForMarks.length > 0 && (
-                  <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                    <div className="grid grid-cols-4 gap-4">
+                  <div className="border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900 md:p-6">
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
                       <div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Total Students</p>
-                        <p className="text-2xl font-bold text-slate-900 dark:text-slate-50">{filteredStudentsForMarks.length}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 md:text-sm">Total Students</p>
+                        <p className="text-xl font-bold text-slate-900 dark:text-slate-50 md:text-2xl">{filteredStudentsForMarks.length}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Average Marks</p>
-                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 md:text-sm">Average Marks</p>
+                        <p className="text-xl font-bold text-blue-600 dark:text-blue-400 md:text-2xl">
                           {(studentMarks.reduce((sum, m) => sum + m.marksObtained, 0) / Math.max(studentMarks.length, 1)).toFixed(1)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Highest</p>
-                        <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 md:text-sm">Highest</p>
+                        <p className="text-xl font-bold text-green-600 dark:text-green-400 md:text-2xl">
                           {Math.max(...studentMarks.map(m => m.marksObtained), 0)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Lowest</p>
-                        <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 md:text-sm">Lowest</p>
+                        <p className="text-xl font-bold text-red-600 dark:text-red-400 md:text-2xl">
                           {studentMarks.length > 0 ? Math.min(...studentMarks.map(m => m.marksObtained)) : 0}
                         </p>
                       </div>
