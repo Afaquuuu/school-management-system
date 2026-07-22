@@ -1127,7 +1127,7 @@ export default function ExamsPage() {
                   : canEditMarks
                     ? "You are the class in-charge for this selection. Enter marks for students — changes save automatically."
                     : isTeacher && teacherInChargeClassSections.length === 0
-                      ? "You are not assigned as class in-charge for any class. Ask the principal to set you as lead teacher for your class before entering marks."
+                      ? "You are not assigned as class in-charge for any class. Exam marks entry is restricted to class in-charge teachers only. Please contact your school administrator if you require access."
                       : "Select your in-charge class, section, and subject to enter marks. Only class in-charge teachers can edit marks."}
               </p>
             </div>
@@ -1165,7 +1165,9 @@ export default function ExamsPage() {
                   </select>
                   {marksFilter.cycleId && classesForMarksEntry.length === 0 && (
                     <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                      No classes have scheduled exams in this cycle
+                      {isTeacher && teacherInChargeClassSections.length === 0
+                        ? "You are not assigned as class in-charge for any class. Marks entry is not available for your account."
+                        : "No classes have scheduled exams in this cycle"}
                     </p>
                   )}
                 </div>
