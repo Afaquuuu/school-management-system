@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { BookOpen, CalendarRange, Layers } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarRange, Layers, UserCheck } from "lucide-react";
 
 import { TimetableManager } from "@/components/academics/timetable-manager";
 import { SubjectsClassesManager } from "@/components/academics/subjects-classes-manager";
 import { SectionPage } from "@/components/layout/section-page";
+import { StatCard } from "@/components/ui/stat-card";
 import { getUserSession } from "@/lib/teacher-check-in";
-import { getScopedItem, useSchool } from "@/lib/school-context";
+import { getSchoolClasses, getScopedItem, useSchool } from "@/lib/school-context";
+import {
+  filterAssignmentsForTeacher,
+  getClassIdsForTeacher,
+  getClassesWhereTeacherIsInCharge,
+  loadClassAssignments,
+} from "@/lib/timetable";
 
 const sectionConfig = {
   overview: {
@@ -117,10 +125,30 @@ export default function AcademicsPage() {
       : view === "subjects"
         ? sectionConfig.subjects
         : sectionConfig.overview;
-  const Icon = section.icon;
   const isStudentView = userRole === "student";
   const isTeacherView = userRole === "teacher";
+  const isPersonalAcademicsView = isStudentView || isTeacherView;
   const teacherName = isTeacherView ? getUserSession()?.name ?? "" : "";
+
+  const teacherOverviewStats = useMemo(() => {
+    if (!currentSchool || !isTeacherView || !teacherName.trim()) return null;
+
+    const assignments = loadClassAssignments(currentSchool.id);
+    const classIds = getClassIdsForTeacher(assignments, teacherName);
+    const classes = getSchoolClasses(currentSchool.id);
+    const inChargeClasses = getClassesWhereTeacherIsInCharge(classes, assignments, teacherName);
+
+    let subjectCount = 0;
+    for (const classId of classIds) {
+      subjectCount += filterAssignmentsForTeacher(assignments[classId] ?? [], teacherName).length;
+    }
+
+    return {
+      classCount: classIds.length,
+      subjectCount,
+      inChargeCount: inChargeClasses.length,
+    };
+  }, [currentSchool, isTeacherView, teacherName]);
 
   if (view === "timetable") {
     return (
@@ -168,16 +196,164 @@ export default function AcademicsPage() {
 
   return (
     <div className="space-y-6">
-      <SectionPage title={section.title} description={section.description} />
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800">
-        <div className="flex items-start gap-4">
-          <div className="rounded-xl bg-slate-100 p-3 dark:bg-slate-700">
-            <Icon className="h-6 w-6 text-slate-700 dark:text-slate-200" />
+      <SectionPage
+        title={isPersonalAcademicsView ? "My Academics" : section.title}
+        description={
+          isTeacherView
+            ? "Your assigned classes, weekly timetable, and subject allocations."
+            : isStudentView
+              ? "Your class timetable, subjects, and teachers."
+              : section.description
+        }
+      />
+
+      {isPersonalAcademicsView && (
+        <>
+          {isTeacherView && teacherOverviewStats && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <StatCard
+                label="Assigned Classes"
+                value={String(teacherOverviewStats.classCount)}
+                icon={Layers}
+                tone="info"
+              />
+              <StatCard
+                label="Subjects"
+                value={String(teacherOverviewStats.subjectCount)}
+                icon={BookOpen}
+                tone="success"
+              />
+              <StatCard
+                label="Class In-Charge"
+                value={String(teacherOverviewStats.inChargeCount)}
+                icon={UserCheck}
+                tone="brand"
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Link
+              href="/academics?view=timetable"
+              className="group rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:border-blue-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-900/50"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="rounded-xl bg-blue-100 p-3 dark:bg-blue-900/30">
+                  <CalendarRange className="h-5 w-5 text-blue-700 dark:text-blue-300" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-0.5" />
+              </div>
+              <h3 className="mt-4 font-semibold text-slate-900 dark:text-slate-50">
+                {isTeacherView || isStudentView ? "My Timetable" : "Timetable"}
+              </h3>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {isTeacherView
+                  ? "View your weekly periods, rooms, and class timings."
+                  : isStudentView
+                    ? "View your weekly class schedule and room assignments."
+                    : "Plan and review class schedules, periods, and room assignments."}
+              </p>
+            </Link>
+
+            <Link
+              href="/academics?view=subjects"
+              className="group rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:border-emerald-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-900/50"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="rounded-xl bg-emerald-100 p-3 dark:bg-emerald-900/30">
+                  <Layers className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-0.5" />
+              </div>
+              <h3 className="mt-4 font-semibold text-slate-900 dark:text-slate-50">
+                {isTeacherView || isStudentView ? "My Subjects" : "Subjects & Classes"}
+              </h3>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {isTeacherView
+                  ? "See subjects and classes assigned to you."
+                  : isStudentView
+                    ? "See subjects and teachers for your class."
+                    : "Manage subjects, class allocations, and curriculum structure."}
+              </p>
+            </Link>
           </div>
-          <div>
-            <p className="text-sm text-slate-600 dark:text-slate-400">{section.body}</p>
-          </div>
+        </>
+      )}
+
+      {!isPersonalAcademicsView && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Link
+            href="/academics?view=timetable"
+            className="group rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:border-blue-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="rounded-xl bg-blue-100 p-3 dark:bg-blue-900/30">
+                <CalendarRange className="h-5 w-5 text-blue-700 dark:text-blue-300" />
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-400" />
+            </div>
+            <h3 className="mt-4 font-semibold text-slate-900 dark:text-slate-50">Timetable</h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Open the full timetable view for all classes.
+            </p>
+          </Link>
+
+          <Link
+            href="/academics?view=subjects"
+            className="group rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:border-emerald-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-800"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="rounded-xl bg-emerald-100 p-3 dark:bg-emerald-900/30">
+                <Layers className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+              </div>
+              <ArrowRight className="h-4 w-4 text-slate-400" />
+            </div>
+            <h3 className="mt-4 font-semibold text-slate-900 dark:text-slate-50">Subjects & Classes</h3>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              Open subject allocations and class assignments.
+            </p>
+          </Link>
         </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">
+            {isTeacherView || isStudentView ? "My Timetable" : "Timetable Preview"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            {isTeacherView
+              ? "Your assigned periods across the week."
+              : isStudentView
+                ? "Your class schedule for the week."
+                : "Review class schedules and period timings."}
+          </p>
+        </div>
+        <TimetableManager
+          readOnly={isStudentView || isTeacherView}
+          initialClassId={isStudentView ? studentClassId : ""}
+          filterToTeacherName={teacherName}
+        />
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">
+            {isTeacherView || isStudentView ? "My Subjects" : "Subjects & Classes"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            {isTeacherView
+              ? "Subjects and classes currently assigned to you."
+              : isStudentView
+                ? "Subjects and teachers for your class."
+                : "Subject allocations by class."}
+          </p>
+        </div>
+        <SubjectsClassesManager
+          lockToClassId={isStudentView ? studentClassId : ""}
+          isAdminView={userRole === "admin"}
+          filterToTeacherName={teacherName}
+        />
       </div>
     </div>
   );
