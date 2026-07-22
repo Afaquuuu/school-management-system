@@ -563,7 +563,7 @@ export function TimetableManager({
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-slate-200/50 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
         <div className="h-1 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600" />
 
-        <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+        <div className="border-b border-slate-200 px-3 py-3 dark:border-slate-700 md:px-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex items-start gap-3">
               <div className="rounded-lg bg-blue-100 p-2 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
@@ -584,7 +584,7 @@ export function TimetableManager({
               </div>
             </div>
 
-            <div className="w-full max-w-[220px]">
+            <div className="w-full md:max-w-[220px]">
               <label className={recordFormFieldLabel}>
                 {lockClassPicker ? "Your Class" : isTeacherView ? "Your Classes" : "Select Class"}
               </label>
@@ -659,13 +659,16 @@ export function TimetableManager({
           </div>
         )}
 
-        <div className="mt-3 px-3 pb-3">
+        <div className="mt-3 px-1 pb-3 md:px-3">
+          <p className="mb-2 px-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 md:hidden">
+            Swipe horizontally to view all days
+          </p>
           <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-slate-100/50 shadow-inner dark:border-slate-700 dark:bg-slate-950/40">
-            <div className="overflow-x-auto">
-              <table className="min-w-[900px] w-full border-separate border-spacing-0">
+            <div className="overflow-x-auto overscroll-x-contain">
+              <table className="w-full min-w-[560px] border-separate border-spacing-0 md:min-w-[900px]">
                 <thead>
                   <tr>
-                    <th className="sticky left-0 z-30 w-[220px] min-w-[220px] border-b border-r border-slate-200 bg-slate-100 px-2 py-2 text-left dark:border-slate-700 dark:bg-slate-900">
+                    <th className="sticky left-0 z-30 w-[128px] min-w-[128px] max-w-[128px] border-b border-r border-slate-200 bg-slate-100 px-1.5 py-2 text-left md:w-[220px] md:min-w-[220px] md:max-w-none md:px-2 dark:border-slate-700 dark:bg-slate-900">
                       <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                         Period & Time
                       </span>
@@ -673,11 +676,11 @@ export function TimetableManager({
                     {TIMETABLE_DAYS.map((day, dayIndex) => (
                       <th
                         key={day}
-                        className="min-w-[118px] border-b border-slate-200 bg-slate-100 px-1.5 py-2 dark:border-slate-700 dark:bg-slate-900"
+                        className="min-w-[84px] border-b border-slate-200 bg-slate-100 px-1 py-2 dark:border-slate-700 dark:bg-slate-900 md:min-w-[118px] md:px-1.5"
                       >
                         <div className="flex items-center justify-center">
                           <span
-                            className={`inline-flex min-w-[68px] items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                            className={`inline-flex min-w-[52px] items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] md:min-w-[68px] md:px-2 md:text-[10px] md:tracking-[0.12em] ${
                               dayIndex === 0
                                 ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
                                 : "bg-white text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600"
@@ -693,7 +696,7 @@ export function TimetableManager({
                 <tbody>
                   {visiblePeriods.map((period) => (
                     <tr key={period.id} className="group/row">
-                      <td className="sticky left-0 z-20 border-b border-r border-slate-200 bg-slate-50 px-2 py-2 align-top shadow-[4px_0_12px_-8px_rgba(15,23,42,0.25)] dark:border-slate-700 dark:bg-slate-900">
+                      <td className="sticky left-0 z-20 w-[128px] min-w-[128px] max-w-[128px] border-b border-r border-slate-200 bg-slate-50 px-1.5 py-1.5 align-top shadow-[4px_0_12px_-8px_rgba(15,23,42,0.25)] md:w-[220px] md:min-w-[220px] md:max-w-none md:px-2 md:py-2 dark:border-slate-700 dark:bg-slate-900">
                         <PeriodTimeCell
                           period={period}
                           readOnly={readOnly}
@@ -714,7 +717,7 @@ export function TimetableManager({
                         return (
                           <td
                             key={`${day}-${period.id}`}
-                            className={`border-b border-slate-200 px-1.5 py-1.5 align-top dark:border-slate-800 ${
+                            className={`min-w-[84px] border-b border-slate-200 px-1 py-1 align-top dark:border-slate-800 md:min-w-[118px] md:px-1.5 md:py-1.5 ${
                               period.kind === "break"
                                 ? "bg-amber-50/40 dark:bg-amber-950/10"
                                 : "bg-white dark:bg-slate-900/60"
@@ -845,24 +848,24 @@ function PeriodTimeCell({
 
   if (readOnly) {
     return (
-      <div className={`rounded-lg border p-2 shadow-sm ${cardClass}`}>
-        <div className="flex items-center gap-2">
+      <div className={`rounded-lg border p-1.5 shadow-sm md:p-2 ${cardClass}`}>
+        <div className="flex items-center gap-1.5 md:gap-2">
           <span
-            className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white shadow-sm ${
+            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[9px] font-bold text-white shadow-sm md:h-6 md:w-6 md:text-[10px] ${
               isBreak ? "bg-amber-500" : "bg-blue-600"
             }`}
           >
-            {isBreak ? <Coffee className="h-3 w-3" /> : periodNumber}
+            {isBreak ? <Coffee className="h-2.5 w-2.5 md:h-3 md:w-3" /> : periodNumber}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">{period.label}</p>
+            <p className="truncate text-[11px] font-semibold text-slate-900 dark:text-slate-50 md:text-xs">{period.label}</p>
             {duration && (
-              <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{duration}</p>
+              <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 md:text-[10px]">{duration}</p>
             )}
           </div>
         </div>
-        <p className="mt-1.5 inline-flex w-full items-center justify-center gap-1 rounded-md bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-200 dark:ring-slate-600">
-          <Clock className="h-3 w-3 text-slate-400" />
+        <p className="mt-1 inline-flex w-full items-center justify-center gap-1 rounded-md bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700 ring-1 ring-slate-200/80 dark:bg-slate-800/80 dark:text-slate-200 dark:ring-slate-600 md:mt-1.5 md:px-2 md:py-1 md:text-[10px]">
+          <Clock className="h-2.5 w-2.5 text-slate-400 md:h-3 md:w-3" />
           {formatDisplayTime(period.startTime)} – {formatDisplayTime(period.endTime)}
         </p>
       </div>
@@ -870,23 +873,23 @@ function PeriodTimeCell({
   }
 
   const timeInputClass =
-    "w-full rounded-md border border-slate-200 bg-white py-1 pl-7 pr-1 text-[11px] font-semibold tabular-nums text-slate-800 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-40 hover:[&::-webkit-calendar-picker-indicator]:opacity-70";
+    "w-full rounded-md border border-slate-200 bg-white py-0.5 pl-5 pr-0.5 text-[10px] font-semibold tabular-nums text-slate-800 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 md:py-1 md:pl-7 md:pr-1 md:text-[11px] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-40 hover:[&::-webkit-calendar-picker-indicator]:opacity-70";
 
   return (
-    <div className={`rounded-lg border p-2 shadow-sm ${cardClass}`}>
+    <div className={`rounded-lg border p-1.5 shadow-sm md:p-2 ${cardClass}`}>
       <div className="flex items-start justify-between gap-1">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 md:gap-2">
           <span
-            className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white shadow-sm ${
+            className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[9px] font-bold text-white shadow-sm md:h-6 md:w-6 md:text-[10px] ${
               isBreak ? "bg-amber-500" : "bg-blue-600"
             }`}
           >
-            {isBreak ? <Coffee className="h-3 w-3" /> : periodNumber || "•"}
+            {isBreak ? <Coffee className="h-2.5 w-2.5 md:h-3 md:w-3" /> : periodNumber || "•"}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-slate-900 dark:text-slate-50">{period.label}</p>
+            <p className="truncate text-[11px] font-semibold text-slate-900 dark:text-slate-50 md:text-xs">{period.label}</p>
             {duration && (
-              <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{duration}</p>
+              <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 md:text-[10px]">{duration}</p>
             )}
           </div>
         </div>
@@ -902,11 +905,11 @@ function PeriodTimeCell({
         )}
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-0.5 rounded-lg border border-slate-200/80 bg-slate-100/90 p-0.5 dark:border-slate-600 dark:bg-slate-800/80">
+      <div className="mt-1.5 grid grid-cols-2 gap-0.5 rounded-lg border border-slate-200/80 bg-slate-100/90 p-0.5 dark:border-slate-600 dark:bg-slate-800/80 md:mt-2">
         <button
           type="button"
           onClick={() => onKindChange(period.id, "lesson")}
-          className={`rounded-md px-1.5 py-1 text-[10px] font-semibold transition ${
+          className={`rounded-md px-1 py-0.5 text-[9px] font-semibold transition md:px-1.5 md:py-1 md:text-[10px] ${
             !isBreak
               ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-900 dark:text-blue-300 dark:ring-slate-600"
               : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
@@ -917,7 +920,7 @@ function PeriodTimeCell({
         <button
           type="button"
           onClick={() => onKindChange(period.id, "break")}
-          className={`rounded-md px-1.5 py-1 text-[10px] font-semibold transition ${
+          className={`rounded-md px-1 py-0.5 text-[9px] font-semibold transition md:px-1.5 md:py-1 md:text-[10px] ${
             isBreak
               ? "bg-white text-amber-800 shadow-sm ring-1 ring-amber-200/80 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-800/60"
               : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
@@ -928,25 +931,25 @@ function PeriodTimeCell({
       </div>
 
       {isBreak && (
-        <div className="mt-2">
+        <div className="mt-1.5 md:mt-2">
           <input
             type="text"
             defaultValue={period.breakLabel ?? period.label}
             key={`${period.id}-label-${period.breakLabel ?? period.label}`}
             onBlur={(event) => onBreakLabelChange(period.id, event.target.value)}
             placeholder="Break name"
-            className="w-full rounded-md border border-amber-200/80 bg-white/90 px-2 py-1 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20 dark:border-amber-800 dark:bg-amber-950/20 dark:text-slate-50"
+            className="w-full rounded-md border border-amber-200/80 bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20 dark:border-amber-800 dark:bg-amber-950/20 dark:text-slate-50 md:px-2 md:py-1 md:text-xs"
           />
         </div>
       )}
 
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
+      <div className="mt-1.5 grid grid-cols-2 gap-1 md:mt-2 md:gap-1.5">
         <div>
-          <label className="mb-1 block text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+          <label className="mb-0.5 hidden text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 md:mb-1 md:block">
             Start
           </label>
           <div className="relative">
-            <Clock className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+            <Clock className="pointer-events-none absolute left-1.5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-slate-400 md:left-2 md:h-3 md:w-3" />
             <input
               type="time"
               defaultValue={period.startTime}
@@ -958,11 +961,11 @@ function PeriodTimeCell({
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400">
+          <label className="mb-0.5 hidden text-[9px] font-bold uppercase tracking-[0.1em] text-slate-400 md:mb-1 md:block">
             End
           </label>
           <div className="relative">
-            <Clock className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+            <Clock className="pointer-events-none absolute left-1.5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-slate-400 md:left-2 md:h-3 md:w-3" />
             <input
               type="time"
               defaultValue={period.endTime}
@@ -1028,20 +1031,20 @@ function ScheduleSlotCell({
       type="button"
       onClick={onClick}
       disabled={readOnly}
-      className={`group flex min-h-[72px] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed px-2 py-2 transition-all ${
+      className={`group flex min-h-[64px] w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed px-1 py-1.5 transition-all md:min-h-[72px] md:gap-1.5 md:px-2 md:py-2 ${
         readOnly
           ? "cursor-default border-slate-200 bg-slate-50/50 text-slate-400 dark:border-slate-700 dark:bg-slate-900/20"
           : "border-slate-200/90 bg-white text-slate-500 hover:border-blue-400 hover:bg-blue-50/80 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-blue-600 dark:hover:bg-blue-950/30 dark:hover:text-blue-300"
       }`}
     >
       {readOnly ? (
-        <span className="text-[10px] font-medium">Free</span>
+        <span className="text-[9px] font-medium md:text-[10px]">Free</span>
       ) : (
         <>
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500 ring-1 ring-slate-200/80 transition group-hover:bg-blue-600 group-hover:text-white group-hover:ring-blue-500 dark:bg-slate-800 dark:ring-slate-600">
-            <Plus className="h-3.5 w-3.5" />
+          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-500 ring-1 ring-slate-200/80 transition group-hover:bg-blue-600 group-hover:text-white group-hover:ring-blue-500 dark:bg-slate-800 dark:ring-slate-600 md:h-7 md:w-7">
+            <Plus className="h-3 w-3 md:h-3.5 md:w-3.5" />
           </span>
-          <span className="text-[10px] font-bold uppercase tracking-[0.06em]">Assign</span>
+          <span className="text-[9px] font-bold uppercase tracking-[0.04em] md:text-[10px] md:tracking-[0.06em]">Assign</span>
         </>
       )}
     </button>
