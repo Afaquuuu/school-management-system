@@ -8,12 +8,16 @@ export function AppBrandIcon({ className }: AppBrandIconProps) {
   return (
     <div
       className={cn(
-        "h-10 w-10 shrink-0 overflow-hidden rounded-xl shadow-md shadow-blue-500/20",
+        "app-brand-icon h-10 w-10 shrink-0 overflow-hidden rounded-xl shadow-md shadow-blue-500/20",
         className,
       )}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/favicon.png" alt="" className="h-full w-full object-cover" />
+      <img
+        src="/favicon.png"
+        alt=""
+        className="app-brand-icon-image h-full w-full object-cover"
+      />
     </div>
   );
 }
@@ -32,7 +36,7 @@ export function AppBrandMark({
   titleClassName,
 }: AppBrandMarkProps) {
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("app-brand-mark flex items-center gap-3", className)}>
       <AppBrandIcon className={iconClassName} />
       <span
         className={cn(
