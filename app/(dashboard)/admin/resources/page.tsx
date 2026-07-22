@@ -231,12 +231,14 @@ export default function ResourcesPage() {
   const resourceFieldClass = `${recordFormFieldInput} ${recordFormFieldInputAccent.blue}`;
 
   return (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-6 md:space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Resource Management</h1>
-          <p className="mt-1 text-slate-600 dark:text-slate-400">Manage classrooms, labs, and detect scheduling conflicts</p>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 md:text-3xl">Resource Management</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 md:text-base">
+            Manage classrooms, labs, and detect scheduling conflicts
+          </p>
         </div>
       </div>
 
@@ -252,12 +254,13 @@ export default function ResourcesPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-4 border-b border-slate-200 dark:border-slate-700">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1 md:mx-0 md:overflow-visible md:px-0">
+        <div className="flex min-w-max gap-1 border-b border-slate-200 dark:border-slate-700 md:min-w-0 md:gap-4">
         {(["classrooms", "schedule", "conflicts"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setSelectedTab(tab)}
-            className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+            className={`shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors md:px-4 md:text-base ${
               selectedTab === tab
                 ? "border-blue-600 text-blue-600 dark:text-blue-400"
                 : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
@@ -266,20 +269,21 @@ export default function ResourcesPage() {
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
+        </div>
       </div>
 
       {/* Classrooms Tab */}
       {selectedTab === "classrooms" && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
+        <div className="space-y-3 md:space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-600 dark:text-slate-400">
               Total Resources: <span className="font-semibold text-slate-900 dark:text-slate-50">{resources.length}</span>
             </p>
             <button 
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-blue-700 sm:w-auto sm:py-2"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="h-4 w-4" />
               Add Classroom
             </button>
           </div>
@@ -300,56 +304,60 @@ export default function ResourcesPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
               {resources.map((room) => (
                 <div
                   key={room.id}
-                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6 hover:shadow-md transition-shadow"
+                  className="rounded-lg border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800 md:p-6"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl font-bold text-slate-900 dark:text-slate-50">{room.code}</span>
+                  <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1.5 flex flex-wrap items-center gap-2 md:mb-2">
+                        <span className="break-all text-xl font-bold text-slate-900 dark:text-slate-50 md:text-2xl">{room.code}</span>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded ${
+                          className={`shrink-0 rounded px-2 py-1 text-xs font-semibold ${
                             room.type === "Classroom"
-                              ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                               : room.type === "Lab"
-                              ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200"
-                              : "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200"
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                              : "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
                           }`}
                         >
                           {room.type}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">{room.name}</p>
+                      <p className="break-words text-sm text-slate-600 dark:text-slate-400">{room.name}</p>
                     </div>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold md:px-3 md:text-xs ${
                         room.available
-                          ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
-                          : "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                       }`}
                     >
                       {room.available ? "Available" : "In Use"}
                     </span>
                   </div>
-                  <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                  <div className="flex flex-col gap-3 border-t border-slate-200 pt-3 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between md:pt-4">
                     <p className="text-sm text-slate-600 dark:text-slate-400">Capacity: {room.capacity} seats</p>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
                       <button 
+                        type="button"
                         onClick={() => openEditModal(room)}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 md:p-2 md:text-inherit md:font-normal md:hover:bg-slate-100 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-slate-700"
                         title="Edit resource"
                       >
-                        <Edit className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <Edit className="h-4 w-4" />
+                        <span className="md:hidden">Edit</span>
                       </button>
                       <button 
+                        type="button"
                         onClick={() => handleDeleteResource(room)}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 md:p-2 md:text-inherit md:font-normal md:hover:bg-slate-100 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-slate-700"
                         title="Delete resource"
                       >
-                        <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                        <Trash2 className="h-4 w-4" />
+                        <span className="md:hidden">Delete</span>
                       </button>
                     </div>
                   </div>
@@ -363,16 +371,16 @@ export default function ResourcesPage() {
       {/* Schedule Tab */}
       {selectedTab === "schedule" && (
         <div className="space-y-4">
-          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-700 dark:bg-blue-900/30 md:flex-row md:items-center md:justify-between md:gap-4">
             <p className="text-sm text-blue-800 dark:text-blue-200">
               Live room allocation from Academics → Timetable. Assign periods there to update this schedule.
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               <label className="text-sm font-medium text-blue-900 dark:text-blue-100">Room</label>
               <select
                 value={selectedRoomFilter}
                 onChange={(event) => setSelectedRoomFilter(event.target.value)}
-                className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm dark:border-blue-700 dark:bg-slate-800 dark:text-slate-50"
+                className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm dark:border-blue-700 dark:bg-slate-800 dark:text-slate-50 sm:w-auto"
               >
                 <option value="all">All rooms</option>
                 {resources.map((room) => (
@@ -384,7 +392,7 @@ export default function ResourcesPage() {
               <button
                 type="button"
                 onClick={reloadTimetable}
-                className="rounded-lg border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-900/40"
+                className="w-full rounded-lg border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-900/40 sm:w-auto"
               >
                 Refresh
               </button>
@@ -400,9 +408,9 @@ export default function ResourcesPage() {
               </p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
               {TIMETABLE_DAYS.map((day) => (
-                <div key={day} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-6">
+                <div key={day} className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 md:p-6">
                   <h3 className="font-bold text-slate-900 dark:text-slate-50 mb-4">{day}</h3>
                   {filteredScheduleByDay[day].length === 0 ? (
                     <p className="text-sm text-slate-500">No bookings for this filter.</p>
@@ -463,19 +471,19 @@ export default function ResourcesPage() {
             {scheduleConflicts.map((conflict) => (
               <div
                 key={conflict.id}
-                className={`border rounded-lg p-6 ${
+                className={`rounded-lg border p-4 md:p-6 ${
                   conflict.severity === "high"
-                    ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700"
-                    : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700"
+                    ? "border-red-200 bg-red-50 dark:border-red-700 dark:bg-red-900/20"
+                    : "border-yellow-200 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-900/20"
                 }`}
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="font-semibold text-slate-900 dark:text-slate-50">{conflict.message}</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Suggested: {conflict.resolution}</p>
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between md:gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words font-semibold text-slate-900 dark:text-slate-50">{conflict.message}</p>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Suggested: {conflict.resolution}</p>
                   </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    className={`shrink-0 self-start rounded-full px-3 py-1 text-xs font-semibold ${
                       conflict.severity === "high"
                         ? "bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200"
                         : "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200"
@@ -545,20 +553,20 @@ function ResourceFormModal({
   const isEdit = mode === "edit";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm md:items-center md:p-4">
+      <div className="flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900 md:max-h-[92vh] md:rounded-2xl">
         <div className="h-1.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600" />
 
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5 dark:border-slate-700">
-          <div className="flex items-start gap-4">
-            <div className="rounded-xl bg-blue-100 p-3 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-700 md:gap-4 md:px-6 md:py-5">
+          <div className="flex min-w-0 items-start gap-3 md:gap-4">
+            <div className="hidden shrink-0 rounded-xl bg-blue-100 p-3 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 sm:block">
               <Building2 className="h-6 w-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
                 Resources
               </p>
-              <h3 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+              <h3 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 md:text-2xl">
                 {isEdit ? "Edit Resource" : "Add New Resource"}
               </h3>
               <p className="mt-1 max-w-md text-sm text-slate-600 dark:text-slate-400">
@@ -583,7 +591,7 @@ function ResourceFormModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50/70 p-6 dark:bg-slate-950/40">
+        <div className="min-w-0 flex-1 overflow-y-auto bg-slate-50/70 p-4 dark:bg-slate-950/40 md:p-6">
           <RecordFormSection
             title="Resource Details"
             description="Identification, type, and seating capacity for this space."
@@ -671,18 +679,18 @@ function ResourceFormModal({
           <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">Fields marked * are required.</p>
         </div>
 
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-6 py-4 sm:flex-row sm:items-center sm:justify-end dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-end sm:gap-3 sm:px-6 sm:py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="w-full rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800 sm:w-auto"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onSubmit}
-            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/30"
+            className="w-full rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/30 sm:w-auto"
           >
             {isEdit ? "Save Changes" : "Add Resource"}
           </button>
