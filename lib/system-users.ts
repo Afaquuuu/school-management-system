@@ -198,15 +198,12 @@ export function syncStaffToSystemUsers(schoolId: string): SystemUser[] {
     return existingUsers;
   }
 
-  const staffEmails = new Set(
-    staffMembers
-      .map((member) => member.email?.trim().toLowerCase())
-      .filter((email): email is string => Boolean(email && isValidLoginEmail(email))),
-  );
+  const staffIds = new Set(staffMembers.map((member) => member.id));
 
   const updatedUsers = existingUsers.filter((user) => {
     if (!user.id.startsWith("user_staff_")) return true;
-    return staffEmails.has(user.email.toLowerCase());
+    const staffId = user.id.slice("user_staff_".length);
+    return staffIds.has(staffId);
   });
 
   for (const member of staffMembers) {
@@ -214,13 +211,19 @@ export function syncStaffToSystemUsers(schoolId: string): SystemUser[] {
     if (!email || !isValidLoginEmail(email)) continue;
 
     const name = `${member.firstName} ${member.lastName}`.trim();
-    const existingIndex = updatedUsers.findIndex(
-      (user) => user.email.toLowerCase() === email,
-    );
+    const staffUserId = `user_staff_${member.id}`;
+
+    let existingIndex = updatedUsers.findIndex((user) => user.id === staffUserId);
+    if (existingIndex < 0) {
+      existingIndex = updatedUsers.findIndex(
+        (user) =>
+          user.id.startsWith("user_staff_") &&
+          user.email.toLowerCase() === email,
+      );
+    }
 
     const syncedFields = {
       name,
-      email,
       phone: member.phone || "",
       role: mapStaffRoleToSystemRole(member.role),
       classDepartment: member.department || "",
@@ -228,14 +231,19 @@ export function syncStaffToSystemUsers(schoolId: string): SystemUser[] {
     };
 
     if (existingIndex >= 0) {
+      const existing = updatedUsers[existingIndex];
       updatedUsers[existingIndex] = {
-        ...updatedUsers[existingIndex],
+        ...existing,
+        id: staffUserId,
         ...syncedFields,
+        email,
+        password: existing.password,
       };
     } else {
       updatedUsers.push({
-        id: `user_staff_${member.id}`,
+        id: staffUserId,
         ...syncedFields,
+        email,
         password: generateLoginPassword(),
         createdAt: new Date().toISOString().split("T")[0],
         credentialsIssuedAt: new Date().toISOString(),
@@ -245,6 +253,46 @@ export function syncStaffToSystemUsers(schoolId: string): SystemUser[] {
 
   saveSystemUsers(schoolId, updatedUsers);
   return updatedUsers;
+}
+
+/** Mirror login email/contact edits from User Management back to the linked staff record. */
+export async function syncSystemUserEditsToStaffRecord(
+  schoolId: string,
+  user: Pick<SystemUser, "id" | "name" | "email" | "phone" | "classDepartment">,
+): Promise<void> {
+  if (!user.id.startsWith("user_staff_")) return;
+
+  const staffId = user.id.slice("user_staff_".length);
+  const storedStaff = getScopedItem(schoolId, "school_staff");
+  if (!storedStaff) return;
+
+  let staffMembers: StaffRecord[];
+  try {
+    staffMembers = JSON.parse(storedStaff) as StaffRecord[];
+  } catch {
+    return;
+  }
+
+  const staffIndex = staffMembers.findIndex((member) => member.id === staffId);
+  if (staffIndex < 0) return;
+
+  const nameParts = user.name.trim().split(/\s+/);
+  const firstName = nameParts[0] ?? staffMembers[staffIndex].firstName;
+  const lastName =
+    nameParts.slice(1).join(" ").trim() || staffMembers[staffIndex].lastName;
+
+  staffMembers[staffIndex] = {
+    ...staffMembers[staffIndex],
+    firstName,
+    lastName,
+    email: user.email.trim().toLowerCase(),
+    phone: user.phone || staffMembers[staffIndex].phone,
+    department: user.classDepartment || staffMembers[staffIndex].department,
+  };
+
+  const serialized = JSON.stringify(staffMembers);
+  setScopedItem(schoolId, "school_staff", serialized);
+  await persistScopedItem(schoolId, "school_staff", serialized);
 }
 
 export async function syncStaffToSystemUsersPersisted(schoolId: string): Promise<SystemUser[]> {

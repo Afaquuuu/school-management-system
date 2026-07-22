@@ -38,9 +38,10 @@ import {
   getClassDepartmentLabel,
   isValidLoginEmail,
   loadSystemUsers,
-  saveSystemUsers,
+  saveSystemUsersPersisted,
   syncStaffToSystemUsers,
   syncStudentsToSystemUsers,
+  syncSystemUserEditsToStaffRecord,
   userRoleFilterOptions,
   assignableSystemRoles,
   type SystemUser,
@@ -113,11 +114,10 @@ export default function UsersPage() {
     }
   }, [currentSchool]);
 
-  const persistUsers = (updatedUsers: SystemUser[]) => {
-    if (currentSchool) {
-      setUsers(updatedUsers);
-      saveSystemUsers(currentSchool.id, updatedUsers);
-    }
+  const persistUsers = async (updatedUsers: SystemUser[]) => {
+    if (!currentSchool) return;
+    setUsers(updatedUsers);
+    await saveSystemUsersPersisted(currentSchool.id, updatedUsers);
   };
 
   const showSuccessNotification = (message: string) => {
@@ -264,7 +264,7 @@ export default function UsersPage() {
     showSuccessNotification(`Login credentials issued to ${newUser.name}.`);
   };
 
-  const handleEditUser = () => {
+  const handleEditUser = async () => {
     if (!selectedUser || !formData.name?.trim() || !formData.email?.trim()) {
       alert("Please fill in all required fields.");
       return;
@@ -325,12 +325,20 @@ export default function UsersPage() {
             : user,
       );
 
-      persistUsers(finalizedUsers);
-      setSchoolStudents(loadSchoolStudentRecords(currentSchool.id));
-      setShowEditModal(false);
-      setSelectedUser(null);
-      resetForm();
-      showSuccessNotification(`Parent account updated and linked to ${linkedStudentIds.length} student(s).`);
+      try {
+        await persistUsers(finalizedUsers);
+        const editedUser = finalizedUsers.find((user) => user.id === selectedUser.id);
+        if (editedUser) {
+          await syncSystemUserEditsToStaffRecord(currentSchool.id, editedUser);
+        }
+        setSchoolStudents(loadSchoolStudentRecords(currentSchool.id));
+        setShowEditModal(false);
+        setSelectedUser(null);
+        resetForm();
+        showSuccessNotification(`Parent account updated and linked to ${linkedStudentIds.length} student(s).`);
+      } catch {
+        alert("Could not save account changes. Please try again.");
+      }
       return;
     }
 
@@ -349,11 +357,19 @@ export default function UsersPage() {
         : u,
     );
 
-    persistUsers(updatedUsers);
-    setShowEditModal(false);
-    setSelectedUser(null);
-    resetForm();
-    showSuccessNotification(`Login details updated for ${formData.name}.`);
+    const editedUser = updatedUsers.find((user) => user.id === selectedUser.id);
+    if (!editedUser || !currentSchool) return;
+
+    try {
+      await persistUsers(updatedUsers);
+      await syncSystemUserEditsToStaffRecord(currentSchool.id, editedUser);
+      setShowEditModal(false);
+      setSelectedUser(null);
+      resetForm();
+      showSuccessNotification(`Login details updated for ${formData.name}.`);
+    } catch {
+      alert("Could not save account changes. Please try again.");
+    }
   };
 
   const handleReissuePassword = (user: SystemUser) => {
