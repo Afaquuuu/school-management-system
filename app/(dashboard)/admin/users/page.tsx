@@ -439,15 +439,15 @@ export default function UsersPage() {
               Issue login email and password credentials to teachers, students, parents, accountants, and librarians.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             {credentialRoles.map((role) => (
               <button
                 key={role}
                 onClick={() => openIssueModal(role)}
-                className="btn-primary inline-flex items-center gap-2"
+                className="btn-primary inline-flex items-center justify-center gap-2 px-3 py-2 text-sm sm:px-4 sm:text-base"
               >
-                <KeyRound className="h-4 w-4" />
-                Issue {role} Login
+                <KeyRound className="h-4 w-4 shrink-0" />
+                <span className="truncate">Issue {role} Login</span>
               </button>
             ))}
           </div>
@@ -468,22 +468,22 @@ export default function UsersPage() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="surface-card p-4">
-          <p className="text-xs font-semibold uppercase text-emerald-600">Teacher Logins</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{credentialStats.teachers}</p>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <div className="surface-card p-3 md:p-4">
+          <p className="text-[11px] font-semibold uppercase text-emerald-600 md:text-xs">Teacher Logins</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 md:mt-2 md:text-3xl">{credentialStats.teachers}</p>
         </div>
-        <div className="surface-card p-4">
-          <p className="text-xs font-semibold uppercase text-blue-600">Student Logins</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{credentialStats.students}</p>
+        <div className="surface-card p-3 md:p-4">
+          <p className="text-[11px] font-semibold uppercase text-blue-600 md:text-xs">Student Logins</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 md:mt-2 md:text-3xl">{credentialStats.students}</p>
         </div>
-        <div className="surface-card p-4">
-          <p className="text-xs font-semibold uppercase text-purple-600">Parent Logins</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{credentialStats.parents}</p>
+        <div className="surface-card p-3 md:p-4">
+          <p className="text-[11px] font-semibold uppercase text-purple-600 md:text-xs">Parent Logins</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 md:mt-2 md:text-3xl">{credentialStats.parents}</p>
         </div>
-        <div className="surface-card p-4">
-          <p className="text-xs font-semibold uppercase text-slate-500">Active Accounts</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{credentialStats.active}</p>
+        <div className="surface-card p-3 md:p-4">
+          <p className="text-[11px] font-semibold uppercase text-slate-500 md:text-xs">Active Accounts</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 md:mt-2 md:text-3xl">{credentialStats.active}</p>
         </div>
       </div>
 
@@ -511,7 +511,7 @@ export default function UsersPage() {
         </select>
         <button
           onClick={() => openIssueModal("Teacher")}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-semibold text-white hover:bg-blue-700 md:w-auto md:py-2"
         >
           <Plus className="h-4 w-4" />
           Issue Login Credentials
@@ -519,7 +519,107 @@ export default function UsersPage() {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:bg-slate-800">
-        <table className="w-full text-sm">
+        {filteredUsers.length === 0 ? (
+          <div className="px-4 py-12 text-center text-sm text-slate-500 md:px-6">
+            No login accounts issued yet. Use &quot;Issue Login Credentials&quot; to create one.
+          </div>
+        ) : (
+          <>
+            <div className="md:hidden">
+              <div className="border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                Tap <span className="font-semibold text-slate-700 dark:text-slate-200">Assign / Edit</span> to set role, class, or linked student.
+              </div>
+              <div className="divide-y divide-slate-200 dark:divide-slate-700">
+              {filteredUsers.map((user) => {
+                const classDepartment =
+                  user.role === "Parent" && currentSchool
+                    ? buildParentClassDepartment(
+                        getLinkedStudentsForParent(currentSchool.id, user),
+                      ) ||
+                      user.classDepartment ||
+                      "—"
+                    : user.classDepartment || "—";
+
+                return (
+                  <div key={user.id} className="space-y-3 p-4">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold text-slate-900 dark:text-slate-50">
+                        {user.name}
+                      </p>
+                      <p className="mt-1 break-all text-sm text-slate-600 dark:text-slate-400">
+                        {user.email}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${getRoleBadgeClass(user.role)}`}
+                      >
+                        {user.role}
+                      </span>
+                      <span
+                        className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                          user.status === "Active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {user.status}
+                      </span>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Class / Department</p>
+                      <p className="mt-0.5 break-words text-sm text-slate-700 dark:text-slate-300">
+                        {classDepartment}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(user)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                      >
+                        <Edit className="h-4 w-4 shrink-0" />
+                        Assign / Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openViewModal(user)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        <Eye className="h-4 w-4 shrink-0" />
+                        View
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleReissuePassword(user)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+                        Reissue Password
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(user)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                        Revoke Access
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[960px] text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 dark:bg-slate-900">
             <tr>
               <th className="px-6 py-3 text-left font-semibold text-slate-900">Name</th>
@@ -531,14 +631,7 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {filteredUsers.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                  No login accounts issued yet. Use &quot;Issue Login Credentials&quot; to create one.
-                </td>
-              </tr>
-            ) : (
-              filteredUsers.map((user) => (
+            {filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50">
                   <td className="px-6 py-4 font-medium text-slate-900">{user.name}</td>
                   <td className="px-6 py-4 text-slate-600">{user.email}</td>
@@ -600,10 +693,12 @@ export default function UsersPage() {
                     </button>
                   </td>
                 </tr>
-              ))
-            )}
+              ))}
           </tbody>
         </table>
+            </div>
+          </>
+        )}
       </div>
 
       <div>
@@ -620,21 +715,22 @@ export default function UsersPage() {
       </div>
 
       {showIssueModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white p-6">
-              <div>
-                <h3 className="text-2xl font-bold text-slate-900">Issue Login Credentials</h3>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4">
+          <div className="flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl md:max-h-[90vh] md:rounded-2xl">
+            <div className="sticky top-0 flex shrink-0 items-start justify-between border-b border-slate-200 bg-white p-4 md:p-6">
+              <div className="min-w-0 pr-3">
+                <h3 className="text-xl font-bold text-slate-900 md:text-2xl">Issue Login Credentials</h3>
                 <p className="mt-1 text-sm text-slate-500">
                   Create the Gmail/login email and password this user will use to sign in.
                 </p>
               </div>
-              <button onClick={closeIssueModal} className="rounded-lg p-2 hover:bg-slate-100">
+              <button onClick={closeIssueModal} className="shrink-0 rounded-lg p-2 hover:bg-slate-100">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-4 p-6">
+            <div className="min-w-0 overflow-y-auto">
+            <div className="space-y-4 p-4 md:p-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -750,7 +846,7 @@ export default function UsersPage() {
                     <KeyRound className="mr-2 inline h-4 w-4" />
                     Login Password *
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       type={showFormPassword ? "text" : "password"}
                       value={formData.password || ""}
@@ -758,37 +854,40 @@ export default function UsersPage() {
                       placeholder="Set login password"
                       className="input-field flex-1"
                     />
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
                     <button
                       type="button"
                       onClick={() => setShowFormPassword((v) => !v)}
-                      className="rounded-lg border border-slate-300 px-3 hover:bg-slate-50"
+                      className="rounded-lg border border-slate-300 px-3 py-2 hover:bg-slate-50"
                     >
-                      {showFormPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showFormPassword ? <EyeOff className="mx-auto h-4 w-4" /> : <Eye className="mx-auto h-4 w-4" />}
                     </button>
                     <button
                       type="button"
                       onClick={() =>
                         setFormData({ ...formData, password: generateCompliantPassword() })
                       }
-                      className="rounded-lg border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50"
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50"
                     >
                       Generate
                     </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+            </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 p-6">
+            <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 p-4 md:flex-row md:justify-end md:gap-3 md:p-6">
               <button
                 onClick={closeIssueModal}
-                className="rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+                className="w-full rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700 hover:bg-slate-50 md:w-auto"
               >
                 Cancel
               </button>
               <button
                 onClick={handleIssueCredentials}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 md:w-auto"
               >
                 <Save className="h-5 w-5" />
                 Issue Credentials
@@ -881,10 +980,10 @@ export default function UsersPage() {
       )}
 
       {showEditModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white p-6">
-              <h3 className="text-2xl font-bold text-slate-900">Edit Login Account</h3>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4">
+          <div className="flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl md:max-h-[90vh] md:rounded-2xl">
+            <div className="sticky top-0 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 md:p-6">
+              <h3 className="text-xl font-bold text-slate-900 md:text-2xl">Assign / Edit Account</h3>
               <button
                 onClick={() => {
                   setShowEditModal(false);
@@ -897,7 +996,8 @@ export default function UsersPage() {
               </button>
             </div>
 
-            <div className="space-y-4 p-6">
+            <div className="min-w-0 overflow-y-auto">
+            <div className="space-y-4 p-4 md:p-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-700">Full Name *</label>
@@ -960,7 +1060,26 @@ export default function UsersPage() {
                     linkedStudentIds={linkedStudentIds}
                     onLinkedStudentIdsChange={setLinkedStudentIds}
                   />
-                ) : null}
+                ) : (
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                      {getClassDepartmentLabel(formData.role as SystemUserRole)}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.classDepartment || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, classDepartment: e.target.value })
+                      }
+                      placeholder={
+                        formData.role === "Student"
+                          ? "Grade 7B"
+                          : "Mathematics"
+                      }
+                      className="input-field"
+                    />
+                  </div>
+                )}
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-bold text-slate-700">Login Password</label>
                   <input
@@ -972,21 +1091,22 @@ export default function UsersPage() {
                 </div>
               </div>
             </div>
+            </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 p-6">
+            <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 p-4 md:flex-row md:justify-end md:gap-3 md:p-6">
               <button
                 onClick={() => {
                   setShowEditModal(false);
                   setSelectedUser(null);
                   resetForm();
                 }}
-                className="rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700"
+                className="w-full rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700 md:w-auto"
               >
                 Cancel
               </button>
               <button
                 onClick={handleEditUser}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 md:w-auto"
               >
                 <Save className="h-5 w-5" />
                 Save Changes
@@ -997,10 +1117,10 @@ export default function UsersPage() {
       )}
 
       {showViewModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 p-6">
-              <h3 className="text-2xl font-bold text-slate-900">Login Credentials</h3>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4">
+          <div className="flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl md:rounded-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 p-4 md:p-6">
+              <h3 className="text-xl font-bold text-slate-900 md:text-2xl">Login Credentials</h3>
               <button
                 onClick={() => {
                   setShowViewModal(false);
@@ -1012,8 +1132,9 @@ export default function UsersPage() {
               </button>
             </div>
 
-            <div className="space-y-4 p-6">
-              <div className="grid gap-4 md:grid-cols-2">
+            <div className="min-w-0 overflow-y-auto">
+            <div className="space-y-4 p-4 md:p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm text-slate-500">Name</p>
                   <p className="font-semibold text-slate-900">{selectedUser.name}</p>
@@ -1066,13 +1187,25 @@ export default function UsersPage() {
                 </div>
               </div>
             </div>
+            </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 p-6">
+            <div className="flex shrink-0 flex-col gap-2 border-t border-slate-200 p-4 md:flex-row md:justify-end md:gap-3 md:p-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowViewModal(false);
+                  openEditModal(selectedUser);
+                }}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 md:hidden"
+              >
+                <Edit className="h-4 w-4" />
+                Assign / Edit
+              </button>
               <button
                 onClick={() =>
                   copyText("all", formatCredentialsText(selectedUser, currentSchool?.name))
                 }
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold hover:bg-slate-50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50 md:w-auto md:py-2"
               >
                 <ClipboardCopy className="h-4 w-4" />
                 Copy Credentials
@@ -1082,7 +1215,7 @@ export default function UsersPage() {
                   setShowViewModal(false);
                   setSelectedUser(null);
                 }}
-                className="btn-primary"
+                className="btn-primary w-full md:w-auto"
               >
                 Close
               </button>

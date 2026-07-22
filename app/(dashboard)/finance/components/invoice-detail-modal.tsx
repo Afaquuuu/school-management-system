@@ -238,12 +238,14 @@ export function InvoiceDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm md:items-center md:p-4">
+      <div className="flex max-h-[96dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 md:max-h-[94vh] md:rounded-2xl">
         {/* Toolbar */}
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3 dark:border-slate-700 dark:bg-slate-950">
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Official Fee Invoice</p>
-          <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-950 md:px-5 md:py-3">
+          <p className="truncate pr-2 text-xs font-medium text-slate-600 dark:text-slate-300 md:text-sm">
+            Official Fee Invoice
+          </p>
+          <div className="flex shrink-0 items-center gap-0.5 md:gap-1">
             <button
               type="button"
               onClick={handlePrintInvoice}
@@ -272,17 +274,17 @@ export function InvoiceDetailModal({
         </div>
 
         {/* Bill document */}
-        <div className="overflow-y-auto bg-[#faf9f6] p-6 dark:bg-slate-900">
-          <div className="relative mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-950">
+        <div className="min-w-0 overflow-x-hidden overflow-y-auto bg-[#faf9f6] p-3 dark:bg-slate-900 md:p-6">
+          <div className="relative mx-auto min-w-0 max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950 md:p-8">
             {/* Letterhead */}
-            <div className="border-b-[3px] border-blue-800 pb-6">
-              <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-                <div className="flex gap-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-blue-800 text-white shadow-md">
-                    <GraduationCap className="h-7 w-7" />
+            <div className="border-b-[3px] border-blue-800 pb-4 md:pb-6">
+              <div className="flex flex-col gap-4 md:gap-6 md:flex-row md:items-start md:justify-between">
+                <div className="flex min-w-0 gap-3 md:gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-800 text-white shadow-md md:h-14 md:w-14">
+                    <GraduationCap className="h-6 w-6 md:h-7 md:w-7" />
                   </div>
-                  <div>
-                    <h2 className="font-serif text-2xl font-bold tracking-tight text-blue-900 dark:text-blue-100">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="break-words font-serif text-lg font-bold leading-snug tracking-tight text-blue-900 dark:text-blue-100 md:text-2xl">
                       {schoolName}
                     </h2>
                     <div className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-400">
@@ -306,15 +308,15 @@ export function InvoiceDetailModal({
                   </div>
                 </div>
 
-                <div className="text-left md:text-right">
-                  <span className="inline-block bg-blue-800 px-4 py-2 text-xs font-bold tracking-[0.18em] text-white">
+                <div className="min-w-0 text-left md:text-right">
+                  <span className="inline-block bg-blue-800 px-3 py-1.5 text-[10px] font-bold tracking-[0.14em] text-white md:px-4 md:py-2 md:text-xs md:tracking-[0.18em]">
                     FEE INVOICE
                   </span>
-                  <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 md:mt-3 md:text-sm">
                     Academic Year {academicYear}
                   </p>
                   <span
-                    className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusConfig.badgeClass}`}
+                    className={`mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 md:mt-3 md:px-3 md:text-xs ${statusConfig.badgeClass}`}
                   >
                     <StatusIcon className="h-3.5 w-3.5" />
                     {statusConfig.label}
@@ -324,12 +326,12 @@ export function InvoiceDetailModal({
             </div>
 
             {/* Bill to + invoice meta */}
-            <div className="mt-6 grid gap-6 md:grid-cols-2">
-              <div>
+            <div className="mt-4 grid gap-4 md:mt-6 md:gap-6 md:grid-cols-2">
+              <div className="min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
                   Bill To
                 </p>
-                <p className="mt-2 font-serif text-xl font-bold text-slate-900 dark:text-slate-50">
+                <p className="mt-2 break-words font-serif text-lg font-bold text-slate-900 dark:text-slate-50 md:text-xl">
                   {invoice.studentName}
                 </p>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
@@ -342,7 +344,38 @@ export function InvoiceDetailModal({
                 )}
               </div>
 
-              <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+              {/* Mobile: stacked invoice meta */}
+              <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 md:hidden">
+                <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2 dark:border-slate-800">
+                  <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">Invoice No.</span>
+                  <span className="break-all text-right text-sm font-semibold text-slate-900 dark:text-slate-50">
+                    {invoice.invoiceNo}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2 dark:border-slate-800">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Issue Date</span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                    {formatDate(invoice.issuedAt)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2 dark:border-slate-800">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Due Date</span>
+                  <span className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                    {formatDate(invoice.dueAt)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 pt-0.5">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Balance Due</span>
+                  <span
+                    className={`text-base font-bold ${balance > 0 ? "text-red-600" : "text-emerald-600"}`}
+                  >
+                    {formatMoney(balance)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Desktop: invoice meta table */}
+              <div className="hidden overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 md:block">
                 <table className="w-full text-sm">
                   <tbody>
                     <tr className="border-b border-slate-200 dark:border-slate-700">
@@ -384,8 +417,55 @@ export function InvoiceDetailModal({
               </div>
             </div>
 
-            {/* Fee table */}
-            <div className="mt-8 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+            {/* Mobile: fee line items */}
+            <div className="mt-5 space-y-2 md:hidden">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                Fee Breakdown
+              </p>
+              {lineItems.map((item, index) => (
+                <div
+                  key={`${item.description}-mobile-${index}`}
+                  className="rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/40"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold text-slate-400">#{index + 1}</p>
+                      <p className="mt-0.5 break-words text-sm text-slate-800 dark:text-slate-200">
+                        {item.description}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold text-slate-900 dark:text-slate-50">
+                      {formatMoney(item.amount)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Total Amount</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-50">
+                    {formatMoney(invoice.totalAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-emerald-700 dark:text-emerald-400">Amount Paid</span>
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                    {formatMoney(invoice.paidAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2 dark:border-slate-700">
+                  <span className="text-sm font-bold text-slate-900 dark:text-slate-50">Balance Due</span>
+                  <span
+                    className={`text-base font-bold ${balance > 0 ? "text-red-600" : "text-emerald-600"}`}
+                  >
+                    {formatMoney(balance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Desktop: fee table */}
+            <div className="mt-8 hidden overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-blue-900 text-white">
@@ -470,7 +550,7 @@ export function InvoiceDetailModal({
             )}
 
             {/* Payment instructions */}
-            <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-4 text-sm leading-relaxed text-slate-600 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-slate-300">
+            <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-3 text-xs leading-relaxed text-slate-600 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-slate-300 md:mt-6 md:px-4 md:py-4 md:text-sm">
               <p className="font-semibold text-slate-900 dark:text-slate-100">Payment Instructions</p>
               <p className="mt-2">
                 Please pay the balance due by the date shown above at the school accounts office
@@ -481,7 +561,7 @@ export function InvoiceDetailModal({
             </div>
 
             {/* Footer signature */}
-            <div className="mt-10 flex flex-col items-start justify-between gap-6 border-t border-slate-200 pt-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400 md:flex-row md:items-end">
+            <div className="mt-6 flex flex-col items-start justify-between gap-4 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400 md:mt-10 md:gap-6 md:pt-6 md:text-sm md:flex-row md:items-end">
               <p>Document generated on {formatDate(new Date())}</p>
               <div className="text-center md:min-w-[220px]">
                 <div className="border-t border-slate-400 pt-2 dark:border-slate-600">
@@ -503,33 +583,35 @@ export function InvoiceDetailModal({
         </div>
 
         {/* Action bar */}
-        <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-950">
+        <div className="flex shrink-0 flex-col gap-2 border-t border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-700 dark:bg-slate-950 md:flex-row md:items-center md:justify-end md:gap-3 md:px-5 md:py-4">
           {showSendReminder && (
             <button
               type="button"
               onClick={() => onSendReminder?.(invoice)}
               disabled={isSendingReminder}
-              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300 md:w-auto md:py-2"
             >
               <Mail className="h-4 w-4" />
               {isSendingReminder ? "Sending..." : "Email Reminder"}
             </button>
           )}
-          <button
-            type="button"
-            onClick={handlePrintInvoice}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-          >
-            <Printer className="h-4 w-4" />
-            Print Bill
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg bg-blue-800 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-900"
-          >
-            Close
-          </button>
+          <div className="grid grid-cols-2 gap-2 md:flex md:gap-3">
+            <button
+              type="button"
+              onClick={handlePrintInvoice}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 md:w-auto md:px-4 md:py-2"
+            >
+              <Printer className="h-4 w-4" />
+              Print Bill
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-lg bg-blue-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-900 md:w-auto md:px-5 md:py-2"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
