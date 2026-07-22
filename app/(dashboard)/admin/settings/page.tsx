@@ -761,8 +761,8 @@ export default function SettingsPage() {
       title: "System Security",
       summary: `${security.sessionTimeoutMinutes} min session timeout`,
       content: (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
+        <div className="grid min-w-0 gap-4 md:grid-cols-2">
+          <div className="min-w-0">
             <label className={recordFormFieldLabel}>Session Timeout (minutes)</label>
             <input
               type="number"
@@ -773,7 +773,7 @@ export default function SettingsPage() {
               className="input-field"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className={recordFormFieldLabel}>Password Min Length</label>
             <input
               type="number"
@@ -786,7 +786,7 @@ export default function SettingsPage() {
               className="input-field"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className={recordFormFieldLabel}>Login Attempt Limit</label>
             <input
               type="number"
@@ -797,7 +797,7 @@ export default function SettingsPage() {
               className="input-field"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className={recordFormFieldLabel}>PostgreSQL Backup Schedule</label>
             <select
               value={security.backupFrequency}
@@ -812,23 +812,23 @@ export default function SettingsPage() {
                 </option>
               ))}
             </select>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            <p className="mt-2 break-words text-xs leading-relaxed text-slate-500">
               Saves a full PostgreSQL backup for this school on the server. Choose daily, weekly,
               monthly, or yearly.
             </p>
           </div>
-          <label className="flex items-center gap-2 md:col-span-2">
+          <label className="flex items-start gap-2 md:col-span-2">
             <input
               type="checkbox"
               checked={security.require2faForAdmins}
               onChange={(e) =>
                 setSecurity((current) => ({ ...current, require2faForAdmins: e.target.checked }))
               }
-              className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
             />
-            <span className="text-sm text-slate-600">Require 2FA for admins</span>
+            <span className="break-words text-sm text-slate-600">Require 2FA for admins</span>
           </label>
-          <p className="text-xs leading-relaxed text-slate-500 md:col-span-2">
+          <p className="break-words text-xs leading-relaxed text-slate-500 md:col-span-2">
             Admin 2FA sends a 6-digit verification code by email after the password is entered.
             Configure Brevo SMTP under Communication Settings for reliable delivery.
             {security.require2faForAdmins ? (
@@ -848,8 +848,8 @@ export default function SettingsPage() {
               </span>
             )}
           </p>
-          <div className="md:col-span-2 space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
-            <div className="text-sm text-slate-600">
+          <div className="min-w-0 space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 md:col-span-2 md:px-4 md:py-4">
+            <div className="break-words text-sm text-slate-600">
               {serverBackupStatus?.statusLabel ??
                 "Server backup status will appear here after the first PostgreSQL backup."}
             </div>
@@ -858,7 +858,7 @@ export default function SettingsPage() {
                 Next scheduled backup: {new Date(serverBackupStatus.nextDueAt).toLocaleString()}
               </p>
             ) : null}
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
               <button
                 type="button"
                 disabled={!currentSchool || isCreatingBackup}
@@ -880,7 +880,7 @@ export default function SettingsPage() {
                     setIsCreatingBackup(false);
                   }
                 }}
-                className="btn-secondary disabled:opacity-60"
+                className="btn-secondary w-full sm:w-auto disabled:opacity-60"
               >
                 <Download className="h-4 w-4" />
                 {isCreatingBackup ? "Creating Backup..." : "Create Server Backup Now"}
@@ -891,7 +891,7 @@ export default function SettingsPage() {
                   onClick={() =>
                     downloadSchoolBackupFile(currentSchool.id, serverBackupStatus.meta.lastFile!)
                   }
-                  className="btn-secondary"
+                  className="btn-secondary w-full sm:w-auto"
                 >
                   <Download className="h-4 w-4" />
                   Download Latest Backup
@@ -899,21 +899,21 @@ export default function SettingsPage() {
               ) : null}
             </div>
             {serverBackupStatus?.files?.length ? (
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+              <div className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-3">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
                   Saved backups on server
                 </p>
                 <ul className="space-y-2 text-sm text-slate-700">
                   {serverBackupStatus.files.slice(0, 5).map((file) => (
-                    <li key={file.filename} className="flex items-center justify-between gap-3">
-                      <span className="truncate">{file.filename}</span>
+                    <li key={file.filename} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                      <span className="break-all">{file.filename}</span>
                       <button
                         type="button"
                         onClick={() =>
                           currentSchool &&
                           downloadSchoolBackupFile(currentSchool.id, file.filename)
                         }
-                        className="text-teal-700 hover:underline"
+                        className="self-start text-teal-700 hover:underline sm:shrink-0"
                       >
                         Download
                       </button>
@@ -929,7 +929,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <PageHeader
         badge="Admin"
         title="System Settings"
@@ -952,39 +952,39 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         {sections.map((section) => (
-          <div key={section.title} className="surface-card overflow-hidden">
+          <div key={section.title} className="surface-card min-w-0 overflow-hidden">
             <button
               type="button"
               onClick={() =>
                 setEditingSection(editingSection === section.title ? null : section.title)
               }
-              className="flex w-full items-center justify-between border-b border-slate-200 bg-slate-50/80 px-6 py-4 text-left transition hover:bg-slate-100"
+              className="flex w-full min-w-0 items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 text-left transition hover:bg-slate-100 md:items-center md:px-6 md:py-4"
             >
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">{section.title}</h2>
-                <p className="mt-0.5 text-sm text-slate-500">{section.summary}</p>
+              <div className="min-w-0 flex-1">
+                <h2 className="break-words text-base font-semibold text-slate-900">{section.title}</h2>
+                <p className="mt-0.5 break-words text-sm text-slate-500">{section.summary}</p>
               </div>
-              <span className="text-lg text-slate-400">{editingSection === section.title ? "−" : "+"}</span>
+              <span className="shrink-0 text-lg text-slate-400">{editingSection === section.title ? "−" : "+"}</span>
             </button>
 
             {editingSection === section.title && (
-              <div className="space-y-6 p-6">
+              <div className="min-w-0 space-y-6 p-4 md:p-6">
                 {section.content}
 
-                <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+                <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end sm:gap-3">
                   <button
                     type="button"
                     onClick={() => resetSection(section.title)}
-                    className="btn-secondary"
+                    className="btn-secondary w-full sm:w-auto"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSave(section.title)}
-                    className="btn-primary"
+                    className="btn-primary w-full sm:w-auto"
                   >
                     <Save className="h-4 w-4" />
                     Save Changes
@@ -996,16 +996,16 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <div className="grid min-w-0 gap-4 md:grid-cols-2">
+        <div className="flex min-w-0 gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-          <div>
-            <p className="font-semibold text-amber-900">
+          <div className="min-w-0">
+            <p className="break-words font-semibold text-amber-900">
               {isWhatsAppDeliveryConfigured(communication)
                 ? "WhatsApp Alerts Ready"
                 : "WhatsApp Not Linked Yet"}
             </p>
-            <p className="mt-1 text-sm text-amber-800">
+            <p className="mt-1 break-words text-sm text-amber-800">
               {isWhatsAppDeliveryConfigured(communication)
                 ? "Automated WhatsApp alerts will send from your linked school number."
                 : "Click Connect WhatsApp above and scan the QR code to enable free automated messages."}
@@ -1013,13 +1013,13 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <div className="flex min-w-0 gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
           <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
             i
           </div>
-          <div>
-            <p className="font-semibold text-blue-900">Automatic Backups</p>
-            <p className="mt-1 text-sm text-blue-800">
+          <div className="min-w-0">
+            <p className="break-words font-semibold text-blue-900">Automatic Backups</p>
+            <p className="mt-1 break-words text-sm text-blue-800">
               {serverBackupStatus?.statusLabel ??
                 "Configure PostgreSQL backup frequency above."}
             </p>
