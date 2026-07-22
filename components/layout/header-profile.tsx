@@ -78,9 +78,9 @@ export function HeaderProfile() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white py-1.5 pl-1.5 pr-3 shadow-sm transition-colors hover:bg-slate-50"
+        className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white pl-1 pr-2 shadow-sm transition-colors hover:bg-slate-50 sm:gap-2.5 sm:py-1.5 sm:pl-1.5 sm:pr-3"
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-xs font-bold text-white shadow-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-[11px] font-bold text-white shadow-sm sm:h-9 sm:w-9 sm:text-xs">
           {getInitials(userSession.name)}
         </div>
         <div className="hidden text-left sm:block">
@@ -93,7 +93,7 @@ export function HeaderProfile() {
         </div>
         <ChevronDown
           className={cn(
-            "h-4 w-4 text-slate-400 transition-transform",
+            "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform sm:h-4 sm:w-4",
             open && "rotate-180",
           )}
         />

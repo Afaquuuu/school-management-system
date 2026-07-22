@@ -281,7 +281,7 @@ export function DashboardShell({
             <div className="dashboard-header-grid">
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden"
+                className="dashboard-header-menu-btn"
                 onClick={() => setMobileNavOpen((open) => !open)}
                 aria-label="Toggle navigation"
               >
@@ -306,7 +306,7 @@ export function DashboardShell({
                   <button
                     type="button"
                     onClick={handleOpenNotifications}
-                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50"
+                    className="dashboard-header-icon-btn"
                     aria-label="Notifications"
                   >
                     <Bell className="h-4 w-4" />
@@ -319,7 +319,7 @@ export function DashboardShell({
                     <div
                       className={cn(
                         "absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg",
-                        "max-md:fixed max-md:inset-x-4 max-md:top-[4.25rem] max-md:mt-0 max-md:w-auto",
+                        "max-md:fixed max-md:inset-x-4 max-md:top-[3.75rem] max-md:mt-0 max-md:w-auto",
                       )}
                     >
                       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">

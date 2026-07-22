@@ -862,6 +862,7 @@ body {
 
   .dashboard-header-grid {
     @apply grid w-full items-center gap-3 px-4 py-3 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,38rem)_minmax(0,1fr)] lg:gap-6 lg:px-8;
+    @apply max-md:flex max-md:items-center max-md:justify-between max-md:gap-2 max-md:py-2.5;
   }
 
   .dashboard-header-search {
@@ -869,7 +870,15 @@ body {
   }
 
   .dashboard-header-actions {
-    @apply flex items-center justify-end gap-2 lg:col-start-3;
+    @apply flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 lg:col-start-3;
+  }
+
+  .dashboard-header-menu-btn {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden;
+  }
+
+  .dashboard-header-icon-btn {
+    @apply relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50;
   }
 
   .dashboard-breadcrumb {
