@@ -1307,12 +1307,12 @@ export default function AttendancePage() {
 
       {/* Saved Attendance Records */}
       {attendanceView === "records" && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 md:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
               {isChildScopedView ? "My Attendance Records" : "Saved Attendance Records"}
             </h3>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isChildScopedView && enrolledClassLabel && (
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                   {enrolledClassLabel}
@@ -1321,7 +1321,7 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={handleExportAttendance}
-                className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700 sm:w-auto"
               >
                 <Download className="h-4 w-4" />
                 Export
@@ -1362,13 +1362,13 @@ export default function AttendancePage() {
               return (
               <div 
                 key={index}
-                className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600"
+                className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-600 dark:bg-slate-700/50 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <Calendar className="w-6 h-6 text-blue-600" />
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="shrink-0 rounded-lg bg-blue-100 p-2.5 dark:bg-blue-900/30 sm:p-3">
+                    <Calendar className="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-semibold text-slate-900 dark:text-slate-50">
                       {record.class}
                     </p>
@@ -1377,7 +1377,7 @@ export default function AttendancePage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end sm:gap-3">
                   {isChildScopedView && statusBadge ? (
                     <span
                       className={`rounded-lg px-3 py-1 text-sm font-semibold text-white ${statusBadge.color}`}
@@ -1385,14 +1385,14 @@ export default function AttendancePage() {
                       {statusBadge.label}
                     </span>
                   ) : (
-                  <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-sm font-semibold">
+                  <span className="rounded-lg bg-green-100 px-3 py-1 text-sm font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
                     {adminRecord?.count} students
                   </span>
                   )}
                   {isChildScopedView || isAdminView ? (
                     <button
                       onClick={() => handleViewSavedAttendanceReadOnly(record.date, record.class)}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                      className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                     >
                       View
                     </button>
@@ -1400,13 +1400,13 @@ export default function AttendancePage() {
                     <>
                   <button
                     onClick={() => handleEditSavedAttendance(record.date, record.class)}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                   >
                     View/Edit
                   </button>
                   <button
                     onClick={() => handleDeleteSavedAttendance(record.date, record.class)}
-                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    className="shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
                   >
                     Delete
                   </button>
