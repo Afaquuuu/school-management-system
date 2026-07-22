@@ -1135,6 +1135,118 @@ body {
   }
 }
 
+@media (max-width: 639px) {
+  .auth-shell {
+    overflow-x: hidden;
+    padding: 1rem;
+  }
+
+  .auth-shell > div[class*="max-w-[1240px]"] {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .auth-shell .grid {
+    gap: 1.5rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .auth-shell .grid > section {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .landing-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .landing-nav > div:first-child {
+    min-width: 0;
+  }
+
+  .landing-nav .landing-brand-title {
+    font-size: 1.05rem;
+  }
+
+  .landing-nav img {
+    height: 2.25rem;
+    width: 2.25rem;
+  }
+
+  .landing-demo-btn {
+    width: 100%;
+    border-radius: 0.75rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  .landing-hero-title {
+    font-size: 2rem;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .landing-hero-subtitle {
+    max-width: none;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .landing-feature-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .landing-feature-card {
+    min-height: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    text-align: left;
+  }
+
+  .landing-feature-card svg {
+    height: 3rem;
+    width: 3rem;
+    flex-shrink: 0;
+  }
+
+  .landing-feature-label {
+    margin-top: 0;
+    text-align: left;
+    font-size: 0.875rem;
+    line-height: 1.35;
+  }
+
+  .landing-dashboard-card {
+    padding: 1.25rem;
+  }
+
+  .landing-dashboard-title {
+    font-size: 1.45rem;
+  }
+
+  .landing-info-section {
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+  }
+
+  .landing-info-title {
+    font-size: 1.25rem;
+  }
+
+  .landing-pricing-section {
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+  }
+}
+
 .glass-panel {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
