@@ -316,7 +316,12 @@ export function DashboardShell({
                   </button>
 
                   {notificationsOpen && (
-                    <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                    <div
+                      className={cn(
+                        "absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg",
+                        "max-md:fixed max-md:inset-x-4 max-md:top-[4.25rem] max-md:mt-0 max-md:w-auto",
+                      )}
+                    >
                       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                         <p className="text-sm font-semibold text-slate-900">Notifications</p>
                         {unreadCount > 0 && (
