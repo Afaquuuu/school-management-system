@@ -1065,15 +1065,62 @@ export default function StudentPerformanceAnalyticsPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+            <div className="border-b border-slate-200 p-4 dark:border-slate-700 md:p-6">
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Subject Performance</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="mt-1 break-words text-sm text-slate-600 dark:text-slate-400">
                 {selectedStudent.name} • {formatStudentClassLabel(selectedStudent.className, selectedStudent.section)} • {cycles.find(c => c.id === selectedCycleId)?.name}
               </p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
+
+            <div className="divide-y divide-slate-200 dark:divide-slate-700 md:hidden">
+              {selectedStudent.subjects.map((subject) => {
+                const percentage = (subject.currentScore / subject.maxScore) * 100;
+                const aboveClassAvg = subject.currentScore > subject.classAverage;
+
+                return (
+                  <div key={subject.id} className="space-y-3 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
+                        <BookOpen className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words font-semibold text-slate-900 dark:text-slate-50">{subject.name}</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Class avg: {subject.classAverage}
+                          {aboveClassAvg && (
+                            <span className="ml-1 font-medium text-emerald-600">
+                              (+{(subject.currentScore - subject.classAverage).toFixed(1)})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getGradeColor(subject.grade)}`}>
+                        {subject.grade}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Marks</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-50">{subject.currentScore}</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Max</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-50">{subject.maxScore}</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Score</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-50">{percentage.toFixed(1)}%</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[960px]">
                 <thead className="bg-slate-50 dark:bg-slate-900">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase">Subject</th>
